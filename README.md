@@ -3,7 +3,7 @@
 
 Commands available with Protect.py listed with the set permission levels
 
-<b>•	Permission level 4</b>
+<b><u>•	Permission level 4</u></b>
 
 <b>!forceteamsize</b> (alternatively !forcets)
 
@@ -17,7 +17,7 @@ Removes the server join password.
 
 Usage: !unsetpass
    
-#•	Permission level 5
+<b>•	Permission level 5</b>
 
 <b>!protect</b>
 
