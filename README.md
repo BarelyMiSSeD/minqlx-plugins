@@ -1,7 +1,15 @@
 # minqlx-plugins
 # Protect.py
 
-Commands available with Protect.py listed with the set permission levels
+I created this plugin to allow server admins to put people on a list that would not allow them to be kicked from a server.
+
+I also added the ability to vote players to spectator if they are AFK. I added that because I didn't want someone who can't be kicked to go AFK and get stuck taking up a play slot because he/she can't be kicked.
+
+I received requests to be able to set a teamsize to any size, even it the teamsize you want is lower than the current teamsize actually on each team. With the <i>!forcets</i> command you can do just that.
+
+See below for the command and cvars used with my protect script.
+
+<u>Commands available with Protect.py listed with the set permission levels</u>
 
 <b>•	Permission level 4</b>
 
