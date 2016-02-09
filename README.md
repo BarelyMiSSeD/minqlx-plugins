@@ -9,7 +9,8 @@ I received requests to be able to set a teamsize to any size, even it the teamsi
 
 See below for the command and cvars used with my protect script.
 
-<u>Commands available with Protect.py listed with the set permission levels</u>
+<br><br>
+Commands available with Protect.py listed with the set permission levels
 
 <b>•	Permission level 4</b>
 
