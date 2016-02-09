@@ -26,6 +26,7 @@ Usage: !protect <add|del|check|list> <player id>
 
 
 <b>The following bot settings used in the protect script can be set with the rest of the minqlx bot settings:</b><br>
+
 <b>set qlx_protectMapVoting “1”</b> - Enabling does not allow map voting during match play but does not affect map voting during warm-up<br>
 <b>set qlx_protectAfkVoting “1”</b> - Enabling will allow players to be voted into spectator<br>
 <b>set qlx_protectJoinMapMessage “1”</b> - Sends join message to players if map voting protection is enabled<br>
