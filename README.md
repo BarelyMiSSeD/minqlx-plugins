@@ -30,7 +30,7 @@ Usage: !unsetpass
 
 <b>!protect</b>
 
-Usage: !protect <add|del|check|list> <player id>
+Usage: !protect 'add|del|check|list' 'player id'
 
 
 <br><br>
