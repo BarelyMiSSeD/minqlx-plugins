@@ -40,5 +40,5 @@ Usage: !protect 'add|del|check|list' 'player id'
 <b>set qlx_protectAfkVoting “1”</b> - Enabling will allow players to be voted into spectator<br>
 <b>set qlx_protectJoinMapMessage “1”</b> - Sends join message to players if map voting protection is enabled<br>
 <b>set qlx_protectJoinAfkMessage “1”</b> - Sends join message to players if voting players to spectator is enabled<br>
-<b>set qlx_protectPermissionLevel “5”</b> - Sets the lowest level bot permission level to  automatically protect<br>
+<b>set qlx_protectPermissionLevel “5”</b> - Sets the lowest level bot permission level to  automatically protect. This means anyone with the set permission level or higher will be automatically protected from being kicked.<br>
 
