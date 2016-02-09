@@ -3,14 +3,15 @@
 
 Commands available with Protect.py listed with the set permission levels
 
-#•	Permission level 4
-!forceteamsize (alternatively !forcets)
+<b>•	Permission level 4</b>
+
+<b>!forceteamsize</b> (alternatively !forcets)
 
 Sets the teamsize to the desired level. Will put all players to spectate if there are more players on a team than the desired teamsize.
 
 Usage: ! forcets <wanted teamsize>
    
-!unsetpass
+<b>!unsetpass</b>
 
 Removes the server join password.
 
@@ -18,7 +19,7 @@ Usage: !unsetpass
    
 #•	Permission level 5
 
-!protect
+<b>!protect</b>
 
 Usage: !protect <add|del|check|list> <player id>
 
