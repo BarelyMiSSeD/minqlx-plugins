@@ -3,7 +3,7 @@
 
 Commands available with Protect.py listed with the set permission levels
 
-<b><u>•	Permission level 4</u></b>
+<b>•	Permission level 4</b>
 
 <b>!forceteamsize</b> (alternatively !forcets)
 
@@ -25,7 +25,7 @@ Usage: !protect <add|del|check|list> <player id>
 
 
 
-The following bot settings used in the protect script can be set with the rest of the minqlx bot settings:
+<b>The following bot settings used in the protect script can be set with the rest of the minqlx bot settings:</b>
 set qlx_protectMapVoting “1” - Enabling does not allow map voting during match play but does not affect map voting during warm-up
 set qlx_protectAfkVoting “1” - Enabling will allow players to be voted into spectator
 set qlx_protectJoinMapMessage “1” - Sends join message to players if map voting protection is enabled
