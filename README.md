@@ -24,7 +24,7 @@ Usage: !unsetpass
 Usage: !protect <add|del|check|list> <player id>
 
 
-
+<br><br>
 <b>The following bot settings used in the protect script can be set with the rest of the minqlx bot settings:</b><br>
 
 <b>set qlx_protectMapVoting “1”</b> - Enabling does not allow map voting during match play but does not affect map voting during warm-up<br>
