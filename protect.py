@@ -43,6 +43,7 @@ class protect(minqlx.Plugin):
         self.set_cvar_once("qlx_protectJoinMuteVoting", "1")
 
         self.protectPermission = self.get_cvar("qlx_protectPermissionLevel")
+        self.add_command(("v_protect", "version_protect", "protectversion", "protect_version", "protect_v"), self.protect_version, int(self.protectPermission))
 
         try:
             list = open(self.get_cvar("fs_homepath") + "/protect.txt").readlines()
@@ -64,17 +65,19 @@ class protect(minqlx.Plugin):
                 line = line.replace(b'"', b'')
                 # If called manually and outdated
                 if channel and VERSION.encode() != line:
-                    channel.reply("^7Currently using  BarelyMiSSeD's ^6{}^7 plugin ^1outdated^7 version ^6{}^7.".format(self.__class__.__name__, VERSION))
+                    channel.reply("^7Currently using  ^4BarelyMiSSeD^7's ^6{}^7 plugin ^1outdated^7 version ^6{}^7. The latest version is ^6{}".format(self.__class__.__name__, VERSION, line.decode()))
                 # If called manually and alright
                 elif channel and VERSION.encode() == line:
-                    channel.reply("^7Currently using BarelyMiSSeD's  latest ^6{}^7 plugin version ^6{}^7.".format(self.__class__.__name__, VERSION))
+                    channel.reply("^7Currently using ^4BarelyMiSSeD^7's  latest ^6{}^7 plugin version ^6{}^7.".format(self.__class__.__name__, VERSION))
                 # If routine check and it's not alright.
                 elif player and VERSION.encode() != line:
-                    #time.sleep(15)
                     try:
                         player.tell("^3Plugin update alert^7:^6 {}^7's latest version is ^6{}^7 and you're using ^6{}^7!".format(self.__class__.__name__, line.decode(), VERSION))
                     except Exception as e: minqlx.console_command("echo {}".format(e))
                 return
+
+    def protect_version(self, player, msg, channel):
+        self.check_version(channel=channel)
 
     @minqlx.delay(4)
     def player_loaded(self, player):
