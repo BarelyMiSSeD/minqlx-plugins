@@ -38,6 +38,14 @@ Usage: !unsetpass
 
 Usage: !protect 'add|del|check|list' 'player id|steam id'
 
+<b>•	Permission level set with qlx_protectPermissionLevel</b>
+
+<b>!protectversion</b>
+
+Checks the current protect script version that is running against the version on the GitHub website.
+
+Usage: !protectversion
+
 
 <br><br>
 <b>The following bot settings used in the protect script can be set with the rest of the minqlx bot settings:</b><br>
