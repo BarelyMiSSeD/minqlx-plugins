@@ -26,17 +26,23 @@ Sets the teamsize to the desired level. Will put all players to spectate if ther
 
 Usage: ! forcets <wanted teamsize>
    
-<b>!unsetpass</b>
-
-Removes the server join password.
-
-Usage: !unsetpass
-   
 <b>•	Permission level 5</b>
 
 <b>!protect</b>
 
 Usage: !protect 'add|del|check|list' 'player id|steam id'
+   
+<b>!setpass</b>
+
+Sets the server join password.
+
+Usage: !setpass 'password'
+   
+<b>!unsetpass</b>
+
+Removes the server join password.
+
+Usage: !unsetpass
 
 <b>•	Permission level set with qlx_protectPermissionLevel</b>
 
