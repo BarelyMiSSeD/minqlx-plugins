@@ -16,7 +16,7 @@ I received requests to be able to set a teamsize to any size, even it the teamsi
 See below for the command and cvars used with my protect script.
 
 <br><br>
-Commands available with Protect.py listed with the set permission levels
+Commands available with protect.py listed with the set permission levels
 
 <b>•	Permission level 4</b>
 
@@ -24,7 +24,7 @@ Commands available with Protect.py listed with the set permission levels
 
 Sets the teamsize to the desired level. Will put all players to spectate if there are more players on a team than the desired teamsize.
 
-Usage: ! forcets <wanted teamsize>
+Usage: !forcets <wanted teamsize>
    
 <b>•	Permission level 5</b>
 
@@ -64,3 +64,45 @@ Usage: !protectversion
 <b>qlx_protectMuteVoting “1”</b> - Allows muting and unmuting of a player.<br>
 <b>qlx_protectJoinMuteVoting “1”</b> - Sends join message to players if mute voting is enabled.<br>
 
+# Voteban.py
+
+I created this script to be able to ban the annoying players from voting on the server.
+
+The vote ban is set with an expiration time, set a long time if you want it to be effectively permanent.
+
+<br><br>
+Commands available with voteban.py listed with the default permission levels
+
+<b>•	Permission level 5</b>
+
+<b>!voteban</b> (alternatively !vote_ban)
+
+Bans a player from voting for the set time period.
+
+Usage: !voteban 'clientID|steamID' 'number[0-9]' 'scale[seconds?|minutes?|hours?|days?|weeks?|months?|years?]' 'name'
+
+<b>!voteunban</b> (alternatively !vote_unban)
+
+Unbans a player from voting.
+
+Usage: !voteunban 'clientID|steamID'
+
+<b>!listvoteban</b> (alternatively !list_voteban)
+
+Lists players in the vote ban list, even expired bans that have not been removed.
+
+Usage: !listvoteban
+
+<b>!votebanversion</b>
+
+checks to see if the voteban.py is up to date and lists the version running on the server.
+
+Usage: !votebanversion
+
+<br><br>
+<b>The following bot settings used in the voteban script can be set with the rest of the minqlx bot settings:</b><br>
+The settings are shown with the default settings. Edit them to change the permission levels or on/off status.<br>
+
+<b>set qlx_votebanAdmin "5"</b> - Sets the permisson level needed to add and remove someones server voting privilage. Voting privilage can only be removed from players below the qlx_votebanProtectionLevel setting.<br>
+<b>set qlx_votebanProtectionLevel "5"</b> - If the person being added to the vote ban list has this minqlx server permission level, they can't be added to the vote ban list.<br>
+<b>set qlx_votebanVoteBan "1"</b> - Toruns on/off vote banning. Vote banning will remove voting privilages from a player on the server. (1 is on, 0 is off).<br>
