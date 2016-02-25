@@ -54,15 +54,20 @@ Usage: !protectversion
 
 
 <br><br>
+<b>CVARs</b>
 <b>The following bot settings used in the protect script can be set with the rest of the minqlx bot settings:</b><br>
+Default settings are listed.<br>
 
-<b>set qlx_protectMapVoting “1”</b> - Enabling does not allow map voting during match play but does not affect map voting during warm-up<br>
-<b>set qlx_protectAfkVoting “1”</b> - Enabling will allow players to be voted into spectator<br>
-<b>set qlx_protectJoinMapMessage “1”</b> - Sends join message to players if map voting protection is enabled<br>
-<b>set qlx_protectJoinAfkMessage “1”</b> - Sends join message to players if voting players to spectator is enabled<br>
+<b>set qlx_protectMapVoting “1”</b> - Enabling does not allow map voting during match play but does not affect map voting during warm-up.  ("1" on, "0" off)<br>
+<b>set qlx_protectAfkVoting “1”</b> - Enabling will allow players to be voted into spectator. ("1" on, "0" off)<br>
+<b>set qlx_protectJoinMapMessage “1”</b> - Sends join message to players if map voting protection is enabled. ("1" on, "0" off)<br>
+<b>set qlx_protectJoinAfkMessage “1”</b> - Sends join message to players if voting players to spectator is enabled. ("1" on, "0" off)<br>
 <b>set qlx_protectPermissionLevel “5”</b> - Sets the lowest level bot permission level to  automatically protect. This means anyone with the set permission level or higher will be automatically protected from being kicked.<br>
-<b>qlx_protectMuteVoting “1”</b> - Allows muting and unmuting of a player.<br>
-<b>qlx_protectJoinMuteVoting “1”</b> - Sends join message to players if mute voting is enabled.<br>
+<b>set qlx_protectMuteVoting “1”</b> - Allows voting muting and unmuting of a player. ("1" on, "0" off)<br>
+<b>set qlx_protectJoinMuteVoting “1”</b> - Sends join message to players if mute voting is enabled. ("1" on, "0" off)<br>
+<b>set qlx_protectAdminLevel "5"</b> - Sets the minqlx server permission level needed to add/del/list the protect list, and display the protect.py version number.<br>
+<b>set qlx_protectPassLevel "5"</b> - Sets the minqlx server permission level needed to set/unset the server join password.<br>
+<b>set qlx_protectFTS "5"</b> - Sets the minqlx server permisson level needed to force teamsize.<br>
 
 # Voteban.py
 
@@ -71,7 +76,7 @@ I created this script to be able to ban the annoying players from voting on the 
 The vote ban is set with an expiration time, set a long time if you want it to be effectively permanent.
 
 <br><br>
-Commands available with voteban.py listed with the default permission levels
+Commands available with voteban.py listed with the default settings
 
 <b>•	Permission level 5</b>
 
@@ -100,9 +105,71 @@ checks to see if the voteban.py is up to date and lists the version running on t
 Usage: !votebanversion
 
 <br><br>
+<b>CVARs</b>
 <b>The following bot settings used in the voteban script can be set with the rest of the minqlx bot settings:</b><br>
 The settings are shown with the default settings. Edit them to change the permission levels or on/off status.<br>
 
-<b>set qlx_votebanAdmin "5"</b> - Sets the permisson level needed to add and remove someones server voting privilage. Voting privilage can only be removed from players below the qlx_votebanProtectionLevel setting.<br>
+<b>set qlx_votebanAdmin "5"</b> - Sets the minqlx server permisson level needed to add and remove someones server voting privilage. Voting privilage can only be removed from players below the qlx_votebanProtectionLevel setting.<br>
 <b>set qlx_votebanProtectionLevel "5"</b> - If the person being added to the vote ban list has this minqlx server permission level, they can't be added to the vote ban list.<br>
-<b>set qlx_votebanVoteBan "1"</b> - Toruns on/off vote banning. Vote banning will remove voting privilages from a player on the server. (1 is on, 0 is off).<br>
+<b>set qlx_votebanVoteBan "1"</b> - Toruns on/off vote banning. Vote banning will remove voting privilages from a player on the server (1 is on, 0 is off).<br>
+
+<br><br>
+#InviteOnly.py
+
+This script was dut to a request I received that would allow you to have an invite only server that wouldn't reply on passwords that can be given to anyone.
+
+The inviteonly.py script will allow an admin to add people to the invite only list which allows them to play on the server.
+
+Anyone not on the invite only list will be kicked from the server or confined to spectator, depending on the script settings.
+
+Players can be allowed to spectate for a settable amount of minutes (default is 3) to allow a server admin to easily add them to the invite only list
+with the connected player's client id (goten from the !id command or the /players command).
+
+The script can also be set to kick people not on the invite only list as soon as they connect to the server.
+
+The permission level needed to admin the invite only list is settable. See the CVAR section below for instructions.
+
+<br><br>
+Commands available with inviteonly.py listed with the default settings
+
+<b>•	Permission level 5</b>
+
+<b>!add_inviteonly</b> (alternatively !addinviteonly)
+
+Adds a player to the invite only list to allow them to play on the server.
+
+Usage: !add_inviteonly 'player id|steam id' 'name'
+
+<b>!del_inviteonly</b> (alternatively !delinviteonly)
+
+Removes a player from the invite only list.
+
+Usage: !del_inviteonly 'player id|steam id'
+
+<b>!list_inviteonly</b> (alternatively !listinviteonly)
+
+Lists players in the invite only list.
+
+Usage: !list_inviteonly
+
+<b>!reload_inviteonly</b> (alternatively !load_inviteonly)
+
+Reloads the invite only list.
+
+Usage: !reload_inviteonly
+
+<b>!inviteonlyversion</b>
+
+checks to see if the inviteonly.py is up to date and lists the version running on the server.
+
+Usage: !inviteonlyversion
+
+<br><br>
+<b>CVARs</b>
+<b>The following bot settings used in the inviteonly script can be set with the rest of the minqlx bot settings:</b><br>
+The settings are shown with the default settings.<br>
+
+<b>set qlx_inviteonlyAdmin "5"</b> - Sets the minqlx server permisson level needed to add and remove someone to/from the invote only list.<br>
+<b>set qlx_invoteonlyAllowSpectator "0"</b> - Set to "1" to allow spectators to remain on the server indefiniltely even when not on the invite only list  (1 is on, 0 is off).<br>
+<b>set qlx_inviteonlySpectatorTime "3"</b> - Sets the amount of time (in minutes) a player can be a spectaror before being kicked if not on the invote only list.<br>
+<i>Set qlx_invoteonlyAllowSpectator and qlx_inviteonlySpectatorTime to "0" to kick players immediately.</i><br>
