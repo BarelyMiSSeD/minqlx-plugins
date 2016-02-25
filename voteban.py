@@ -87,7 +87,7 @@ class voteban(minqlx.Plugin):
     def voteban_version(self, player, msg, channel):
         self.check_version(channel=channel)
 
-    # Checks the vote ban list when a player connects to se if vote ban time has passed.
+    # Checks the vote ban list when a player connects to see if vote ban time has passed.
     def player_loaded(self, player):
         id = int(player.steam_id)
         if id in self.voteban:
@@ -315,7 +315,7 @@ class voteban(minqlx.Plugin):
             player.tell("There are no players connected at the moment.")
 
         file = self.get_cvar("fs_homepath") + "/voteban.txt"
-        list = "^7VoteBan List:\n"
+        list = "^5VoteBan List^7: If Active ^2'EndTime' ^7is in ^2Green\n"
 
         try:
             f = open(file, "r")
@@ -334,13 +334,18 @@ class voteban(minqlx.Plugin):
                 if int(id) == p.steam_id:
                     foundName = p.name
             endTime = " ".join(words[3:5])
+            banEnd = datetime.datetime.strptime(endTime, TIME_FORMAT)
+            if (banEnd - datetime.datetime.now()).total_seconds() >= 0:
+                color = "^2EndTime"
+            else:
+                color = "^7EndTime"
             if not foundName:
-                foundName = " ".join(words[5:])
+                foundName = " ".join(words[5:]).strip("\n")
 
             if foundName:
-                list += " SteamID ^1{} ^7EndTime ^1{}^7: ^3{}\n".format(id, endTime, foundName)
+                list += " ^7SteamID ^1{} {} ^1{}^7: ^3{}\n".format(id, color, endTime, foundName)
             else:
-                list += " SteamID ^1{} ^7EndTime ^1{}^7: ^3No Name saved\n".format(id, endTime)
+                list += " ^7SteamID ^1{} {} ^1{}^7: ^3No Name saved\n".format(id, color, endTime)
 
         player.tell(list[:-1])
         return minqlx.RET_STOP_EVENT
