@@ -1,21 +1,25 @@
 # inviteonly.py is a plugin for minqlx to:
 # -only allow players added to the invoteonly list to play on the server, if enabled
 # created by BarelyMiSSeD on 2-24-16
-# 
+#
 """
 Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
 qlx_inviteonlyAdmin "5" - Sets the minqlx server permisson level needed to add and remove someone from the invite only list.
 qlx_invoteonlyAllowSpectator "0" - Set to "1" to allow spectators to remain on the server indefiniltely even when not on the invite only list.
 qlx_inviteonlySpectatorTime "3" - Sets the amount of time (in minutes) a player can be a spectaror before being kicked if not on the invite only list.
                     Set qlx_invoteonlyAllowSpectator and qlx_inviteonlySpectatorTime to "0" to kick players immediately.
+
+change notes: Added !aio and !dio commands for adding and deleting from the inviteonly list.
 """
+
+
 
 import minqlx
 import re
 import threading
 import requests
 
-VERSION = "v1.00"
+VERSION = "v1.01"
 INVITEONLY_FILE = "/inviteonly.txt"
 
 class inviteonly(minqlx.Plugin):
@@ -35,8 +39,8 @@ class inviteonly(minqlx.Plugin):
         self.adminLevel = int(self.get_cvar("qlx_inviteonlyAdmin"))
 
         # commands
-        self.add_command(("addinviteonly", "add_inviteonly"), self.cmd_inviteOnlyAdd, self.adminLevel)
-        self.add_command(("delinviteonly", "del_inviteonly"), self.cmd_inviteOnlyDelete, self.adminLevel)
+        self.add_command(("addinviteonly", "add_inviteonly", "aio"), self.cmd_inviteOnlyAdd, self.adminLevel)
+        self.add_command(("delinviteonly", "del_inviteonly", "dio"), self.cmd_inviteOnlyDelete, self.adminLevel)
         self.add_command(("listinviteonly", "list_inviteonly"), self.cmd_inviteOnlyList, self.adminLevel)
         self.add_command(("reload_inviteonly", "load_inviteonly"), self.cmd_loadInvites, self.adminLevel)
         self.add_command(("versioninviteonly", "version_inviteonly"), self.cmd_inviteOnlyVersion, self.adminLevel)
@@ -159,7 +163,7 @@ class inviteonly(minqlx.Plugin):
                 player.tell("^1Error ^3reading the Invite Only list: {}".format(e))
 
     def cmd_inviteOnlyAdd(self, player, msg, channel):
-        target_player = False        
+        target_player = False
         file = self.get_cvar("fs_homepath") + INVITEONLY_FILE
         try:
             with open(file) as test:
