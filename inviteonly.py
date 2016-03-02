@@ -8,7 +8,6 @@ qlx_inviteonlyAdmin "5" - Sets the minqlx server permisson level needed to add a
 qlx_invoteonlyAllowSpectator "0" - Set to "1" to allow spectators to remain on the server indefiniltely even when not on the invite only list.
 qlx_inviteonlySpectatorTime "3" - Sets the amount of time (in minutes) a player can be a spectaror before being kicked if not on the invite only list.
                     Set qlx_invoteonlyAllowSpectator and qlx_inviteonlySpectatorTime to "0" to kick players immediately.
-
 change notes: Added !aio and !dio commands for adding and deleting from the inviteonly list.
 """
 
@@ -18,8 +17,9 @@ import minqlx
 import re
 import threading
 import requests
+import datetime
 
-VERSION = "v1.01"
+VERSION = "v1.03"
 INVITEONLY_FILE = "/inviteonly.txt"
 
 class inviteonly(minqlx.Plugin):
@@ -32,6 +32,7 @@ class inviteonly(minqlx.Plugin):
         # monitored server occurrences
         self.add_hook("player_loaded", self.player_loaded)
         self.add_hook("team_switch", self.handle_team_switch)
+        self.add_hook("player_disconnect", self.handle_player_disconnect)
 
         # set script variable values
         self.allowSpec = int(self.get_cvar("qlx_invoteonlyAllowSpectator"))
@@ -41,13 +42,15 @@ class inviteonly(minqlx.Plugin):
         # commands
         self.add_command(("addinviteonly", "add_inviteonly", "aio"), self.cmd_inviteOnlyAdd, self.adminLevel)
         self.add_command(("delinviteonly", "del_inviteonly", "dio"), self.cmd_inviteOnlyDelete, self.adminLevel)
-        self.add_command(("listinviteonly", "list_inviteonly"), self.cmd_inviteOnlyList, self.adminLevel)
-        self.add_command(("reload_inviteonly", "load_inviteonly"), self.cmd_loadInvites, self.adminLevel)
-        self.add_command(("versioninviteonly", "version_inviteonly"), self.cmd_inviteOnlyVersion, self.adminLevel)
+        self.add_command(("listinviteonly", "list_inviteonly", "iol"), self.cmd_inviteOnlyList, self.adminLevel)
+        self.add_command(("reload_inviteonly", "load_inviteonly", "rlio"), self.cmd_loadInvites, self.adminLevel)
+        self.add_command(("versioninviteonly", "version_inviteonly", "iov"), self.cmd_inviteOnlyVersion, self.adminLevel)
         self.add_command("iolist", self.cmd_IOList, 5) # command for testing purposes
 
         # Opens Invite Only list container
         self.inviteonly = []
+        self.notOnIOList = []
+        self.NotInvited = {}
 
         # Loads Invite Only list
         self.cmd_loadInvites()
@@ -85,6 +88,8 @@ class inviteonly(minqlx.Plugin):
     # Command for testing: shows the contents of the self.inviteonly string used to allow only invited player to play.
     def cmd_IOList(self, player, msg, channel):
         player.tell("List: " + str(self.inviteonly))
+        player.tell("NotOnIOList: " + str(self.notOnIOList))
+        player.tell("Length: " + str(len(self.notOnIOList)))
         player.tell("{} {} {}".format(self.allowSpec, self.spectateTime, self.adminLevel))
         if self.spectateTime:
             player.tell("SpectateTime")
@@ -103,29 +108,56 @@ class inviteonly(minqlx.Plugin):
                 player.tell("^2Server^7: ^3You are not on the Invited Player list for this server. "
                             "Speak to a server admin to be added to the list or you will only be able to spectate.")
             elif self.spectateTime:
-                #self.msg("^2Server^7: ^3You are not on the Invited Player list for this server. "
-                #            "Speak to a server admin to be added to the list or you will be kicked in ^1{}^3 minutes.".format(self.spectateTime))
                 player.tell("^2Server^7: ^3You are not on the Invited Player list for this server. "
-                            "Speak to a server admin to be added to the list or you will be kicked in ^1{}^3 minutes.".format(self.spectateTime))
-                # Timer to kick uninvited player
-                notInvited = threading.Timer((self.spectateTime * 60), self.kick_nonInvite, args=[player, id], kwargs=None)
-                notInvited.start()
-            else:
-                self.kick_nonInvite(player, id)
+                            "Speak to a server admin to be added to the list or you will be kicked in ^1{}^3 minute(s).".format(self.spectateTime))
+                player.center_print("^2Server^7: ^3You are not on the Invited Player list for this server. "
+                            "Speak to a server admin to be added to the list or you will be kicked in ^1{}^3 minute(s).".format(self.spectateTime))
+                self.notOnIOList.append(id)
+                name = player.clean_name
+                timeJoined = str(id) + "time"
+                now = datetime.datetime.now()
+                self.NotInvited[str(id)] = name
+                self.NotInvited[timeJoined] = now
 
-    def kick_nonInvite(self, player, id):
-        if id not in self.inviteonly:
-            player.tempban()
-            self.msg("^2Server^7: ^4{} ^3is not on the Invite Only list and was kicked from the server.".format(player))
+                # Timer to kick uninvited player
+                checkIOL = threading.Timer(10, self.check_nonInvite)
+                checkIOL.start()
+            else:
+                player.tempban()
+                self.msg("^2Server^7: ^4{} ^3is not on the Invite Only list and was kicked from the server.".format(player))
+
+    def check_nonInvite(self):
+        if len(self.notOnIOList) > 0:
+            teams = self.teams()
+            for id in self.notOnIOList:
+                for client in teams["spectator"]:
+                    if id == client.steam_id:
+                        timeJoined = str(id) + "time"
+                        now = datetime.datetime.now()
+                        if (now - self.NotInvited[timeJoined]).total_seconds() >= (self.spectateTime * 60):
+                            client.tempban()
+                            self.msg("^2Server^7: ^4{} ^3is not on the Invite Only list and was kicked from the server.".format(client))
+                            self.notOnIOList.remove(id)
+
+            if len(self.notOnIOList) > 0:
+                checkIOL = threading.Timer(10, self.check_nonInvite)
+                checkIOL.start()
+        else:
+            self.NotInvited.clear()
+
+    def handle_player_disconnect(self, player, reason):
+        if player.steam_id in self.notOnIOList:
+            self.notOnIOList.remove(player.steam_id)
 
     def handle_team_switch(self, player, old, new):
         if player.steam_id not in self.inviteonly and new in ['red', 'blue']:
             player.put("spectator")
             player.center_print("^2Server^7: ^6You are not on the Invite Only list of allowed players for this server. Speak to a server admin.")
+            player.tell("^2Server^7: ^6You are not on the Invite Only list of allowed players for this server. Speak to a server admin.")
             if self.allowSpec:
-                player.center_print("^2Server^7: ^6Feel free to continue spectating.")
+                player.tell("^2Server^7: ^6Feel free to continue spectating.")
             else:
-                player.center_print("^2Server^7: ^6You will be kicked soon if an admin does not add you to the Invite Only list.")
+                player.tell("^2Server^7: ^6You will be kicked soon if an admin does not add you to the Invite Only list.")
 
     # Checks for a inviteonly.txt file and loads the entries if the file exists. Creates one if it doesn't.
     def cmd_loadInvites(self, player=None, msg=None, channel=None):
@@ -212,6 +244,15 @@ class inviteonly(minqlx.Plugin):
         h.close()
         self.inviteonly.append(id)
         player.tell("^2{}^3 has been added to the Invite Only list.".format(target_player))
+
+        if id in self.notOnIOList:
+            self.notOnIOList.remove(id)
+            player_list = self.players()
+            for p in player_list:
+                if id == p.steam_id:
+                    minqlx.console_command("tell {} ^3You have been added to the Invited Player list for this server. Enjoy your game!".format(p.id))
+                    return minqlx.RET_STOP_EVENT
+
         return minqlx.RET_STOP_EVENT
 
     # Removes the desired player from the invite only list
