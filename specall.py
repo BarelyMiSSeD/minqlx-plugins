@@ -24,7 +24,7 @@ class specall(minqlx.Plugin):
         self.add_command(("specallforce", "forceallspec", "forcespecall"), self.cmd_specAllForce, int(self.get_cvar("qlx_specallAdminLevel")))
         self.add_command(("v_specall", "version_specall", "specallversion", "specall_version", "specall_v"), self.specAll_version, int(self.get_cvar("qlx_protectAdminLevel")))
 
-    # protect.py version checker. Thanks to iouonegirl for most of this section's code.
+    # specall.py version checker. Thanks to iouonegirl for most of this section's code.
     @minqlx.thread
     def check_version(self, player=None, channel=None):
         url = "https://raw.githubusercontent.com/barelymissed/minqlx-plugins/master/{}.py".format(self.__class__.__name__)
