@@ -173,3 +173,42 @@ The settings are shown with the default settings.<br>
 <b>set qlx_invoteonlyAllowSpectator "0"</b> - Set to "1" to allow spectators to remain on the server indefiniltely even when not on the invite only list  (1 is on, 0 is off).<br>
 <b>set qlx_inviteonlySpectatorTime "3"</b> - Sets the amount of time (in minutes) a player can be a spectaror before being kicked if not on the invote only list.<br>
 <i>Set qlx_invoteonlyAllowSpectator and qlx_inviteonlySpectatorTime to "0" to kick players immediately.</i><br>
+
+<br><br>
+# Specall.py
+
+This script was added to help admins running pickup games.
+
+When the time to start picking teams arrives it can be hard to get everyone to go to spectator so the process can start. This script will put everyone to spectate wth a single command.
+
+If the command is followed by a teamsize, the teamsize will be set to the desired size when everyone is put to spectator.
+
+<br><br>
+Commands available with specall.py listed with the default settings
+
+<b>•	Permission level 5</b>
+
+<b>!specall</b> (alternatively !allspec)
+
+Puts all players to spectator. Include teamsize if you also want to set/change the teamsize (teamsize is not required). This command will not work during an active match.
+
+Usage: !specall 'teamsize'
+
+<b>!forcespecall</b> (alternatively !forceallspec or !specallforce)
+
+Puts all players to spectator. Include teamsize if you also want to set/change the teamsize (teamsize is not required). This command will work at any time, use with caution.
+
+Usage: !forcespecall 'teamsize'
+
+<b>!v_specall</b> (alternatively !versionspecall)
+
+Checks to see if the current released version of specall.py is running on the server.
+
+Usage: !v_specall
+
+<br><br>
+<b>CVAR(s)</b>
+<b>The following bot setting(s) used in the specall script can be set with the rest of the minqlx bot settings:</b><br>
+The setting(s) are shown with the default settings.<br>
+
+<b>qlx_specallAdminLevel "5"</b> - Sets the minqlx server permisson level needed to use the specall.py commands.<br>
