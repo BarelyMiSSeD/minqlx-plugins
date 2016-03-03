@@ -134,19 +134,19 @@ Commands available with inviteonly.py listed with the default settings
 
 <b>•	Permission level 5</b>
 
-<b>!add_inviteonly</b> (alternatively !addinviteonly)
+<b>!add_inviteonly</b> (alternatively !addinviteonly or !aio)
 
 Adds a player to the invite only list to allow them to play on the server.
 
 Usage: !add_inviteonly 'player id|steam id' 'name'
 
-<b>!del_inviteonly</b> (alternatively !delinviteonly)
+<b>!del_inviteonly</b> (alternatively !delinviteonly or !dio)
 
 Removes a player from the invite only list.
 
 Usage: !del_inviteonly 'player id|steam id'
 
-<b>!list_inviteonly</b> (alternatively !listinviteonly)
+<b>!list_inviteonly</b> (alternatively !listinviteonly or !iol)
 
 Lists players in the invite only list.
 
