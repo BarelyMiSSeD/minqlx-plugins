@@ -4,6 +4,8 @@ I created this plugin to create a little bit of fun on the server that doesn't a
 
 The server will respond to things said in the server in chat and with some !commands.
 
+<b>Put the chatfun.py and all the text files in the minqlx plugins directory.</b>
+
 Use <b>!fun</b> to see what commands will get a repsonse.
 
 <br><br>
