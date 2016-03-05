@@ -392,7 +392,7 @@ class chatfun(minqlx.Plugin):
                         with open("./minqlx-plugins/insults.txt", "r") as f:
                             self.lines = f.readlines()
                         i = random.randrange(1, len(self.lines))
-                        channel.reply("^2Server: " + self.lines[i].format(players).rstrip())
+                        channel.reply("^2Server: " + self.lines[i].format(players[0]).rstrip())
                         f.close()
                         self.bot_timer()
                     elif players and len(players) > 1:
