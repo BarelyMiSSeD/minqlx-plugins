@@ -12,6 +12,7 @@ qlx_clanmembersAdmin "5" - Sets the minqlx server permisson level needed to admi
 import minqlx
 import re
 import os
+import requests
 
 _re_remove_excessive_colors = re.compile(r"(?:\^.)+(\^.)")
 _tag_key = "minqlx:players:{}:clantag"
