@@ -69,6 +69,80 @@ Default settings are listed.<br>
 <b>set qlx_protectPassLevel "5"</b> - Sets the minqlx server permission level needed to set/unset the server join password.<br>
 <b>set qlx_protectFTS "5"</b> - Sets the minqlx server permisson level needed to force teamsize.<br>
 
+<br><br>
+# ClanMembers.py
+
+This script was added to help admins manage who wears their clan's tag.
+
+There is no need to load the clan.py script that comes with the minqlx bot if you are using this plugin, 
+but it wont' hurt if you forget.
+
+This works with players trying to set their tag on the server using the !clan command.
+
+It does not protect if people are putting the tag in their steam name. You can ban them if they won't stop.
+
+<br><br>
+Commands available with clanmembers.py listed with the default settings
+
+<b>•	Permission level 0</b>
+
+<b>!clan</b> (alternatively !setclan)
+
+Usage: !clan 'tag'
+
+<b>•	Permission level 5</b>
+
+<b>!acm</b> (alternatively !add_clanmember)
+
+Adds a player to your clan member list which will allow them to set their clan tag to any of the protected tags.
+
+Usage: !acm 'client_id|steam_id name'
+
+<b>!dcm</b> (alternatively !del_clanmember or !remove_clanmember)
+
+Removes a player from your clan member list.
+
+Usage: !dcm 'client_id|steam_id'
+
+<b>!cml</b> (alternatively !listclanmembers or !list_clanmembers)
+
+Lists players added to your clan member list.
+
+Usage: !cml
+
+<b>!act</b> (alternatively !add_clantag)
+
+Adds a clan tag that you want protected so only players on the clan member list can wear the tag on your server.
+Clan tags must be spelled exactly like what you want to protect. Different colors are different tags as are caps and lowercase.
+
+Usage: !act 'clan_tag'
+
+<b>!ctl</b> (alternatively !listclanmembers or !list_clanmembers)
+
+Lists clan tags added to your clan tag protection list.
+
+Usage: !ctl
+
+<b>!rlcm</b> (alternatively !reload_clanmembers or !load_clanmembers)
+
+Reloads the clan members list and the protected clan tags list.
+
+Usage: !rlcm
+
+<b>!cmv</b> (alternatively !versionclanmembers or !version_clanmembers)
+
+Checks to see if your server is running the latest version of the clanmembers.py plugin.
+
+Usage: !cmv
+
+<br><br>
+<b>CVAR(s)</b>
+<b>The following bot setting(s) used in the clanmembers script can be set with the rest of the minqlx bot settings:</b><br>
+The setting(s) are shown with the default settings.<br>
+
+<b>qlx_clanmembersAdmin "5"</b> - Sets the minqlx server permisson level needed to use the clanmembers.py admin commands.<br>
+
+<br><br>
 # Voteban.py
 
 I created this script to be able to ban the annoying players from voting on the server.
