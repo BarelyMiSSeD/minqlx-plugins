@@ -18,9 +18,10 @@ import re
 import threading
 import requests
 import datetime
+import os
 
-VERSION = "v1.03"
-INVITEONLY_FILE = "/inviteonly.txt"
+VERSION = "v1.04"
+INVITEONLY_FILE = "inviteonly.txt"
 
 class inviteonly(minqlx.Plugin):
     def __init__(self):
@@ -162,7 +163,7 @@ class inviteonly(minqlx.Plugin):
     # Checks for a inviteonly.txt file and loads the entries if the file exists. Creates one if it doesn't.
     def cmd_loadInvites(self, player=None, msg=None, channel=None):
         try:
-            f = open(self.get_cvar("fs_homepath") + INVITEONLY_FILE, "r")
+            f = open(os.path.join(self.get_cvar("fs_homepath"), INVITEONLY_FILE), "r")
             lines = f.readlines()
             f.close()
             tempList = []
@@ -175,7 +176,7 @@ class inviteonly(minqlx.Plugin):
             self.inviteonly = tempList
         except IOError as e:
             try:
-                m = open(self.get_cvar("fs_homepath") + INVITEONLY_FILE, "w")
+                m = open(os.path.join(self.get_cvar("fs_homepath"), INVITEONLY_FILE), "w")
                 m.write("# This is a commented line because it starts with a '#'\n")
                 m.write("# Enter every invite only SteamID and name on a newline, format: SteamID Name\n")
                 m.write("# The NAME is for a mental reference and may contain spaces but is required.\n")
@@ -195,8 +196,11 @@ class inviteonly(minqlx.Plugin):
                 player.tell("^1Error ^3reading the Invite Only list: {}".format(e))
 
     def cmd_inviteOnlyAdd(self, player, msg, channel):
+        if len(msg) < 2:
+            player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
+            return minqlx.RET_STOP_EVENT
         target_player = False
-        file = self.get_cvar("fs_homepath") + INVITEONLY_FILE
+        file = os.path.join(self.get_cvar("fs_homepath"), INVITEONLY_FILE)
         try:
             with open(file) as test:
                 pass
@@ -207,29 +211,25 @@ class inviteonly(minqlx.Plugin):
         # Checks to see if client_id or steam_id was used
         try:
             id = int(msg[1])
-            if 0 <= id <= 63 and len(msg) < 2:
-                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
-                return minqlx.RET_STOP_EVENT
-            elif id > 63 and len(msg) < 3:
-                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
-                return minqlx.RET_STOP_EVENT
             if 0 <= id <= 63:
-                target_player = self.player(id)
+                try:
+                    target_player = self.player(id)
+                except minqlx.NonexistentPlayerError:
+                    player.tell("^3There is no one on the server using that Client ID.")
+                    return minqlx.RET_STOP_EVENT
                 if not target_player:
                     player.tell("^3There is no one on the server using that Client ID.")
                     return minqlx.RET_STOP_EVENT
                 id = int(target_player.steam_id)
+            elif len(msg) < 3 or id < 0:
+                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
+                return minqlx.RET_STOP_EVENT
+            elif len(str(id)) != 17:
+                player.tell("^3The STEAM ID given needs to be 17 digits in length.")
+                return minqlx.RET_STOP_EVENT
         except ValueError:
             player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
             return minqlx.RET_STOP_EVENT
-        except minqlx.NonexistentPlayerError:
-            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-            return minqlx.RET_STOP_EVENT
-        if len(str(id)) != 17:
-            player.tell("^3The STEAM ID given needs to be 17 digits in length.")
-            return minqlx.RET_STOP_EVENT
-
-
 
         if not target_player:
             target_player = " ".join(msg[2:])
@@ -262,7 +262,7 @@ class inviteonly(minqlx.Plugin):
             return minqlx.RET_STOP_EVENT
 
         # Opens the invite only list file.
-        file = self.get_cvar("fs_homepath") + INVITEONLY_FILE
+        file = os.path.join(self.get_cvar("fs_homepath"), INVITEONLY_FILE)
         try:
             f = open(file, "r")
             lines = f.readlines()
@@ -277,16 +277,23 @@ class inviteonly(minqlx.Plugin):
         try:
             id = int(msg[1])
             if 0 <= id <= 63:
-                target_player = self.player(id)
+                try:
+                    target_player = self.player(id)
+                except minqlx.NonexistentPlayerError:
+                    player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
+                    return minqlx.RET_STOP_EVENT
+                if not target_player:
+                    player.tell("^3There is no one on the server using that Client ID.")
+                    return minqlx.RET_STOP_EVENT
                 id = int(target_player.steam_id)
+            elif id < 0:
+                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
+                return minqlx.RET_STOP_EVENT
+            elif len(str(id)) != 17:
+                player.tell("^3The STEAM ID given needs to be 17 digits in length.")
+                return minqlx.RET_STOP_EVENT
         except ValueError:
             player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
-            return minqlx.RET_STOP_EVENT
-        except minqlx.NonexistentPlayerError:
-            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-            return minqlx.RET_STOP_EVENT
-        if len(str(id)) != 17:
-            player.tell("^3The STEAM ID given needs to be 17 digits in length.")
             return minqlx.RET_STOP_EVENT
 
         if target_player:
@@ -319,7 +326,7 @@ class inviteonly(minqlx.Plugin):
         if not player_list:
             player.tell("There are no players connected at the moment.")
 
-        file = self.get_cvar("fs_homepath") + INVITEONLY_FILE
+        file = os.path.join(self.get_cvar("fs_homepath"), INVITEONLY_FILE)
         try:
             f = open(file, "r")
             lines = f.readlines()
