@@ -117,6 +117,12 @@ Clan tags must be spelled exactly like what you want to protect. Different color
 
 Usage: !act 'clan_tag'
 
+<b>!dct</b> (alternatively !del_clantag)
+
+Deletes a clan tag that you had protected.
+
+Usage: !dct 'clan_tag'
+
 <b>!ctl</b> (alternatively !listclanmembers or !list_clanmembers)
 
 Lists clan tags added to your clan tag protection list.
