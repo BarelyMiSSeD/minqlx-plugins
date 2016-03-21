@@ -16,6 +16,7 @@ import minqlx
 from threading import Timer
 import random
 from numbers import Number
+import requests
 
 VERSION = "v1.01"
 
