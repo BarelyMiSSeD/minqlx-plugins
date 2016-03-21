@@ -9,7 +9,6 @@ qlx_chatfunAdmin "4" - Sets the minqlx permission level needed to turn the chatf
                         !chatfun <on|off>. This will override the qlx_chatfunReply setting until the server is restarted.
 qlx_chatfunPauseTime "5" - Sets the amount of seconds between each response from the server.
 qlx_chatfunReply "1" - Turns on/off the auto responses from the server to trigger text said in normal chat.
-
 The command !fun will display a list of commands that players can use to interact with the server.
 """
 
@@ -17,6 +16,8 @@ import minqlx
 from threading import Timer
 import random
 from numbers import Number
+
+VERSION = "v1.01"
 
 class chatfun(minqlx.Plugin):
     def __init__(self):
@@ -26,6 +27,7 @@ class chatfun(minqlx.Plugin):
         self.set_cvar_once("qlx_chatfunReply", "1")
         self.set_cvar_once("qlx_chatfunAdmin", "4")
 
+        self.add_hook("player_loaded", self.player_loaded)
         self.add_hook("chat", self.monitor_chat)
         self.add_command("cookie", self.cmd_cookie)
         self.add_command("stfu", self.cmd_stfu)
@@ -39,6 +41,7 @@ class chatfun(minqlx.Plugin):
         self.add_command("insult", self.cmd_insult, usage="|player id or player name|")
         self.add_command("chatfun", self.cmd_chat_monitor, int(self.get_cvar("qlx_chatfunAdmin")), usage="<on/off>")
         self.add_command("fun", self.cmd_fun)
+        self.add_command(("chatfunversion", "chatfun_version", "cfv"), self.chatfun_version, int(self.get_cvar("qlx_chatfunAdmin")))
 
         self.ct = {}
         self.ct["time"] = 0
@@ -47,6 +50,41 @@ class chatfun(minqlx.Plugin):
             self.enable_chat = "On"
         else:
             self.enable_chat = "Off"
+
+    # chatfun.py version checker. Thanks to iouonegirl for most of this section's code.
+    @minqlx.thread
+    def check_version(self, player=None, channel=None):
+        url = "https://raw.githubusercontent.com/barelymissed/minqlx-plugins/master/{}/{}.py".format(self.__class__.__name__, self.__class__.__name__)
+        res = requests.get(url)
+        if res.status_code != requests.codes.ok:
+            return
+        for line in res.iter_lines():
+            if line.startswith(b'VERSION'):
+                line = line.replace(b'VERSION = ', b'')
+                line = line.replace(b'"', b'')
+                # If called manually and outdated
+                if channel and VERSION.encode() != line:
+                    channel.reply("^4Server: ^7Currently using  ^4BarelyMiSSeD^7's ^6{}^7 plugin ^1outdated^7 version ^6{}^7. The latest version is ^6{}".format(self.__class__.__name__, VERSION, line.decode()))
+                    channel.reply("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
+                # If called manually and alright
+                elif channel and VERSION.encode() == line:
+                    channel.reply("^4Server: ^7Currently using ^4BarelyMiSSeD^7's  latest ^6{}^7 plugin version ^6{}^7.".format(self.__class__.__name__, VERSION))
+                    channel.reply("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
+                # If routine check and it's not alright.
+                elif player and VERSION.encode() != line:
+                    try:
+                        player.tell("^4Server: ^3Plugin update alert^7:^6 {}^7's latest version is ^6{}^7 and you're using ^6{}^7!".format(self.__class__.__name__, line.decode(), VERSION))
+                        player.tell("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
+                    except Exception as e: minqlx.console_command("echo {}".format(e))
+                return
+
+    def chatfun_version(self, player, msg, channel):
+        self.check_version(channel=channel)
+
+    @minqlx.delay(4)
+    def player_loaded(self, player):
+        if player.steam_id == minqlx.owner():
+            self.check_version(player=player)
 
     def bot_timer(self):
         self.ct["time"] = 1
@@ -264,7 +302,11 @@ class chatfun(minqlx.Plugin):
                     ident = int(msg[1])
                     if ident < 0 or ident >= 64:
                         return minqlx.RET_USAGE
-                    n = self.player(ident)
+                    try:
+                        n = self.player(ident)
+                    except minqlx.NonexistentPlayerError:
+                        player.tell("^3No players match the client ID supplied.")
+                        return
                     if n:
                         with open("./minqlx-plugins/hit.txt", "r") as f:
                             self.lines = f.readlines()
@@ -272,6 +314,8 @@ class chatfun(minqlx.Plugin):
                         channel.reply("^2Server: " + self.lines[i].format(player, n).rstrip())
                         f.close()
                         self.bot_timer()
+                    else:
+                        player.tell("^3No players match the client ID supplied.")
             else:
                 with open("./minqlx-plugins/hit.txt", "r") as f:
                     self.lines = f.readlines()
@@ -311,7 +355,11 @@ class chatfun(minqlx.Plugin):
                     ident = int(msg[1])
                     if ident < 0 or ident >= 64:
                         return minqlx.RET_USAGE
-                    n = self.player(ident)
+                    try:
+                        n = self.player(ident)
+                    except minqlx.NonexistentPlayerError:
+                        player.tell("^3No players match the client ID supplied.")
+                        return
                     if n:
                         with open("./minqlx-plugins/kill.txt", "r") as f:
                             self.lines = f.readlines()
@@ -319,6 +367,8 @@ class chatfun(minqlx.Plugin):
                         channel.reply("^2Server: " + self.lines[i].format(player, n).rstrip())
                         f.close()
                         self.bot_timer()
+                    else:
+                        player.tell("^3No players match the client ID supplied.")
             else:
                 with open("./minqlx-plugins/kill.txt", "r") as f:
                     self.lines = f.readlines()
@@ -357,7 +407,11 @@ class chatfun(minqlx.Plugin):
                     ident = int(msg[1])
                     if ident < 0 or ident >= 64:
                         return minqlx.RET_USAGE
-                    n = self.player(ident)
+                    try:
+                        n = self.player(ident)
+                    except minqlx.NonexistentPlayerError:
+                        player.tell("^3No players match the client ID supplied.")
+                        return
                     if n:
                         with open("./minqlx-plugins/beer.txt", "r") as f:
                             self.lines = f.readlines()
@@ -365,6 +419,8 @@ class chatfun(minqlx.Plugin):
                         channel.reply("^2Server: " + self.lines[i].format(player, n).rstrip())
                         f.close()
                         self.bot_timer()
+                    else:
+                        player.tell("^3No players match the client ID supplied.")
             else:
                 with open("./minqlx-plugins/beer.txt", "r") as f:
                     self.lines = f.readlines()
@@ -403,7 +459,11 @@ class chatfun(minqlx.Plugin):
                     ident = int(msg[1])
                     if ident < 0 or ident >= 64:
                         return minqlx.RET_USAGE
-                    n = self.player(ident)
+                    try:
+                        n = self.player(ident)
+                    except minqlx.NonexistentPlayerError:
+                        player.tell("^3No players match the client ID supplied.")
+                        return
                     if n:
                         with open("./minqlx-plugins/insults.txt", "r") as f:
                             self.lines = f.readlines()
@@ -411,5 +471,7 @@ class chatfun(minqlx.Plugin):
                         channel.reply("^2Server: " + self.lines[i].format(n).rstrip())
                         f.close()
                         self.bot_timer()
+                    else:
+                        player.tell("^3No players match the client ID supplied.")
             else:
                 return minqlx.RET_USAGE
