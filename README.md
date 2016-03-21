@@ -123,7 +123,7 @@ Deletes a clan tag that you had protected.
 
 Usage: !dct 'clan_tag'
 
-<b>!ctl</b> (alternatively !listclanmembers or !list_clanmembers)
+<b>!ctl</b> (alternatively !listclantag or !listclantags)
 
 Lists clan tags added to your clan tag protection list.
 
