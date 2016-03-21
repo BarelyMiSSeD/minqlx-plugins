@@ -17,7 +17,7 @@ import requests
 _re_remove_excessive_colors = re.compile(r"(?:\^.)+(\^.)")
 _tag_key = "minqlx:players:{}:clantag"
 
-VERSION = "v1.00"
+VERSION = "v1.01"
 
 CLAN_MEMBER_FILE = "clanmembers.txt"
 
@@ -27,6 +27,7 @@ class clanmembers(minqlx.Plugin):
 
         admin = int(self.get_cvar("qlx_clanmembersAdmin"))
 
+        self.add_hook("player_loaded", self.player_loaded)
         self.add_hook("set_configstring", self.handle_set_configstring)
         self.add_command(("clan", "setclan"), self.cmd_clan, usage="<clan_tag>", client_cmd_perm=0)
         self.add_command(("add_clanmember", "acm"), self.cmd_addClanMember, admin)
@@ -87,13 +88,21 @@ class clanmembers(minqlx.Plugin):
     def cmd_clanMembersVersion(self, player, msg, channel):
         self.check_version(channel=channel)
 
+    @minqlx.delay(4)
+    def player_loaded(self, player):
+        if player.steam_id == minqlx.owner():
+            self.check_version(player=player)
+
     def handle_set_configstring(self, index, value):
         # The engine strips cn and xcn, so we can safely append it
         # without having to worry about duplicate entries.
         if not value: # Player disconnected?
             return
         elif 529 <= index < 529 + 64:
-            player = self.player(index - 529)
+            try:
+                player = self.player(index - 529)
+            except minqlx.NonexistentPlayerError:
+                return
             if not player:
                 # This happens when someone connects, but the player
                 # has yet to be properly initialized. We can safely
@@ -115,21 +124,21 @@ class clanmembers(minqlx.Plugin):
                 del cs["xcn"]
                 new_cs = "".join(["\\{}\\{}".format(key, cs[key]) for key in cs]).lstrip("\\")
                 minqlx.set_configstring(index, new_cs)
-                player.tell("The clan tag has been cleared.")
+                player.tell("^3The clan tag has been cleared.")
             else:
-                player.tell("Usage to set a clan tag: ^6{} <clan_tag>".format(msg[0]))
+                player.tell("^3Usage to set a clan tag: ^6{} <clan_tag>".format(msg[0]))
             return minqlx.RET_STOP_EVENT
 
         cleanTag = self.clean_text(msg[1])
         if len(cleanTag) > 5:
-            player.tell("The clan tag can only be at most 5 characters long, excluding colors.")
+            player.tell("^3The clan tag can only be at most 5 characters long, excluding colors.")
             return minqlx.RET_STOP_EVENT
 
         tag = self.clean_tag(msg[1])
         if cleanTag in self.clanTag or tag in self.clanTag:
             steamID = player.steam_id
             if steamID not in self.clanTagMembers:
-                player.tell("You must be added to the clan members list to put that tag on in this server.")
+                player.tell("^3You must be added to the clan members list to put that tag on in this server.")
                 return minqlx.RET_STOP_EVENT
         
         # If the player already has a clan, we need to edit the current
@@ -199,6 +208,9 @@ class clanmembers(minqlx.Plugin):
         return minqlx.RET_STOP_EVENT
 
     def cmd_addClanMember(self, player, msg, channel):
+        if len(msg) < 2:
+            player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
+            return minqlx.RET_STOP_EVENT
         target_player = False
         file = os.path.join(self.get_cvar("fs_homepath"), CLAN_MEMBER_FILE)
         try:
@@ -211,26 +223,24 @@ class clanmembers(minqlx.Plugin):
         # Checks to see if client_id or steam_id was used
         try:
             id = int(msg[1])
-            if 0 <= id <= 63 and len(msg) < 2:
-                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
-                return minqlx.RET_STOP_EVENT
-            elif id > 63 and len(msg) < 3:
-                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
-                return minqlx.RET_STOP_EVENT
             if 0 <= id <= 63:
-                target_player = self.player(id)
+                try:
+                    target_player = self.player(id)
+                except minqlx.NonexistentPlayerError:
+                    player.tell("^3There is no player using that client ID. Please check the client ID and try again.")
+                    return minqlx.RET_STOP_EVENT
                 if not target_player:
-                    player.tell("^3There is no one on the server using that Client ID.")
+                    player.tell("^3There is no player using that client ID. Please check the client ID and try again.")
                     return minqlx.RET_STOP_EVENT
                 id = int(target_player.steam_id)
+            elif len(msg) < 3 or id < 0:
+                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
+                return minqlx.RET_STOP_EVENT
+            elif len(str(id)) != 17:
+                player.tell("^3The STEAM ID given needs to be 17 digits in length.")
+                return minqlx.RET_STOP_EVENT
         except ValueError:
             player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
-            return minqlx.RET_STOP_EVENT
-        except minqlx.NonexistentPlayerError:
-            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-            return minqlx.RET_STOP_EVENT
-        if len(str(id)) != 17:
-            player.tell("^3The STEAM ID given needs to be 17 digits in length.")
             return minqlx.RET_STOP_EVENT
 
 
@@ -273,16 +283,22 @@ class clanmembers(minqlx.Plugin):
         try:
             id = int(msg[1])
             if 0 <= id <= 63:
-                target_player = self.player(id)
+                try:
+                    target_player = self.player(id)
+                except minqlx.NonexistentPlayerError:
+                    player.tell("^3There is no player using that client ID. Please check the client ID and try again.")
+                    return minqlx.RET_STOP_EVENT
+                if not target_player:
+                    player.tell("^3There is no player using that client ID. Please check the client ID and try again.")
                 id = int(target_player.steam_id)
+            elif id < 0:
+                player.tell("^3usage^7=^7<^2player id^7|^2steam id^7> <^2name^7>")
+                return minqlx.RET_STOP_EVENT
+            elif len(str(id)) != 17:
+                player.tell("^3The STEAM ID given needs to be 17 digits in length.")
+                return minqlx.RET_STOP_EVENT
         except ValueError:
             player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
-            return minqlx.RET_STOP_EVENT
-        except minqlx.NonexistentPlayerError:
-            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-            return minqlx.RET_STOP_EVENT
-        if len(str(id)) != 17:
-            player.tell("^3The STEAM ID given needs to be 17 digits in length.")
             return minqlx.RET_STOP_EVENT
 
         if target_player:
