@@ -22,9 +22,10 @@ import minqlx
 import re
 import threading
 import requests
+import os
 
-VERSION = "v1.03"
-PROTECT_FILE = "/protect.txt"
+VERSION = "v1.04"
+PROTECT_FILE = "protect.txt"
 
 class protect(minqlx.Plugin):
     def __init__(self):
@@ -51,7 +52,7 @@ class protect(minqlx.Plugin):
         self.add_command("setpass", self.cmd_setpass, int(self.get_cvar("qlx_protectPassLevel")))
         self.add_command("unsetpass", self.cmd_unsetpass, int(self.get_cvar("qlx_protectPassLevel")))
         self.add_command(("forcets", "forceteamsize"), self.teamsize_force, int(self.get_cvar("qlx_protectFTS")), usage="<wanted_teamsize>")
-        self.add_command(("v_protect", "version_protect", "protectversion", "protect_version", "protect_v"), self.protect_version, int(self.get_cvar("qlx_protectAdminLevel")))
+        self.add_command(("protectversion", "protect_version"), self.protect_version, int(self.get_cvar("qlx_protectAdminLevel")))
         self.add_command("protectlist", self.cmd_protectList, 5) # command for testing purposes
         
         # Opens Protect list container
@@ -198,7 +199,7 @@ class protect(minqlx.Plugin):
     # Checks for a protect.txt file and loads the entries if the file exists. Creates one if it doesn't.
     def cmd_loadProtects(self, player=None, msg=None, channel=None):
         try:
-            f = open(self.get_cvar("fs_homepath") + PROTECT_FILE, "r")
+            f = open(os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE), "r")
             lines = f.readlines()
             f.close()
             tempList = []
@@ -213,7 +214,7 @@ class protect(minqlx.Plugin):
                 player.tell("^3The protect list has been reloaded. ^1!protect list ^3 to see current load.")
         except IOError as e:
             try:
-                m = open(self.get_cvar("fs_homepath") + PROTECT_FILE, "w")
+                m = open(os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE), "w")
                 m.write("# This is a commented line because it starts with a '#'\n")
                 m.write("# Enter every protect SteamID and name on a newline, format: SteamID Name\n")
                 m.write("# The NAME is for a mental reference and may contain spaces.\n")
@@ -239,7 +240,7 @@ class protect(minqlx.Plugin):
             player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
             return minqlx.RET_STOP_EVENT
 
-        file = self.get_cvar("fs_homepath") + PROTECT_FILE
+        file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
         try:
             with open(file) as test:
                 pass
@@ -258,16 +259,23 @@ class protect(minqlx.Plugin):
             try:
                 id = int(msg[2])
                 if 0 <= id <= 63:
-                    target_player = self.player(id)
+                    try:
+                        target_player = self.player(id)
+                    except minqlx.NonexistentPlayerError:
+                        player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
+                        return minqlx.RET_STOP_EVENT
+                    if not target_player:
+                        player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
+                        return minqlx.RET_STOP_EVENT
                     id = int(target_player.steam_id)
+                elif id < 0:
+                    player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> ^7<^2name^7>")
+                    return minqlx.RET_STOP_EVENT
+                elif len(str(id)) != 17:
+                    player.tell("^3The STEAM ID given needs to be 17 digits in length.")
+                    return minqlx.RET_STOP_EVENT
             except ValueError:
                 player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
-                return minqlx.RET_STOP_EVENT
-            except minqlx.NonexistentPlayerError:
-                player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                return minqlx.RET_STOP_EVENT
-            if len(str(id)) != 17:
-                player.tell("^3The STEAM ID given needs to be 17 digits in length.")
                 return minqlx.RET_STOP_EVENT
 
             if target_player:
@@ -299,14 +307,25 @@ class protect(minqlx.Plugin):
             try:
                 id = int(msg[2])
                 if 0 <= id <= 63:
-                    target_player = self.player(id)
+                    try:
+                        target_player = self.player(id)
+                    except minqlx.NonexistentPlayerError:
+                        player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
+                        return minqlx.RET_STOP_EVENT
+                    if not target_player:
+                        player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
+                        return minqlx.RET_STOP_EVENT
                     id = int(target_player.steam_id)
+                elif id < 0:
+                    player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
+                    return minqlx.RET_STOP_EVENT
+                elif len(str(id)) != 17:
+                    player.tell("^3The STEAM ID given needs to be 17 digits in length.")
+                    return minqlx.RET_STOP_EVENT
             except ValueError:
                 player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
                 return minqlx.RET_STOP_EVENT
-            except minqlx.NonexistentPlayerError:
-                player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                return minqlx.RET_STOP_EVENT
+
             f = open(file, "r")
             lines = f.readlines()
             f.close()
@@ -341,18 +360,25 @@ class protect(minqlx.Plugin):
             try:
                 id = int(msg[2])
                 if 0 <= id <= 63:
-                    target_player = self.player(id)
-                    if target_player:
-                        id = int(target_player.steam_id)
-                    else:
-                        player.tell("^3That client ID is not on the server.")
+                    try:
+                        target_player = self.player(id)
+                    except minqlx.NonexistentPlayerError:
+                        player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
                         return minqlx.RET_STOP_EVENT
+                    if not target_player:
+                        player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
+                        return minqlx.RET_STOP_EVENT
+                    id = int(target_player.steam_id)
+                elif id < 0:
+                    player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
+                    return minqlx.RET_STOP_EVENT
+                elif len(str(id)) != 17:
+                    player.tell("^3The STEAM ID given needs to be 17 digits in length.")
+                    return minqlx.RET_STOP_EVENT
             except ValueError:
                 player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
                 return minqlx.RET_STOP_EVENT
-            except minqlx.NonexistentPlayerError:
-                player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                return minqlx.RET_STOP_EVENT
+
             if id in self.protect:
                 if target_player:
                     player.tell("^2{}^3 is in the Protect list.".format(target_player))
@@ -403,7 +429,7 @@ class protect(minqlx.Plugin):
     # Updates the protect.txt file with a player name if one was not previously saved when player was added originally.
     def updateLine(self, player=None, addName=None):
         if len(addName) > 1:
-            file = self.get_cvar("fs_homepath") + PROTECT_FILE
+            file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
             f = open(file, "r")
             lines = f.readlines()
             f.close()
