@@ -19,11 +19,14 @@ import threading
 import requests
 import datetime
 import time
+import os
 
 LENGTH_REGEX = re.compile(r"(?P<number>[0-9]+) (?P<scale>seconds?|minutes?|hours?|days?|weeks?|months?|years?)")
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-VERSION = "v1.00"
+VERSION = "v1.01"
+
+VOTEBAN_FILE = "voteban.txt"
 
 class voteban(minqlx.Plugin):
     def __init__(self):
@@ -44,7 +47,7 @@ class voteban(minqlx.Plugin):
 
         # Checks for a voteban.txt file and loads the entries if the file exists.
         try:
-            list = open(self.get_cvar("fs_homepath") + "/voteban.txt").readlines()
+            list = open(os.path.join(self.get_cvar("fs_homepath"), VOTEBAN_FILE)).readlines()
             self.voteban = []
             for id in list:
                 if id.startswith("#"): continue
@@ -89,9 +92,12 @@ class voteban(minqlx.Plugin):
 
     # Checks the vote ban list when a player connects to see if vote ban time has passed.
     def player_loaded(self, player):
+        if player.steam_id == minqlx.owner():
+            self.check_version(player=player)
+            return
         id = int(player.steam_id)
         if id in self.voteban:
-            f = open(self.get_cvar("fs_homepath") + "/voteban.txt")
+            f = open(os.path.join(self.get_cvar("fs_homepath"), VOTEBAN_FILE), "r")
             list = f.readlines()
             f.close()
             for searchID in list:
@@ -121,7 +127,7 @@ class voteban(minqlx.Plugin):
                         "^7<^2scale^7>seconds?|minutes?|hours?|days?|weeks?|months?|years? |^2name^7 if using steam_id|")
             return minqlx.RET_STOP_EVENT
 
-        file = self.get_cvar("fs_homepath") + "/voteban.txt"
+        file = os.path.join(self.get_cvar("fs_homepath"), VOTEBAN_FILE)
         try:
             with open(file) as test:
                 pass
@@ -255,7 +261,7 @@ class voteban(minqlx.Plugin):
             player.tell("^3usage^7=<^2player id^7|^2steam id^7>")
             return minqlx.RET_STOP_EVENT
 
-        file = self.get_cvar("fs_homepath") + "/voteban.txt"
+        file = os.path.join(self.get_cvar("fs_homepath"), VOTEBAN_FILE)
         try:
             with open(file) as test:
                 pass
@@ -314,7 +320,7 @@ class voteban(minqlx.Plugin):
         if not player_list:
             player.tell("There are no players connected at the moment.")
 
-        file = self.get_cvar("fs_homepath") + "/voteban.txt"
+        file = os.path.join(self.get_cvar("fs_homepath"), VOTEBAN_FILE)
         list = "^5VoteBan List^7: If Active ^2'EndTime' ^7is in ^2Green\n"
 
         try:
