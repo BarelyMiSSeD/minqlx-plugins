@@ -9,8 +9,9 @@ qlx_specallAdminLevel "5" - Sets the minqlx server permission level needed to pu
 """
 
 import minqlx
+import requests
 
-VERSION = "v1.00"
+VERSION = "v1.01"
 
 class specall(minqlx.Plugin):
     def __init__(self):
@@ -22,9 +23,9 @@ class specall(minqlx.Plugin):
         # Commands: permission level is set using some of the Cvars. See the Cvars descrition at the top of the file.
         self.add_command(("specall", "allspec"), self.cmd_specAll, int(self.get_cvar("qlx_specallAdminLevel")))
         self.add_command(("specallforce", "forceallspec", "forcespecall"), self.cmd_specAllForce, int(self.get_cvar("qlx_specallAdminLevel")))
-        self.add_command(("v_specall", "version_specall", "specallversion", "specall_version", "specall_v"), self.specAll_version, int(self.get_cvar("qlx_protectAdminLevel")))
+        self.add_command(("specallversion", "specall_version"), self.specAll_version, int(self.get_cvar("qlx_protectAdminLevel")))
 
-    # specall.py version checker. Thanks to iouonegirl for most of this section's code.
+    # protect.py version checker. Thanks to iouonegirl for most of this section's code.
     @minqlx.thread
     def check_version(self, player=None, channel=None):
         url = "https://raw.githubusercontent.com/barelymissed/minqlx-plugins/master/{}.py".format(self.__class__.__name__)
