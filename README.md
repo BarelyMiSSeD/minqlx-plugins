@@ -81,6 +81,12 @@ This works with players trying to set their tag on the server using the !clan co
 
 It does not protect if people are putting the tag in their steam name. You can ban them if they won't stop.
 
+The protected tags can be stored as you want them to appear when you are listing the protected tags, so store them with colors and case settings of your choice.
+If the TagColors and LetterCase CVARs are not enabled (set to "0" as is the default), then the colors and case you stored with the tag and that the
+player is trying to add are ignored and just the lettering and punctuation is compared. (SO: <b>^2Tag</b> would equal <b>^3tAG</b> or <b>tag</b> or <b>^5tag</b> etc...).
+Coloring and Letter Case can be enforced individually if only one of the CVARs is turned on.
+<b>NOTE:</b> Remember that turning on the Color and Lettering CVARs will make tag enforcement color and/or lettering specific.
+
 <br><br>
 Commands available with clanmembers.py listed with the default settings
 
@@ -113,7 +119,6 @@ Usage: !cml
 <b>!act</b> (alternatively !add_clantag)
 
 Adds a clan tag that you want protected so only players on the clan member list can wear the tag on your server.
-Clan tags must be spelled exactly like what you want to protect. Different colors are different tags as are caps and lowercase.
 
 Usage: !act 'clan_tag'
 
@@ -135,7 +140,7 @@ Reloads the clan members list and the protected clan tags list.
 
 Usage: !rlcm
 
-<b>!cmv</b> (alternatively !versionclanmembers or !version_clanmembers)
+<b>!cmv</b> (alternatively !clanmembersversion or !clanmembers_version)
 
 Checks to see if your server is running the latest version of the clanmembers.py plugin.
 
@@ -146,8 +151,10 @@ Usage: !cmv
 <b>The following bot setting(s) used in the clanmembers script can be set with the rest of the minqlx bot settings:</b><br>
 The setting(s) are shown with the default settings.<br>
 
-<b>qlx_clanmembersAdmin "5"</b> - Sets the minqlx server permisson level needed to use the clanmembers.py admin commands.<br>
-
+<b>set qlx_clanmembersAdmin "5"</b> - Sets the minqlx server permisson level needed to use the clanmembers.py admin commands.<br>
+<b>set qlx_clanmembersTagColors "0" - If on: Tag enforcement will check for exact color matching. If off: tag colors are ignored and only the text is compared. (0 = off, 1 = on)<br>
+<b>set qlx_clanmembersLetterCase "0" - If on: Tag enforcement will check for exact case matching. If off: upper/lower case is ignored. (0 = off, 1 = on)<br>
+<b>set qlx_clanmembersCheckSteamName "1" - Checks for clan tag(s) in player's steam name and renames the player without the clan tag. (0 = off, 1 = on)<br>
 <br><br>
 # Voteban.py
 
