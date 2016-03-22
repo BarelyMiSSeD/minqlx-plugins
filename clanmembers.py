@@ -1,5 +1,5 @@
 # clanmembers.py is a plugin for minqlx to:
-# -only allow players added to the Clan Members list to wear the Clan Tag(s) added to the list.
+# -only allow players added to the Clan Members list to wear the Clan Tag(s) added to the clan tag list.
 # -This is a modified and added to version of clan.py included with the minqlx bot.
 # -There is no need to load clan.py if loading this plugin but loading it won't hurt.
 # created by BarelyMiSSeD on 3-11-16
@@ -7,6 +7,9 @@
 """
 Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
 qlx_clanmembersAdmin "5" - Sets the minqlx server permisson level needed to admin the Clan Members and Clan Tag list.
+qlx_clanmembersTagColors "0" - If on: Tag enforcement will check for exact color matching. If off: tag colors are ignored and only the text is compared. (0 = off, 1 = on)
+qlx_clanmembersLetterCase "0" - If on: Tag enforcement will check for exact case matching. If off: upper/lower case is ignored. (0 = off, 1 = on)
+qlx_clanmembersCheckSteamName "1" - Checks for clan tag(s) in player's steam name and renames the player without the clan tag. (0 = off, 1 = on)
 """
 
 import minqlx
@@ -17,18 +20,22 @@ import requests
 _re_remove_excessive_colors = re.compile(r"(?:\^.)+(\^.)")
 _tag_key = "minqlx:players:{}:clantag"
 
-VERSION = "v1.01"
+VERSION = "v1.02"
 
 CLAN_MEMBER_FILE = "clanmembers.txt"
 
 class clanmembers(minqlx.Plugin):
     def __init__(self):
         self.set_cvar_once("qlx_clanmembersAdmin", "5")
+        self.set_cvar_once("qlx_clanmembersTagColors", "0")
+        self.set_cvar_once("qlx_clanmembersLetterCase", "0")
+        self.set_cvar_once("qlx_clanmembersCheckSteamName", "1")
 
         admin = int(self.get_cvar("qlx_clanmembersAdmin"))
 
         self.add_hook("player_loaded", self.player_loaded)
         self.add_hook("set_configstring", self.handle_set_configstring)
+        self.add_hook("userinfo", self.handle_userinfo, priority=minqlx.PRI_HIGH)
         self.add_command(("clan", "setclan"), self.cmd_clan, usage="<clan_tag>", client_cmd_perm=0)
         self.add_command(("add_clanmember", "acm"), self.cmd_addClanMember, admin)
         self.add_command(("del_clanmember", "dcm", "remove_clanmember"), self.cmd_delClanMember, admin)
@@ -37,7 +44,7 @@ class clanmembers(minqlx.Plugin):
         self.add_command(("del_clantag", "dct", "remove_clantag"), self.cmd_delClanTag, admin)
         self.add_command(("listclantag", "listclantags", "ctl"), self.cmd_listClanTags, admin)
         self.add_command(("reload_clanmembers", "load_clanmembers", "rlcm"), self.cmd_loadClanTag, admin)
-        self.add_command(("versionclanmembers", "version_clanmembers", "cmv"), self.cmd_clanMembersVersion, admin)
+        self.add_command(("clanmembersversion", "clanmembers_version", "cmv"), self.cmd_clanMembersVersion, admin)
 
 
         # Opens clanTag list container
@@ -46,6 +53,11 @@ class clanmembers(minqlx.Plugin):
 
         # Loads the clan tag list.
         self.cmd_loadClanTag()
+
+        self.tagEnforced = False
+
+        #Unload the clan command if the default minqlx clan.py is loaded on the server
+        self.unload_overlapping_commands()
 
     @minqlx.delay(1)
     def unload_overlapping_commands(self):
@@ -88,10 +100,94 @@ class clanmembers(minqlx.Plugin):
     def cmd_clanMembersVersion(self, player, msg, channel):
         self.check_version(channel=channel)
 
-    @minqlx.delay(4)
+    #@minqlx.delay(1)
     def player_loaded(self, player):
+        #If the owner connects the script only checks for updates.
         if player.steam_id == minqlx.owner():
             self.check_version(player=player)
+            #return
+        if self.get_cvar("qlx_clanmembersCheckSteamName", bool):
+            self.cmd_checkname(player)
+
+    @minqlx.delay(2)
+    def cmd_checkname(self, player, changed=False):
+        self.tagEnforced = False
+        #The clan tag being protected is checked against player's name if the player is not in the clan members list.
+        if player.steam_id not in self.clanTagMembers:
+            if changed:
+                nameWords = str(changed["name"]).split(" ")
+            else:
+                nameWords = str(player).split(" ")
+            colors = self.get_cvar("qlx_clanmembersTagColors", bool)
+            case = self.get_cvar("qlx_clanmembersLetterCase", bool)
+            slot = 0
+            #Checks the player's name angainst protected tags if tag enforcement is not color or case specific.
+            if not colors and not case:
+                tempList = []
+                tempName = []
+                for word in nameWords:
+                    tempName.append(self.clean_text(word).lower())
+                for tags in self.clanTag:
+                    tempList.append(self.clean_text(tags).lower())
+                for check in tempName:
+                    if check in tempList:
+                        player.tell("^3Your name cannot include {} tag on in this server and you have been renamed exculding the tag.".format(check))
+                        nameWords.pop(slot)
+                        if len(nameWords) == 0: nameWords = ['^6Change','^6Your','^6Steam','^6Name']
+                        player.name = " ".join(nameWords)
+                        self.tagEnforced = True
+                    slot += 1
+            #Checks the player's name angainst protected tags if tag enforcement is not color specific but is case specific.
+            elif not colors:
+                tempList = []
+                tempName = []
+                for word in nameWords:
+                    tempName.append(self.clean_text(word))
+                for tags in self.clanTag:
+                    tempList.append(self.clean_text(tags))
+                for check in tempName:
+                    if check in tempList:
+                        player.tell("^3Your name cannot include {} tag on in this server and you have been renamed exculding the tag.".format(check))
+                        nameWords.pop(slot)
+                        if len(nameWords) == 0: nameWords = ['^6Change','^6Your','^6Steam','^6Name']
+                        player.name = " ".join(nameWords)
+                        self.tagEnforced = True
+                    slot += 1
+            #Checks the player's name angainst protected tags if tag enforcement is not case specific but is color specific.
+            elif not case:
+                tempList = []
+                tempName = []
+                for word in nameWords:
+                    tempName.append(word.lower())
+                for tags in self.clanTag:
+                    tempList.append(tags.lower())
+                for check in tempName:
+                    if check in tempList:
+                        player.tell("^3Your name cannot include {} tag on in this server and you have been renamed exculding the tag.".format(check))
+                        nameWords.pop(slot)
+                        if len(nameWords) == 0: nameWords = ['^6Change','^6Your','^6Steam','^6Name']
+                        player.name = " ".join(nameWords)
+                        self.tagEnforced = True
+                    slot += 1
+            #Checks the player's name angainst protected tags if tag enforcement is case and color specific.
+            elif cleanTag in self.clanTag or tag in self.clanTag:
+                for check in nameWords:
+                    if check in self.clanTag:
+                        player.tell("^3Your name cannot include {} tag on in this server and you have been renamed exculding the tag.".format(check))
+                        nameWords.pop(slot)
+                        if len(nameWords) == 0: nameWords = ['^6Change','^6Your','^6Steam','^6Name']
+                        player.name = " ".join(nameWords)
+                        self.tagEnforced = True
+                    slot += 1
+
+    def handle_userinfo(self, player, changed):
+        # Make sure we're not doing anything if our script set the name.
+        if self.tagEnforced:
+            self.tagEnforced = False
+            return minqlx.RET_STOP_EVENT
+
+        if "name" in changed and self.get_cvar("qlx_clanmembersCheckSteamName", bool):
+            self.cmd_checkname(player, changed)
 
     def handle_set_configstring(self, index, value):
         # The engine strips cn and xcn, so we can safely append it
@@ -135,9 +231,37 @@ class clanmembers(minqlx.Plugin):
             return minqlx.RET_STOP_EVENT
 
         tag = self.clean_tag(msg[1])
-        if cleanTag in self.clanTag or tag in self.clanTag:
-            steamID = player.steam_id
-            if steamID not in self.clanTagMembers:
+
+        #The clan tag being added is checked if the player is not in the clan members list.
+        if player.steam_id not in self.clanTagMembers:
+            colors = self.get_cvar("qlx_clanmembersTagColors", bool)
+            case = self.get_cvar("qlx_clanmembersLetterCase", bool)
+            #Checks the tag if tag enforcement is not color or case specific.
+            if not colors and not case:
+                tempList = []
+                for tags in self.clanTag:
+                    tempList.append(self.clean_text(tags).lower())
+                if cleanTag.lower() in tempList:
+                    player.tell("^3You must be added to the clan members list to put that tag on in this server.")
+                    return minqlx.RET_STOP_EVENT
+            #Checks the tag if tag enforcement is not color specific but is case specific.
+            elif not colors:
+                tempList = []
+                for tags in self.clanTag:
+                    tempList.append(self.clean_text(tags))
+                if cleanTag in tempList:
+                    player.tell("^3You must be added to the clan members list to put that tag on in this server.")
+                    return minqlx.RET_STOP_EVENT
+            #Checks the tag if tag enforcement is not case specific but is color specific.
+            elif not case:
+                tempList = []
+                for tags in self.clanTag:
+                    tempList.append(tags.lower())
+                if tag.lower() in tempList:
+                    player.tell("^3You must be added to the clan members list to put that tag on in this server.")
+                    return minqlx.RET_STOP_EVENT
+            #Checks the tag if tag enforcement is case and color specific.
+            elif cleanTag in self.clanTag or tag in self.clanTag:
                 player.tell("^3You must be added to the clan members list to put that tag on in this server.")
                 return minqlx.RET_STOP_EVENT
         
@@ -166,6 +290,7 @@ class clanmembers(minqlx.Plugin):
             f.close()
             tempList = []
             tempTag = []
+            tempClean = []
             for id in lines:
                 if id.startswith("#"): continue
                 elif id.startswith("C"):
@@ -173,6 +298,7 @@ class clanmembers(minqlx.Plugin):
                     count = len(tags) - 1
                     while count > 0:
                         tempTag.append(tags[count].strip("\n"))
+                        tempClean.append(self.clean_text(tags[count].strip("\n")))
                         count -= 1
                     self.clanTag = tempTag
                     continue
@@ -367,7 +493,7 @@ class clanmembers(minqlx.Plugin):
             return minqlx.RET_STOP_EVENT
 
         if len(self.clean_text(msg[1])) > 5:
-            player.tell("The clan tag can only be at most 5 characters long, excluding colors.")
+            player.tell("^3The clan tag can only be at most 5 characters long, excluding colors.")
             return minqlx.RET_STOP_EVENT 
 
         file = os.path.join(self.get_cvar("fs_homepath"), CLAN_MEMBER_FILE)
