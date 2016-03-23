@@ -152,9 +152,9 @@ Usage: !cmv
 The setting(s) are shown with the default settings.<br>
 
 <b>set qlx_clanmembersAdmin "5"</b> - Sets the minqlx server permisson level needed to use the clanmembers.py admin commands.<br>
-<b>set qlx_clanmembersTagColors "0" - If on: Tag enforcement will check for exact color matching. If off: tag colors are ignored and only the text is compared. (0 = off, 1 = on)<br>
-<b>set qlx_clanmembersLetterCase "0" - If on: Tag enforcement will check for exact case matching. If off: upper/lower case is ignored. (0 = off, 1 = on)<br>
-<b>set qlx_clanmembersCheckSteamName "1" - Checks for clan tag(s) in player's steam name and renames the player without the clan tag. (0 = off, 1 = on)<br>
+<b>set qlx_clanmembersTagColors "0"</b> - If on: Tag enforcement will check for exact color matching. If off: tag colors are ignored and only the text is compared. (0 = off, 1 = on)<br>
+<b>set qlx_clanmembersLetterCase "0"</b> - If on: Tag enforcement will check for exact case matching. If off: upper/lower case is ignored. (0 = off, 1 = on)<br>
+<b>set qlx_clanmembersCheckSteamName "1"</b> - Checks for clan tag(s) in player's steam name and renames the player without the clan tag. (0 = off, 1 = on)<br>
 <br><br>
 # Voteban.py
 
