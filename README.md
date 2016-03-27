@@ -299,3 +299,55 @@ Usage: !v_specall
 The setting(s) are shown with the default settings.<br>
 
 <b>qlx_specallAdminLevel "5"</b> - Sets the minqlx server permisson level needed to use the specall.py commands.<br>
+
+<br><br>
+# Voicechat.py
+
+I created this script to allow players to set the server to Global or Team voichat through a callvote.
+
+<br><br>
+Commands available with voicechat.py listed with the default settings
+
+<b>•	Permission level 5</b>
+
+<b>!gvoice</b> (alternatively !globalvoice)
+
+Sets server voicechat to GLOBAL chat.
+
+Usage: !gvoice
+
+<b>!tvoice</b> (alternatively !teamvoice)
+
+Sets server voicechat to TEAM chat.
+
+Usage: !tvoice
+
+<b>!voicechat_version</b> (alternatively !voicechatversion)
+
+Checks to see if the voicechat.py is up to date and lists the version running on the server.
+
+Usage: !voicechat_version
+
+<b>!voicechat_status</b> (alternatively !status or !settings)
+
+Checks to see if the server is set to GLOBAL or TEAM voice chat.
+
+Usage: !voicechat_status
+
+<b>•	Permission level 0</b>
+
+<b>!voicechat</b>
+
+Gives the player the instructions to use the callvote voichat commands and
+checks to see if the server is set to GLOBAL or TEAM voice chat.
+
+Usage: !voicechat
+
+<br><br>
+<b>CVARs</b>
+<b>The following bot settings used in the voicechat script can be set with the rest of the minqlx bot settings:</b><br>
+The settings are shown with the default settings. Edit them to change the permission levels or on/off status.<br>
+
+<b>set qlx_voicechatAdminLevel "5"</b> - Sets the minqlx server permisson level needed to use the admin level commands in this script.<br>
+<b>set qlx_voicechatVoiceChatVoting "1"</b> - Set to "1" to allow players to vote for changing the voice chat option to team/global.<br>
+<b>set qlx_voicechatJoinMessage "1"</b> - Set to "1" to display the script join message to connecting players.<br>
