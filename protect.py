@@ -8,7 +8,7 @@
 Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
 qlx_protectMapVoting  "1" - Enabling does not allow map voting during match play but does not effect map voting during warm-up. ("1" on, "0" off)
 qlx_protectAfkVoting  "1" - Enabling will allow players to be voted into spectator. ("1" on, "0" off)
-qlx_protectJoinMapMessage "1" - Sends join message to players if map voting protection is enabled. ("1" on, "0" off)
+qlx_protectJoinMapMessage "0" - Sends join message to players if map voting protection is enabled. ("1" on, "0" off)
 qlx_protectJoinAfkMessage "1" - Sends join message to players if voting players to spectator is enabled. ("1" on, "0" off)
 qlx_protectPermissionLevel "5" - Sets the lowest level bot permission level to  automatically protect
 qlx_protectMuteVoting "1" - Allows voting muting and unmuting of a player. ("1" on, "0" off)
@@ -24,17 +24,17 @@ import threading
 import requests
 import os
 
-VERSION = "v1.04"
+VERSION = "v1.05"
 PROTECT_FILE = "protect.txt"
 
 class protect(minqlx.Plugin):
     def __init__(self):
-        self.add_hook("vote_called", self.handle_vote_called)
+        self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
         self.add_hook("player_loaded", self.player_loaded)
 
         # Cvars.
         self.set_cvar_once("qlx_protectMapVoting", "1")
-        self.set_cvar_once("qlx_protectJoinMapMessage", "1")
+        self.set_cvar_once("qlx_protectJoinMapMessage", "0")
         self.set_cvar_once("qlx_protectAfkVoting", "1")
         self.set_cvar_once("qlx_protectJoinAfkMessage", "1")
         self.set_cvar_once("qlx_protectPermissionLevel", "5")
@@ -112,7 +112,7 @@ class protect(minqlx.Plugin):
 
     # Handles votes called: Kick protection, Map voting rejection during active matches, AFK voting, and Mute/UnMute voting.
     def handle_vote_called(self, caller, vote, args):
-        # Kick Votes
+        # Kick Voting
         if vote.lower() == "kick" or vote.lower() == "clientkick":
             try:
                 client_id = int(args)
@@ -130,14 +130,13 @@ class protect(minqlx.Plugin):
             elif ident in self.protect:
                 caller.tell("^3That player is in the ^1kick protect^3 list.")
                 return minqlx.RET_STOP_ALL
-        # Map Votes
-        elif vote.lower() == "map" and self.get_cvar("qlx_protectMapVoting", int) == 1:
-            if self.game.state == "in_progress":
-                caller.tell("^3Map voting is not allowed during an active match")
-                return minqlx.RET_STOP_ALL
-        # Voting people to Spectate
+        # Map Voting
+        elif vote.lower() == "map" and self.get_cvar("qlx_protectMapVoting", bool) and self.game.state == "in_progress":
+            caller.tell("^3Map voting is not allowed during an active match")
+            return minqlx.RET_STOP_ALL
+        # Voting people to Spectator
         elif vote.lower() == "spectate" or vote.lower() == "afk":
-            if self.get_cvar("qlx_protectAfkVoting", int) == 0:
+            if not self.get_cvar("qlx_protectAfkVoting", bool):
                 caller.tell("^3Voting players to spectator is not enabled on this server.")
                 return minqlx.RET_STOP_ALL
             try:
@@ -154,9 +153,9 @@ class protect(minqlx.Plugin):
             minqlx.client_command(caller.id, "vote yes")
             self.msg("{}^7 called a vote.".format(caller.name))
             return minqlx.RET_STOP_ALL
-        # Votimg to mute people
+        # Voting to mute people
         elif vote.lower() == "mute" or vote.lower() == "silence":
-            if self.get_cvar("qlx_protectMuteVoting", int) == 0:
+            if not self.get_cvar("qlx_protectMuteVoting", bool):
                 caller.tell("^3Voting to mute players is not enabled on this server.")
                 return minqlx.RET_STOP_ALL
             try:
@@ -179,7 +178,7 @@ class protect(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
         # Voting to unMute people
         elif vote.lower() == "unmute" or vote.lower() == "unsilence":
-            if self.get_cvar("qlx_protectMuteVoting", int) == 0:
+            if not self.get_cvar("qlx_protectMuteVoting", bool):
                 caller.tell("^3Voting to mute/unmute players is not enabled on this server.")
                 return minqlx.RET_STOP_ALL
             try:
@@ -426,7 +425,7 @@ class protect(minqlx.Plugin):
             player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
             return minqlx.RET_STOP_EVENT
 
-    # Updates the protect.txt file with a player name if one was not previously saved when player was added originally.
+    # Updates the protect.txt file with a player name if one was not previously saved when player was originally added.
     def updateLine(self, player=None, addName=None):
         if len(addName) > 1:
             file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
@@ -462,13 +461,13 @@ class protect(minqlx.Plugin):
 
         password = str(msg[1])
         minqlx.console_command("set g_password {}".format(password))
-        player.tell("^3Server password is set to ^1{}.".format(password))
+        player.tell("^3Server join password is set to ^1{}.".format(password))
         return minqlx.RET_STOP_EVENT
 
     # Clears the server join password
     def cmd_unsetpass(self, player, msg, channel):
         minqlx.console_command('set g_password ""')
-        player.tell("^3Server password is unset.")
+        player.tell("^3Server join password has been cleared.")
         return minqlx.RET_STOP_EVENT
 
     # Forces the teamsize to the desired size, puts all players to spectate if needed to set the teamsize.
@@ -479,7 +478,7 @@ class protect(minqlx.Plugin):
         try:
             wanted_teamsize = int(msg[1])
         except ValueError:
-            player.tell("^7Unintelligible size.")
+            player.tell("^1Unintelligible size.")
             return minqlx.RET_STOP_EVENT
 
         teams = self.teams()
