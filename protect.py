@@ -24,7 +24,7 @@ import threading
 import requests
 import os
 
-VERSION = "v1.05"
+VERSION = "v1.06"
 PROTECT_FILE = "protect.txt"
 
 class protect(minqlx.Plugin):
@@ -45,6 +45,7 @@ class protect(minqlx.Plugin):
         self.set_cvar_once("qlx_protectFTS", "5")
 
         self.protectPermission = self.get_cvar("qlx_protectPermissionLevel")
+        self.mapProtect = self.get_cvar("qlx_protectMapVoting", bool)
 
         # Commands: permission level is set using some of the Cvars. See the Cvars descrition at the top of the file.
         self.add_command("protect", self.cmd_protect, int(self.get_cvar("qlx_protectAdminLevel")), usage="add|del|check|list <player id|steam id> |name|")
@@ -96,7 +97,7 @@ class protect(minqlx.Plugin):
     def player_loaded(self, player):
         if player.steam_id == minqlx.owner():
             self.check_version(player=player)
-        if self.get_cvar("qlx_protectJoinMapMessage", bool) and self.get_cvar("qlx_protectMapVoting", bool):
+        if self.get_cvar("qlx_protectJoinMapMessage", bool) and self.mapProtect:
             player.tell("^3Map voting during an active match is disabled on this server.")
         if self.get_cvar("qlx_protectJoinAfkMessage", bool) and  self.get_cvar("qlx_protectAfkVoting", bool) or self.get_cvar("qlx_protectJoinMuteVoting", bool) and  self.get_cvar("qlx_protectMuteVoting", bool):
                 if self.get_cvar("qlx_protectJoinAfkMessage", bool) and self.get_cvar("qlx_protectJoinMuteVoting", bool):
@@ -112,8 +113,13 @@ class protect(minqlx.Plugin):
 
     # Handles votes called: Kick protection, Map voting rejection during active matches, AFK voting, and Mute/UnMute voting.
     def handle_vote_called(self, caller, vote, args):
+        # Map Voting
+        vote = vote.lower()
+        if (vote == "map" or vote == "nextmap" or vote == "map_restart") and self.mapProtect and self.game.state == "in_progress":
+            caller.tell("^3Map voting is not allowed during an active match")
+            return minqlx.RET_STOP_ALL
         # Kick Voting
-        if vote.lower() == "kick" or vote.lower() == "clientkick":
+        elif vote == "kick" or vote == "clientkick":
             try:
                 client_id = int(args)
                 target_player = self.player(client_id)
@@ -130,12 +136,8 @@ class protect(minqlx.Plugin):
             elif ident in self.protect:
                 caller.tell("^3That player is in the ^1kick protect^3 list.")
                 return minqlx.RET_STOP_ALL
-        # Map Voting
-        elif vote.lower() == "map" and self.get_cvar("qlx_protectMapVoting", bool) and self.game.state == "in_progress":
-            caller.tell("^3Map voting is not allowed during an active match")
-            return minqlx.RET_STOP_ALL
         # Voting people to Spectator
-        elif vote.lower() == "spectate" or vote.lower() == "afk":
+        elif vote == "afk" or vote == "spectate":
             if not self.get_cvar("qlx_protectAfkVoting", bool):
                 caller.tell("^3Voting players to spectator is not enabled on this server.")
                 return minqlx.RET_STOP_ALL
@@ -154,7 +156,7 @@ class protect(minqlx.Plugin):
             self.msg("{}^7 called a vote.".format(caller.name))
             return minqlx.RET_STOP_ALL
         # Voting to mute people
-        elif vote.lower() == "mute" or vote.lower() == "silence":
+        elif vote == "mute" or vote == "silence":
             if not self.get_cvar("qlx_protectMuteVoting", bool):
                 caller.tell("^3Voting to mute players is not enabled on this server.")
                 return minqlx.RET_STOP_ALL
@@ -177,7 +179,7 @@ class protect(minqlx.Plugin):
             self.msg("{}^7 called a vote.".format(caller.name))
             return minqlx.RET_STOP_ALL
         # Voting to unMute people
-        elif vote.lower() == "unmute" or vote.lower() == "unsilence":
+        elif vote == "unmute" or vote == "unsilence":
             if not self.get_cvar("qlx_protectMuteVoting", bool):
                 caller.tell("^3Voting to mute/unmute players is not enabled on this server.")
                 return minqlx.RET_STOP_ALL
