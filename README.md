@@ -267,8 +267,8 @@ The settings are shown with the default settings.<br>
 
 I created this script to be able to list all the maps loaded on the server.
 
-This script does not read the map pool file. It creates a map list when the admin enters the '!getmaps' command.
-The people on the server are then able to use the '!listmaps' command to see all the maps loaded on the server.
+This script creates a map list when the server starts, the plugin is reloaded, or the admin enters the '!getmaps' command.
+The people on the server are able to use the '!listmaps' command to see all the maps loaded on the server.
 If the command is used like '!listmaps <search string>' it will search for maps with the search string in the names.
 Ex: '!listmaps ra3' will display all the maps with ra3 in the name.
 
