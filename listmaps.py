@@ -14,7 +14,7 @@ qlx_listmapsUser "0" - Permission level needed to use !listmaps, which show the 
 import minqlx
 import requests
 
-VERSION = "v1.03"
+VERSION = "v1.04"
 FILE_NAME = 'server_map_list.txt'
 _map_buffer = ""
 _map_redirection = None
@@ -33,6 +33,8 @@ class listmaps(minqlx.Plugin):
         self.add_command("getmaps", self.get_maps, int(self.get_cvar("qlx_listmapsAdmin")))
         self.add_command(("listmaps", "listmap"), self.cmd_list_maps, int(self.get_cvar("qlx_listmapsUser")), usage="|search string|")
         self.add_command(("listmapsversion", "listmaps_version"), self.listmaps_version, int(self.get_cvar("qlx_listmapsAdmin")))
+
+        self.get_maps()
 
     # listmaps.py version checker. Thanks to iouonegirl for most of this section's code.
     @minqlx.thread
@@ -87,9 +89,13 @@ class listmaps(minqlx.Plugin):
 
     def cmd_list_maps(self, player, msg, channel):
         maps = "^1MAPS: These are the map designations, not always the map name. Use these in a callvote.^7\n"
-        f = open(FILE_NAME, 'r')
-        lines = f.readlines()
-        f.close()
+        try:
+            f = open(FILE_NAME, 'r')
+            lines = f.readlines()
+            f.close()
+        except IOError:
+            channel.reply("^4Server^7: Map List creation ^1failed^7. Contact a server admin.")
+            return
         lines.sort()
         if len(msg) < 2:
             for line in lines:
@@ -98,14 +104,18 @@ class listmaps(minqlx.Plugin):
                 mapLine = maps.split("\n")[-1]
                 maps += self.line_up(mapLine, addMap)
         else:
+            count = 0
             search = msg[1]
             for line in lines:
                 line = line.split(".")
                 addMap = line[0]
                 if search in addMap:
+                    count += 1
                     mapLine = maps.split("\n")[-1]
                     maps += self.line_up(mapLine, addMap)
-                
+            if count == 0:
+                player.tell("^4Server^7: No maps contain the search string ^1{}^7.".format(search))
+                return
         if maps.endswith("\n"):
             maps += "^1MAPS: These are the map designations, not always the map name. Use these in a callvote."
         else:
@@ -130,21 +140,24 @@ class listmaps(minqlx.Plugin):
             append = "\n" + addMap
         return append
 
-    def get_maps(self, player, msg, channel):
-        with self.gather_maps(player):
+    def get_maps(self, player=None, msg=None, channel=None):
+        with self.gather_maps():
             minqlx.console_command("dir maps")
 
-        player.tell("^4Server^7: The server maps have been stored in the file ^3{}^7.".format(FILE_NAME))
+        if player:
+            player.tell("^4Server^7: The server maps have been stored in the file ^3{}^7.".format(FILE_NAME))
 
-    def gather_maps(self, player):
+        return True
+
+    def gather_maps(self):
 
         class Redirector:
-            def __init__(self, player):
-                self.player = player
+            def __init__(self):
+                self.trigger = True
 
             def __enter__(self):
                 global _map_redirection
-                _map_redirection = self.player
+                _map_redirection = self.trigger
 
             def __exit__(self, exc_type, exc_val, exc_tb):
                 global _map_redirection, _map_buffer
@@ -154,4 +167,4 @@ class listmaps(minqlx.Plugin):
                 _map_redirection = None
                 _map_buffer = ""
 
-        return Redirector(player)
+        return Redirector()
