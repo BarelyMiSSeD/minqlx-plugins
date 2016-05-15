@@ -187,16 +187,27 @@ class listmaps(minqlx.Plugin):
         matching = [s for s in lines if map in s]
         if len(matching) == 1:
             item = matching[0].split(" - ")
-            item = item[1].strip("\n")
-            item = item.rstrip(" ")
-            channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+            if len(item) > 1:
+                item = item[1].strip("\n")
+                item = item.rstrip(" ")
+                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+            else:
+                item = item[0].strip("\n")
+                item = item.rstrip(" ")
+                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+            return
         elif len(matching) > 1:
             for item in matching:
                 item = item.split(" - ")
                 if item[0] == map:
-                    item = item[1].strip("\n")
-                    item = item.rstrip(" ")
-                    channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+                    if len(item) > 1:
+                        item = item[1].strip("\n")
+                        item = item.rstrip(" ")
+                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+                    else:
+                        item = item[0].strip("\n")
+                        item = item.rstrip(" ")
+                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
                     return
             matched = ""
             count = 0
