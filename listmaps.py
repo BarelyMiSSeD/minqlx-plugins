@@ -14,7 +14,7 @@ qlx_listmapsUser "0" - Permission level needed to use !listmaps, which show the 
 import minqlx
 import requests
 
-VERSION = "v1.10"
+VERSION = "v1.11"
 FILE_NAME = 'server_map_list.txt'
 MAP_NAME_FILE = 'Map_Names.txt'
 _map_buffer = ""
@@ -99,12 +99,15 @@ class listmaps(minqlx.Plugin):
             channel.reply("^4Server^7: Map List creation ^1failed^7. Contact a server admin.")
             return
         lines.sort()
+        items = 0
         if len(msg) < 2:
             for line in lines:
                 line = line.split(".")
                 addMap = line[0]
                 mapLine = maps.split("\n")[-1]
                 maps += self.line_up(mapLine, addMap)
+                items += 1
+
         else:
             count = 0
             search = msg[1]
@@ -115,13 +118,14 @@ class listmaps(minqlx.Plugin):
                     count += 1
                     mapLine = maps.split("\n")[-1]
                     maps += self.line_up(mapLine, addMap)
+                    items += 1
             if count == 0:
                 player.tell("^4Server^7: No maps contain the search string ^1{}^7.".format(search))
                 return
         if maps.endswith("\n"):
-            maps += "^1MAPS: These are the map designations, not always the map name. Use these in a callvote."
+            maps += "^1{} MAPS: These are the map designations, not always the map name. Use these in a callvote.".format(items)
         else:
-            maps += "\n^1MAPS: These are the map designations, not always the map name. Use these in a callvote."
+            maps += "\n^1{} MAPS: These are the map designations, not always the map name. Use these in a callvote.".format(items)
         player.tell(maps)
 
     def line_up(self, mapLine, addMap):
