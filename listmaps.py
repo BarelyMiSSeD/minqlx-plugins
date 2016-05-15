@@ -14,8 +14,9 @@ qlx_listmapsUser "0" - Permission level needed to use !listmaps, which show the 
 import minqlx
 import requests
 
-VERSION = "v1.04"
+VERSION = "v1.10"
 FILE_NAME = 'server_map_list.txt'
+MAP_NAME_FILE = 'Map_Names.txt'
 _map_buffer = ""
 _map_redirection = None
 
@@ -33,6 +34,7 @@ class listmaps(minqlx.Plugin):
         self.add_command("getmaps", self.get_maps, int(self.get_cvar("qlx_listmapsAdmin")))
         self.add_command(("listmaps", "listmap"), self.cmd_list_maps, int(self.get_cvar("qlx_listmapsUser")), usage="|search string|")
         self.add_command(("listmapsversion", "listmaps_version"), self.listmaps_version, int(self.get_cvar("qlx_listmapsAdmin")))
+        self.add_command("mapname", self.cmd_mapname, int(self.get_cvar("qlx_listmapsUser")))
 
         self.get_maps()
 
@@ -168,3 +170,41 @@ class listmaps(minqlx.Plugin):
                 _map_buffer = ""
 
         return Redirector()
+
+    def cmd_mapname(self, player, msg, channel):
+        if len(msg) < 2:
+            channel.reply("^3Usage^7: <map callvote name> ^4(found with the ^3!listmaps^4 command)")
+            return
+        try:
+            f = open(MAP_NAME_FILE, 'r')
+            lines = f.readlines()
+            f.close()
+        except IOError:
+            player.tell("^4Server^7: There is no Map Name file to reference. Talk to a server admin.")
+            return
+
+        map = msg[1]
+        matching = [s for s in lines if map in s]
+        if len(matching) == 1:
+            item = matching[0].split(" - ")
+            item = item[1].strip("\n")
+            item = item.rstrip(" ")
+            channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+        elif len(matching) > 1:
+            for item in matching:
+                item = item.split(" - ")
+                if item[0] == map:
+                    item = item[1].strip("\n")
+                    item = item.rstrip(" ")
+                    channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+                    return
+            matched = ""
+            count = 0
+            for item in matching:
+                item = item.split(" - ")
+                matched += item[0] + ", "
+                count += 1
+            matched = matched[:-2]
+            channel.reply("^4Server^7: {} matches to your search for {}. ({})".format(count, map, matched))
+        else:
+            channel.reply("^4Server^7: There is no map called {} in the map name file.".format(map))
