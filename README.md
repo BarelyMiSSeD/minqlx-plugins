@@ -272,7 +272,7 @@ The people on the server are able to use the '!listmaps' command to see all the 
 If the command is used like '!listmaps <search string>' it will search for maps with the search string in the names.
 Ex: '!listmaps ra3' will display all the maps with ra3 in the name.
 
-<b>To use the !mapname function put the Map_Names.txt in the Map_Names folder in yout /qlds (install directory).</b>
+<b>To use the !mapname function put the Map_Names.txt in the Map_Names folder in your /qlds (install directory).</b>
 
 Whenever the maps loaded on the server change the admin needs to re-run the '!getmaps' command to update the list.
 
