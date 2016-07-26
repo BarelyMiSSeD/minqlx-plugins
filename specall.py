@@ -4,14 +4,23 @@
 # created by BarelyMiSSeD on 2-29-16
 #
 """
-Set these cvar(s) in your server.cfg (or wherever you set your minqlx variables).:
+Set these cvar(s) in your server.cfg (or wherever you set your minqlx variables):
 qlx_specallAdminLevel "5" - Sets the minqlx server permission level needed to put everyone into spectate.
+
+
+Commands:
+!specall (!allspec) : Puts everyone into spectate if the game has not started.
+        If a number is inculded after the command the teamsize will be set to that value.
+!specallforce (!forceallspec, !forcespecall): Puts everyone to spectate at any time.
+        If a number is inculded after the command the teamsize will be set to that value.
+!specallversion (!specall_version) : Checks the version number of the plugin and
+        compares it to the version available for download.
 """
 
 import minqlx
 import requests
 
-VERSION = "v1.01"
+VERSION = "v1.02"
 
 class specall(minqlx.Plugin):
     def __init__(self):
@@ -23,7 +32,7 @@ class specall(minqlx.Plugin):
         # Commands: permission level is set using some of the Cvars. See the Cvars descrition at the top of the file.
         self.add_command(("specall", "allspec"), self.cmd_specAll, int(self.get_cvar("qlx_specallAdminLevel")))
         self.add_command(("specallforce", "forceallspec", "forcespecall"), self.cmd_specAllForce, int(self.get_cvar("qlx_specallAdminLevel")))
-        self.add_command(("specallversion", "specall_version"), self.specAll_version, int(self.get_cvar("qlx_protectAdminLevel")))
+        self.add_command(("specallversion", "specall_version"), self.specAll_version, int(self.get_cvar("qlx_specallAdminLevel")))
 
     # protect.py version checker. Thanks to iouonegirl for most of this section's code.
     @minqlx.thread
@@ -58,7 +67,7 @@ class specall(minqlx.Plugin):
     # Player Join actions. Version checker.
     @minqlx.delay(4)
     def player_loaded(self, player):
-        if player.steam_id == minqlx.owner():
+        if player.steam_id == minqlx.owner() or self.db.has_permission(player,self.get_cvar("qlx_specallAdminLevel")):
             self.check_version(player=player)
 
     # Forces everyone on the server to spectate. If a teamsize is included after the command it will also set the teamsize.
