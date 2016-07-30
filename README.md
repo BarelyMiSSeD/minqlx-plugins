@@ -24,7 +24,7 @@ Commands available with protect.py listed with the set permission levels
 
 Sets the teamsize to the desired level. Will put all players to spectate if there are more players on a team than the desired teamsize.
 
-Usage: !forcets <wanted teamsize>
+Usage: !forcets \<wanted teamsize\>
    
 <b>•	Permission level 5</b>
 
@@ -293,13 +293,13 @@ Usage: !getmaps
 
 Lists the maps available for play on the server.
 
-Usage: !listmaps <optional search string>
+Usage: !listmaps \<optional search string\>
 
 <b>!mapname</b>
 
 Lists the map's name if it is listed in the Map_Name.txt file.
 
-Usage: !mapname <map's callvote name>
+Usage: !mapname \<map's callvote name\>
 
 <br><br>
 <b>CVARs</b>
@@ -424,13 +424,13 @@ Commands available with votelimiter.py listed with the default settings
 
 Adds votes to the allowed vote type list.
 
-Usage: !addvote <vote>
+Usage: !addvote \<vote\>
 
 <b>!delvote</b> (alternatively !deletevote or !dv)
 
 Removes votes from the allowed vote type list.
 
-Usage: !delvote <vote>
+Usage: !delvote \<vote\>
 
 <b>!voteslist</b> (alternatively !listvotes or !votes)
 
