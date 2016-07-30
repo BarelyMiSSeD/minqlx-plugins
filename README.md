@@ -411,7 +411,7 @@ kick<br>
 clientkick<br>
 map<br>
 teamsize<br>
-cointos<br>
+cointoss<br>
 shuffle
 
 <br><br>
