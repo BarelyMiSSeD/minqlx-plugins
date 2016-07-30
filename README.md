@@ -405,7 +405,14 @@ The settings are shown with the default settings. Edit them to change the permis
 # Votelimiter.py
 
 I created this script to keep people from callvoting stupid votes and votes that mess up the server but the admin hadn't thought about.<br>
-The testing I have done shows that this script does not appear to stop custom vote types that are managed by other scripts.
+The testing I have done shows that this script does not appear to stop custom vote types that are managed by other scripts.<br><br>
+By default the following votes are allowed:<br>
+kick<br>
+clientkick<br>
+map<br>
+teamsize<br>
+cointos<br>
+shuffle
 
 <br><br>
 Commands available with votelimiter.py listed with the default settings
