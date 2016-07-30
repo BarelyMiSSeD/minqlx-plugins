@@ -412,7 +412,8 @@ clientkick<br>
 map<br>
 teamsize<br>
 cointoss<br>
-shuffle
+shuffle<br>
+<b>NOTE</b>: Use !dv <vote> to remove any of the default vote types if they aren't wanted. This should only need to be done the first time the script is loaded on a server.
 
 <br><br>
 Commands available with votelimiter.py listed with the default settings
