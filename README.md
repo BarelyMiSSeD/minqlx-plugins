@@ -400,3 +400,51 @@ The settings are shown with the default settings. Edit them to change the permis
 <b>set qlx_voicechatAdminLevel "5"</b> - Sets the minqlx server permisson level needed to use the admin level commands in this script.<br>
 <b>set qlx_voicechatVoiceChatVoting "1"</b> - Set to "1" to allow players to vote for changing the voice chat option to team/global.<br>
 <b>set qlx_voicechatJoinMessage "1"</b> - Set to "1" to display the script join message to connecting players.<br>
+
+<br><br>
+# Votelimiter.py
+
+I created this script to keep people from callvoting stupid votes and votes that mess up the server but the admin hadn't thought about.<br>
+The testing I have done shows that this script does not appear to stop custom vote types that are managed by other scripts.
+
+<br><br>
+Commands available with votelimiter.py listed with the default settings
+
+<b>•	Permission level 5</b>
+
+<b>!addvote</b> (alternatively !allowvote or !av)
+
+Adds votes to the allowed vote type list.
+
+Usage: !addvote <vote>
+
+<b>!delvote</b> (alternatively !deletevote or !dv)
+
+Removes votes from the allowed vote type list.
+
+Usage: !delvote <vote>
+
+<b>!voteslist</b> (alternatively !listvotes or !votes)
+
+Shows the votes that the script will allow.
+
+Usage: !voteslist
+
+<b>!reload_voteslist</b> (alternatively !load_votelist or !rvl)
+
+Reloads the vote type allowed list from the votelimiter file. Useful if the file was edited manually.
+
+Usage: !reload_voteslist
+
+<b>!versionvotelimiter</b> (alternatively !version_votelimiter or !vlv)
+
+Checks to see if the votelimiter.py is up to date and lists the version running on the server.
+
+Usage: !versionvotelimiter
+
+<br><br>
+<b>CVARs</b>
+<b>The following bot settings used in the votelimiter script can be set with the rest of the minqlx bot settings:</b><br>
+The settings are shown with the default settings. Edit them to change the permission levels or on/off status.<br>
+
+<b>set qlx_votelimiterAdmin "5"</b> - Sets the minqlx server permisson level needed to use the admin level commands in this script.<br>
