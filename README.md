@@ -198,7 +198,8 @@ The settings are shown with the default settings. Edit them to change the permis
 
 <b>set qlx_votebanAdmin "5"</b> - Sets the minqlx server permisson level needed to add and remove someones server voting privilage. Voting privilage can only be removed from players below the qlx_votebanProtectionLevel setting.<br>
 <b>set qlx_votebanProtectionLevel "5"</b> - If the person being added to the vote ban list has this minqlx server permission level, they can't be added to the vote ban list.<br>
-<b>set qlx_votebanVoteBan "1"</b> - Toruns on/off vote banning. Vote banning will remove voting privilages from a player on the server (1 is on, 0 is off).<br>
+<b>set qlx_votebanVoteBan "1"</b> - Turns on/off vote banning. Vote banning will remove voting privilages from a player on the server (1 is on, 0 is off).<br>
+<b>set qlx_votebanRedisStorage "0"</b> - Set to "1" if you would rather use the Redis database for tracking vote bans.<br>
 
 <br><br>
 #InviteOnly.py
