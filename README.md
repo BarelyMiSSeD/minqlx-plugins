@@ -262,6 +262,56 @@ The settings are shown with the default settings.<br>
 <b>set qlx_inviteonlySpectatorTime "3"</b> - Sets the amount of time (in minutes) a player can be a spectaror before being kicked if not on the invote only list.<br>
 <i>Set qlx_invoteonlyAllowSpectator and qlx_inviteonlySpectatorTime to "0" to kick players immediately.</i><br>
 
+<br><br>
+# Kills.py
+
+I created this script using mattiZed's pummel.py script located here: https://github.com/mattiZed/minqlx-plugins/blob/master/pummel.py.
+
+This script is meant to give the players a little more fun by having some extra goals to try for in the game.
+It records any pummel/gauntlet kill, any direct grenade kill, any air rocket, and any air plasma kill. It records who you
+killed and how any times you have killed that person and displays the ratio of your kills to your victims kills on you.
+
+You can look at each of the recorded types of kills with the commands !pummel, !grenades, !rockets, !plasma.
+These commands will show you a total kill amount you have for each kind of kill and your kill ratio against
+any player connected to the server at the time.
+
+There are also end of the match stats posted when the map ends. These stats are per-map stats, not lifetime stats like
+the stats gotten with the above commands.
+
+<br><br>
+Commands available with kills.py
+
+<b>•	Permission level 0</b>
+
+<b>!pummel</b> (alternatively !gauntlet)
+
+Shows your total pummel kills on the server and your kill ratio against any connected player.
+
+Usage: !pummel
+
+<b>!grenades</b> (alternatively !grenade)
+
+Shows your total direct grenade kills on the server and your kill ratio against any connected player.
+NOTE: The kill does not record if it is reported as a shrapnel kill.
+
+Usage: !grenades
+
+<b>!rockets</b> (alternatively !rocket)
+
+Shows your total air rocket kills on the server and your kill ratio against any connected player.
+NOTE: This kill type looks at how the server reports the kill. If it is a direct rocket kill and
+      the victim is reported as in the air, the kill will record.
+
+Usage: !rockets
+
+<b>!plasma</b>
+
+Shows your total air plasma kills on the server and your kill ratio against any connected player.
+NOTE: This kill type looks at how the server reports the kill. If it is a direct plasma kill and
+      the victim is reported as in the air, the kill will record.
+
+Usage: !plasma
+
 
 <br><br>
 # Listmaps.py
@@ -300,7 +350,7 @@ Usage: !listmaps \<optional search string\>
 
 Lists the map's name if it is listed in the Map_Name.txt file.
 
-Usage: !mapname \<map's callvote name\>
+Usage: !mapname \<map callvote name\>
 
 <br><br>
 <b>CVARs</b>
