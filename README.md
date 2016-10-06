@@ -267,6 +267,9 @@ The settings are shown with the default settings.<br>
 
 I created this script using mattiZed's pummel.py script located here: https://github.com/mattiZed/minqlx-plugins/blob/master/pummel.py.
 
+<b>***IMPORTANT***</b> This script is designed to use the same recording style as pummel.py. Do not run both of these scripts.
+You won't lose any previously recorded pummel kills if you had pummel.py loaded.
+
 This script is meant to give the players a little more fun by having some extra goals to try for in the game.
 It records any pummel/gauntlet kill, any direct grenade kill, any air rocket, and any air plasma kill. It records who you
 killed and how any times you have killed that person and displays the ratio of your kills to your victims kills on you.
