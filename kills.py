@@ -29,6 +29,9 @@ import minqlx
 
 # DB related
 PLAYER_KEY = "minqlx:players:{}"
+
+# Add Game types here if this script is not working with your game type. Follow the format.
+# Find your gametype in game with the !kgt or !killsgametype command.
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ffa", "ictf", "ad")
 
 class kills(minqlx.Plugin):
