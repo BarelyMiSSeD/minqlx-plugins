@@ -281,6 +281,9 @@ any player connected to the server at the time.
 There are also end of the match stats posted when the map ends. These stats are per-map stats, not lifetime stats like
 the stats gotten with the above commands.
 
+***NOTE*** To disable the sounds this script plays type !sounds
+This uses the built-in minqlx sounds feature.
+
 <br><br>
 Commands available with kills.py
 
@@ -291,6 +294,13 @@ Commands available with kills.py
 Shows your total pummel kills on the server and your kill ratio against any connected player.
 
 Usage: !pummel
+
+<b>!airgauntlet</b> (alternatively !airpummel)
+
+Shows your total air gauntlet kills on the server and your kill ratio against any connected player.
+This is achieved when both the killer and the victim are in the air during the gauntlet kill.
+
+Usage: !airgauntlet
 
 <b>!grenades</b> (alternatively !grenade)
 
