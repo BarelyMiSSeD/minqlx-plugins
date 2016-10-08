@@ -37,7 +37,6 @@ SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ffa", "ictf", "ad")
 class kills(minqlx.Plugin):
     def __init__(self):
         self.add_hook("kill", self.handle_kill)
-        self.add_hook("game_start", self.handle_game_start)
         self.add_hook("game_end", self.handle_end_game)
         self.add_hook("map", self.handle_map)
 
@@ -58,7 +57,6 @@ class kills(minqlx.Plugin):
         self.kills_plasma = {}
 
         self.kills_gametype = self.game.type_short
-        self.kills_game_active = self.game.state
 
     def handle_kill(self, victim, killer, data):
         if self.kills_gametype in SUPPORTED_GAMETYPES:
@@ -70,7 +68,7 @@ class kills(minqlx.Plugin):
                 if killed["AIRBORNE"] and kill["AIRBORNE"]:
                     self.sound_play("sound/vo_evil/rampage2")
 
-                    if self.kills_game_active == "in_progress":
+                    if self.game.state == "in_progress":
                         self.db.sadd(PLAYER_KEY.format(killer.steam_id) + ":airpummel", str(victim.steam_id))
                         self.db.incr(PLAYER_KEY.format(killer.steam_id) + ":airpummel:" + str(victim.steam_id))
 
@@ -87,7 +85,7 @@ class kills(minqlx.Plugin):
                 else:
                     self.sound_play("sound/vo_evil/humiliation1")
 
-                    if self.kills_game_active == "in_progress":
+                    if self.game.state == "in_progress":
                         self.db.sadd(PLAYER_KEY.format(killer.steam_id) + ":pummeled", str(victim.steam_id))
                         self.db.incr(PLAYER_KEY.format(killer.steam_id) + ":pummeled:" + str(victim.steam_id))
 
@@ -104,7 +102,7 @@ class kills(minqlx.Plugin):
             elif mod == "GRENADE":
                 self.sound_play("sound/vo_female/holy_shit")
 
-                if self.kills_game_active == "in_progress":
+                if self.game.state == "in_progress":
                     self.db.sadd(PLAYER_KEY.format(killer.steam_id) + ":grenaded", str(victim.steam_id))
                     self.db.incr(PLAYER_KEY.format(killer.steam_id) + ":grenaded:" + str(victim.steam_id))
 
@@ -123,7 +121,7 @@ class kills(minqlx.Plugin):
                 if killed["AIRBORNE"]:
                     self.sound_play("sound/vo_evil/midair1")
 
-                    if self.kills_game_active == "in_progress":
+                    if self.game.state == "in_progress":
                         self.db.sadd(PLAYER_KEY.format(killer.steam_id) + ":rocket", str(victim.steam_id))
                         self.db.incr(PLAYER_KEY.format(killer.steam_id) + ":rocket:" + str(victim.steam_id))
 
@@ -142,7 +140,7 @@ class kills(minqlx.Plugin):
                 if killed["AIRBORNE"]:
                     self.sound_play("sound/vo_evil/damage")
 
-                    if self.kills_game_active == "in_progress":
+                    if self.game.state == "in_progress":
                         self.db.sadd(PLAYER_KEY.format(killer.steam_id) + ":plasma", str(victim.steam_id))
                         self.db.incr(PLAYER_KEY.format(killer.steam_id) + ":plasma:" + str(victim.steam_id))
 
@@ -159,16 +157,11 @@ class kills(minqlx.Plugin):
             if msg:
                 self.msg(msg)
 
-    def handle_game_start(self, data):
-        self.kills_game_active = self.game.state
-
     def handle_map(self, mapname, factory):
         self.kills_gametype = self.game.type_short
-        self.kills_game_active = self.game.state
 
     def handle_end_game(self, data):
         self.kills_gametype = self.game.type_short
-        self.kills_game_active = self.game.state
         if self.kills_gametype in SUPPORTED_GAMETYPES:
             count = 0
 
@@ -392,4 +385,4 @@ class kills(minqlx.Plugin):
         return target_player
 
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.06")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.07")
