@@ -287,6 +287,15 @@ This uses the built-in minqlx sounds feature.
 <br><br>
 Commands available with kills.py
 
+<b>•	Permission level 3</b>
+
+<b>!kgt</b> (alternatively !killsgametype)
+
+Shows your the gametype being currently played on the server for purposes
+of adding the gametype to the supported gametypes.
+
+Usage: !kgt
+
 <b>•	Permission level 0</b>
 
 <b>!pummel</b> (alternatively !gauntlet)
@@ -333,7 +342,7 @@ I created this script to be able to list all the maps loaded on the server.
 
 This script creates a map list when the server starts, the plugin is reloaded, or the admin enters the '!getmaps' command.
 The people on the server are able to use the '!listmaps' command to see all the maps loaded on the server.
-If the command is used like '!listmaps <search string>' it will search for maps with the search string in the names.
+If the command is used like '!listmaps \<search string\>' it will search for maps with the search string in the names.
 Ex: '!listmaps ra3' will display all the maps with ra3 in the name.
 
 <b>To use the !mapname function put the Map_Names.txt in the Map_Names folder in your /qlds (install directory).</b>
