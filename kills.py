@@ -18,6 +18,7 @@
 
 # Players can display their kill stats with:
 #  "pummels" via !pummel or !gauntlet
+#  "air gauntlets" via !airgauntlet
 #  "grenades" via !grenades or !grenade
 #  "air rockets" via !rockets or !rocket
 #  "air plasma" via !plasma
@@ -45,6 +46,7 @@ class kills(minqlx.Plugin):
         self.add_command("kills_version", self.kills_version)
         self.add_command(("gametypes", "games"), self.supported_games)
         self.add_command("kills", self.kills_recorded)
+        self.add_command(("kgt", "killsgametype"), self.cmd_kills_gametype, 3)
 
         self.kills_pummel = {}
         self.kills_airpummel = {}
@@ -175,7 +177,7 @@ class kills(minqlx.Plugin):
                 self.msg(msg)
                 count = 0
 
-            msg = "^3Air Pummel ^1Killers^7: "
+            msg = "^3Air Gauntlet ^1Killers^7: "
             for k, v in self.kills_airpummel.items():
                 msg += "{}^7:^1{}^7 ".format(k, v)
                 count += 1
@@ -212,6 +214,10 @@ class kills(minqlx.Plugin):
             self.kills_rockets = {}
             self.kills_plasma = {}
 
+    def cmd_kills_gametype(self, player, msg, channel):
+        player.tell("^2The current gametype is \'{}\'".format(self.kills_gametype))
+        return minqlx.RET_STOP_ALL
+
     def cmd_pummel(self, player, msg, channel):
         if len(msg) > 1:
             player = self.player_id(msg[1], player)
@@ -222,7 +228,7 @@ class kills(minqlx.Plugin):
 
         msg = ""
         for p in pummels:
-            total += 1
+            total += int(self.db[PLAYER_KEY.format(player.steam_id) + ":pummeled:" + str(p)])
             for pl in players:
                 if p == str(pl.steam_id):
                     count = self.db[PLAYER_KEY.format(player.steam_id) + ":pummeled:" + p]
@@ -243,16 +249,16 @@ class kills(minqlx.Plugin):
 
         msg = ""
         for p in pummels:
-            total += 1
+            total += int(self.db[PLAYER_KEY.format(player.steam_id) + ":airpummel:" + str(p)])
             for pl in players:
                 if p == str(pl.steam_id):
                     count = self.db[PLAYER_KEY.format(player.steam_id) + ":airpummel:" + p]
                     msg +=  pl.name + ": ^1" + count + "^7 "
         if total:
-            self.msg("^4Air Pummel^7 Stats for {}: Total ^4Air Pummels^7: ^1{}".format(player, total))
+            self.msg("^4Air Gauntlet^7 Stats for {}: Total ^4Air Gauntlets^7: ^1{}".format(player, total))
             self.msg(msg)
         else:
-            self.msg("{} ^7has not ^4air pummeled^7 anybody on this server.".format(player))
+            self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
 
     def cmd_grenades(self, player, msg, channel):
         if len(msg) > 1:
@@ -264,7 +270,7 @@ class kills(minqlx.Plugin):
 
         msg = ""
         for p in grenades:
-            total += 1
+            total += int(self.db[PLAYER_KEY.format(player.steam_id) + ":grenaded:" + str(p)])
             for pl in players:
                 if p == str(pl.steam_id):
                     count = self.db[PLAYER_KEY.format(player.steam_id) + ":grenaded:" + p]
@@ -285,7 +291,7 @@ class kills(minqlx.Plugin):
 
         msg = ""
         for p in rocket:
-            total += 1
+            total += int(self.db[PLAYER_KEY.format(player.steam_id) + ":rocket:" + str(p)])
             for pl in players:
                 if p == str(pl.steam_id):
                     count = self.db[PLAYER_KEY.format(player.steam_id) + ":rocket:" + p]
@@ -306,7 +312,7 @@ class kills(minqlx.Plugin):
 
         msg = ""
         for p in rocket:
-            total += 1
+            total += int(self.db[PLAYER_KEY.format(player.steam_id) + ":plasma:" + str(p)])
             for pl in players:
                 if p == str(pl.steam_id):
                     count = self.db[PLAYER_KEY.format(player.steam_id) + ":plasma:" + p]
@@ -355,7 +361,8 @@ class kills(minqlx.Plugin):
 
     def kills_recorded(self, player, msg, channel):
         self.msg("^4Special kills ^7are recorded when these kills are made:")
-        self.msg("^3Pummel/Gauntlet^7, ^3Direct Grenade^7, ^3Mid-Air Rocket^7, and ^3Mid-Air Plasma")
+        self.msg("^3Pummel^7, ^3Air Gauntlet^7, ^3Direct Grenade^7, ^3Mid-Air Rocket^7, and ^3Mid-Air Plasma")
+        self.msg("^3Commands^7: ^4!pummel^7, ^4!airgauntlet^7, ^4!grenades^7, ^4!rockets^7, ^4!plasma")
 
     def player_id(self, id, player):
         try:
@@ -382,4 +389,4 @@ class kills(minqlx.Plugin):
         return target_player
 
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.05")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.06")
