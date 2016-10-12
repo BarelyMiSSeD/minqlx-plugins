@@ -26,6 +26,22 @@
 # the Total displayed is all of that type kill and it displays kills for
 # the victims that are on the server on the same time.
 
+# ******  How to set which kill types are recorded ******
+# Add the values for each type of kill listed below and set that value
+#  to the qlx_killsMonitorKillTypes in the same location as the rest of
+#  your minqlx cvar's.
+#
+#  ****Kill Monitor Values****
+#         Pummel:  1    (records any pummel/gauntlet kill)
+#     Air Pummel:  2    (records any pummel/gauntlet kill where killer and victim are airborne)
+# Direct Grenade:  4    (records any kills with direct grenade hits)
+#    Air Rockets:  8    (records any Air Rocket kills)
+#     Air Plasma:  16   (records any Air Plasma kills)
+#      Air Rails:  32   (records any Air Rails kills where both the killer and victim are airborne)
+#
+# The Default value is 'set qlx_killsMonitorKillTypes "63"' which enables
+#  all the kill monitor types.
+
 import minqlx
 
 # DB related
@@ -37,6 +53,8 @@ SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ffa", "ictf", "ad")
 
 class kills(minqlx.Plugin):
     def __init__(self):
+        self.set_cvar_once("qlx_killsMonitorKillTypes", "63")
+
         self.add_hook("kill", self.handle_kill)
         self.add_hook("game_end", self.handle_end_game)
         self.add_hook("map", self.handle_map)
@@ -51,6 +69,7 @@ class kills(minqlx.Plugin):
         self.add_command(("gametypes", "games"), self.supported_games)
         self.add_command("kills", self.kills_recorded)
         self.add_command(("kgt", "killsgametype"), self.cmd_kills_gametype, 3)
+        self.add_command(("rkm", "reloadkillsmonitor"), self.cmd_kills_monitor, 3)
 
         self.kills_pummel = {}
         self.kills_airpummel = {}
@@ -59,16 +78,19 @@ class kills(minqlx.Plugin):
         self.kills_plasma = {}
         self.kills_airrail = {}
 
+        self.kills_killMonitor = [0,0,0,0,0,0]
+        self.cmd_kills_monitor()
+
         self.kills_gametype = self.game.type_short
 
     def handle_kill(self, victim, killer, data):
         if self.kills_gametype in SUPPORTED_GAMETYPES:
             mod = data["MOD"]
             msg = None
-            if mod == "GAUNTLET":
+            if mod == "GAUNTLET" and (self.kills_killMonitor[0] or self.kills_killMonitor[1]):
                 killed = data["VICTIM"]
                 kill = data["KILLER"]
-                if killed["AIRBORNE"] and kill["AIRBORNE"]:
+                if killed["AIRBORNE"] and kill["AIRBORNE"] and self.kills_killMonitor[1]:
                     self.sound_play("sound/vo_evil/rampage2")
 
                     if self.game.state == "in_progress":
@@ -87,7 +109,7 @@ class kills(minqlx.Plugin):
                     else:
                         msg = "^1AIR GAUNTLET!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-                else:
+                elif self.kills_killMonitor[0]:
                     self.sound_play("sound/vo_evil/humiliation1")
 
                     if self.game.state == "in_progress":
@@ -106,7 +128,7 @@ class kills(minqlx.Plugin):
                     else:
                         msg = "^1PUMMEL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "GRENADE":
+            elif mod == "GRENADE" and self.kills_killMonitor[2]:
                 self.sound_play("sound/vo_female/holy_shit")
 
                 if self.game.state == "in_progress":
@@ -125,7 +147,7 @@ class kills(minqlx.Plugin):
                 else:
                     msg = "^1GRENADE KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "ROCKET":
+            elif mod == "ROCKET" and self.kills_killMonitor[3]:
                 killed = data["VICTIM"]
                 if killed["AIRBORNE"]:
                     self.sound_play("sound/vo_evil/midair1")
@@ -146,7 +168,7 @@ class kills(minqlx.Plugin):
                     else:
                         msg = "^1AIR ROCKET KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "PLASMA":
+            elif mod == "PLASMA" and self.kills_killMonitor[4]:
                 killed = data["VICTIM"]
                 if killed["AIRBORNE"]:
                     self.sound_play("sound/vo_evil/damage")
@@ -167,7 +189,7 @@ class kills(minqlx.Plugin):
                     else:
                         msg = "^1AIR PLASMA KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "RAILGUN" or mod == "RAILGUN_HEADSHOT":
+            elif (mod == "RAILGUN" or mod == "RAILGUN_HEADSHOT") and self.kills_killMonitor[5]:
                 killed = data["VICTIM"]
                 kill = data["KILLER"]
                 if killed["AIRBORNE"] and kill["AIRBORNE"]:
@@ -259,136 +281,154 @@ class kills(minqlx.Plugin):
         return minqlx.RET_STOP_ALL
 
     def cmd_pummel(self, player, msg, channel):
-        if len(msg) > 1:
-            player = self.player_id(msg[1], player)
-
-        p_steam_id = player.steam_id
-        total = 0
-        pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":pummeled")
-        players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-        msg = ""
-        for p in pummels:
-            total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + str(p)])
-            for pl in players:
-                if p == str(pl.steam_id):
-                    count = self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + p]
-                    msg +=  pl.name + ": ^1" + count + "^7 "
-        if total:
-            self.msg("^4Pummel^7 Stats for {}: Total ^4Pummels^7: ^1{}".format(player, total))
-            self.msg(msg)
+        if not self.kills_killMonitor[0]:
+                self.msg("^4Pummel Kill ^7stats are not enabled on this server.")
         else:
-            self.msg("{} ^7has not ^4pummeled^7 anybody on this server.".format(player))
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+
+            p_steam_id = player.steam_id
+            total = 0
+            pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":pummeled")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+
+            msg = ""
+            for p in pummels:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + p]
+                        msg +=  pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Pummel^7 Stats for {}: Total ^4Pummels^7: ^1{}".format(player, total))
+                self.msg(msg)
+            else:
+                self.msg("{} ^7has not ^4pummeled^7 anybody on this server.".format(player))
 
     def cmd_airpummel(self, player, msg, channel):
-        if len(msg) > 1:
-            player = self.player_id(msg[1], player)
-
-        p_steam_id = player.steam_id
-        total = 0
-        pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airpummel")
-        players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-        msg = ""
-        for p in pummels:
-            total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + str(p)])
-            for pl in players:
-                if p == str(pl.steam_id):
-                    count = self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + p]
-                    msg +=  pl.name + ": ^1" + count + "^7 "
-        if total:
-            self.msg("^4Air Gauntlet^7 Stats for {}: Total ^4Air Gauntlets^7: ^1{}".format(player, total))
-            self.msg(msg)
+        if not self.kills_killMonitor[1]:
+                self.msg("^4Air Pummel Kill ^7stats are not enabled on this server.")
         else:
-            self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+
+            p_steam_id = player.steam_id
+            total = 0
+            pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airpummel")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+
+            msg = ""
+            for p in pummels:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + p]
+                        msg +=  pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Gauntlet^7 Stats for {}: Total ^4Air Gauntlets^7: ^1{}".format(player, total))
+                self.msg(msg)
+            else:
+                self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
 
     def cmd_grenades(self, player, msg, channel):
-        if len(msg) > 1:
-            player = self.player_id(msg[1], player)
-
-        p_steam_id = player.steam_id
-        total = 0
-        grenades = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":grenaded")
-        players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-        msg = ""
-        for p in grenades:
-            total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + str(p)])
-            for pl in players:
-                if p == str(pl.steam_id):
-                    count = self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + p]
-                    msg += pl.name + ": ^1" + count + "^7 "
-        if total:
-            self.msg("^4Grenade^7 Stats for {}: Total ^4Grenade^7 Kills: ^1{}".format(player, total))
-            self.msg(msg)
+        if not self.kills_killMonitor[2]:
+                self.msg("^4Grenade Kill ^7stats are not enabled on this server.")
         else:
-            self.msg("{} ^7has not ^4grenade^7 killed anybody on this server.".format(player))
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+
+            p_steam_id = player.steam_id
+            total = 0
+            grenades = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":grenaded")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+
+            msg = ""
+            for p in grenades:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Grenade^7 Stats for {}: Total ^4Grenade^7 Kills: ^1{}".format(player, total))
+                self.msg(msg)
+            else:
+                self.msg("{} ^7has not ^4grenade^7 killed anybody on this server.".format(player))
 
     def cmd_rocket(self, player, msg, channel):
-        if len(msg) > 1:
-            player = self.player_id(msg[1], player)
-
-        p_steam_id = player.steam_id
-        total = 0
-        rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":rocket")
-        players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-        msg = ""
-        for p in rocket:
-            total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + str(p)])
-            for pl in players:
-                if p == str(pl.steam_id):
-                    count = self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + p]
-                    msg += pl.name + ": ^1" + count + "^7 "
-        if total:
-            self.msg("^4Air Rocket^7 Stats for {}: Total ^4Air Rocket^7 Kills: ^1{}".format(player, total))
-            self.msg(msg)
+        if not self.kills_killMonitor[3]:
+                self.msg("^4Air Rocket Kill ^7stats are not enabled on this server.")
         else:
-            self.msg("{} has not ^4air rocket^7 killed anybody on this server.".format(player))
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":rocket")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Rocket^7 Stats for {}: Total ^4Air Rocket^7 Kills: ^1{}".format(player, total))
+                self.msg(msg)
+            else:
+                self.msg("{} has not ^4air rocket^7 killed anybody on this server.".format(player))
 
     def cmd_plasma(self, player, msg, channel):
-        if len(msg) > 1:
-            player = self.player_id(msg[1], player)
-
-        p_steam_id = player.steam_id
-        total = 0
-        rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":plasma")
-        players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-        msg = ""
-        for p in rocket:
-            total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + str(p)])
-            for pl in players:
-                if p == str(pl.steam_id):
-                    count = self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + p]
-                    msg += pl.name + ": ^1" + count + "^7 "
-        if total:
-            self.msg("^4Air Plasma^7 Stats for {}: Total ^4Air Plasma^7 Kills: ^1{}".format(player, total))
-            self.msg(msg)
+        if not self.kills_killMonitor[4]:
+                self.msg("^4Air Plasma Kill ^7stats are not enabled on this server.")
         else:
-            self.msg("{} has not ^4air plasma^7 killed anybody on this server.".format(player))
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":plasma")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Plasma^7 Stats for {}: Total ^4Air Plasma^7 Kills: ^1{}".format(player, total))
+                self.msg(msg)
+            else:
+                self.msg("{} has not ^4air plasma^7 killed anybody on this server.".format(player))
 
     def cmd_airrail(self, player, msg, channel):
-        if len(msg) > 1:
-            player = self.player_id(msg[1], player)
-
-        p_steam_id = player.steam_id
-        total = 0
-        pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airrail")
-        players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-        msg = ""
-        for p in pummels:
-            total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + str(p)])
-            for pl in players:
-                if p == str(pl.steam_id):
-                    count = self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + p]
-                    msg +=  pl.name + ": ^1" + count + "^7 "
-        if total:
-            self.msg("^4Air Rail^7 Stats for {}: Total ^4Air Rails^7: ^1{}".format(player, total))
-            self.msg(msg)
+        if not self.kills_killMonitor[5]:
+                self.msg("^4Air Rail Kill ^7stats are not enabled on this server.")
         else:
-            self.msg("{} ^7has not ^4air railed^7 anybody on this server.".format(player))
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+
+            p_steam_id = player.steam_id
+            total = 0
+            pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airrail")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+
+            msg = ""
+            for p in pummels:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + p]
+                        msg +=  pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Rail^7 Stats for {}: Total ^4Air Rails^7: ^1{}".format(player, total))
+                self.msg(msg)
+            else:
+                self.msg("{} ^7has not ^4air railed^7 anybody on this server.".format(player))
 
     def add_killer(self, killer, method):
         if method == "GAUNTLET":
@@ -460,5 +500,20 @@ class kills(minqlx.Plugin):
 
         return target_player
 
+    def cmd_kills_monitor(self, player=None, msg=None, channel=None):
+        games = self.get_cvar("qlx_killsMonitorKillTypes", int)
+        binary = bin(games)[2:]
+        length = len(str(binary))
+        count = 0
+
+        while length > 0:
+            self.kills_killMonitor[count] = int(binary[length - 1])
+            count += 1
+            length -= 1
+
+        if player:
+            player.tell("Monitor: {}".format(str(self.kills_killMonitor)))
+            return minqlx.RET_STOP_ALL
+
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.08")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.09")
