@@ -284,6 +284,22 @@ the stats gotten with the above commands.
 ***NOTE*** To disable the sounds this script plays type !sounds
 This uses the built-in minqlx sounds feature.
 
+ ******  How to set which kill types are recorded ******
+ Add the values for each type of kill listed below and set that value
+  to the qlx_killsMonitorKillTypes in the same location as the rest of
+  your minqlx cvar's.
+
+****Kill Monitor Values****<br>
+         Pummel:  1    (records any pummel/gauntlet kill)<br>
+     Air Pummel:  2    (records any pummel/gauntlet kill where killer and victim are airborne)<br>
+ Direct Grenade:  4    (records any kills with direct grenade hits)<br>
+    Air Rockets:  8    (records any Air Rocket kills)<br>
+     Air Plasma:  16   (records any Air Plasma kills)<br>
+      Air Rails:  32   (records any Air Rails kills where both the killer and victim are airborne)<br>
+
+ The Default value is 'set qlx_killsMonitorKillTypes "63"' which enables
+  all the kill monitor types.
+
 <br><br>
 Commands available with kills.py
 
