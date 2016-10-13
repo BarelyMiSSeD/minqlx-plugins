@@ -350,6 +350,20 @@ NOTE: This kill type looks at how the server reports the kill. If it is a direct
 
 Usage: !plasma
 
+<b>!airrail</b> (alternatively !airrails)
+
+Shows your total air rail kills on the server and your kill ratio against any connected player.
+NOTE: This kill type looks at how the server reports the kill. If it is a rail kill where both
+      the killer and the victim is reported as in the air, the kill will record.
+
+Usage: !airrail
+
+<br><br>
+<b>CVAR(s)</b>
+<b>The following bot settings used in the kills script can be set with the rest of the minqlx bot settings:</b><br>
+The settings are shown with the default settings.<br>
+
+<b>set qlx_killsMonitorKillTypes "63"</b> Enables/Disables the kill monitor types. See **Kill Monitor Values** above.
 
 <br><br>
 # Listmaps.py
