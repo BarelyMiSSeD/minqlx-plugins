@@ -234,11 +234,11 @@ class kills(minqlx.Plugin):
                     else:
                         msg = "^1AIR RAIL KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "TELEFRAG" and self.kills_killMonitor[6] and not data["TEAMKILL"] and self.kills_roundActive:
+            elif mod == "TELEFRAG" and self.kills_killMonitor[6] and not data["TEAMKILL"]:
                 if self.kills_play_sounds:
                     self.sound_play("sound/vo/perforated")
 
-                if self.game.state == "in_progress":
+                if self.game.state == "in_progress" and self.kills_roundActive:
                     killer_steam_id = killer.steam_id
                     victim_steam_id = victim.steam_id
                     self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":telefrag", str(victim_steam_id))
@@ -251,14 +251,14 @@ class kills(minqlx.Plugin):
 
                     msg = "^1TELEFRAG KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
                     self.add_killer(str(killer.name), "TELEFRAG")
-                else:
+                elif self.game.state != "in_progress" and not self.kills_roundActive:
                     msg = "^1TELEFRAG KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "TELEFRAG" and self.kills_killMonitor[7] and data["TEAMKILL"] and self.kills_roundActive:
+            elif mod == "TELEFRAG" and self.kills_killMonitor[7] and data["TEAMKILL"]:
                 if self.kills_play_sounds:
                     self.sound_play("sound/vo_female/perforated")
 
-                if self.game.state == "in_progress":
+                if self.game.state == "in_progress" and self.kills_roundActive:
                     killer_steam_id = killer.steam_id
                     victim_steam_id = victim.steam_id
                     self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":teamtelefrag", str(victim_steam_id))
@@ -271,7 +271,7 @@ class kills(minqlx.Plugin):
 
                     msg = "^6TEAM ^1TELEFRAG KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
                     self.add_killer(str(killer.name), "TEAMTELEFRAG")
-                else:
+                elif self.game.state != "in_progress" and not self.kills_roundActive:
                     msg = "^6TEAM ^1TELEFRAG KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
             if msg:
