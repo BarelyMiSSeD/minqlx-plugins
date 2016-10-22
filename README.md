@@ -290,14 +290,16 @@ This uses the built-in minqlx sounds feature.
   your minqlx cvar's.
 
 ****Kill Monitor Values****<br>
-         Pummel:  1    (records any pummel/gauntlet kill)<br>
-     Air Pummel:  2    (records any pummel/gauntlet kill where killer and victim are airborne)<br>
- Direct Grenade:  4    (records any kills with direct grenade hits)<br>
-    Air Rockets:  8    (records any Air Rocket kills)<br>
-     Air Plasma:  16   (records any Air Plasma kills)<br>
-      Air Rails:  32   (records any Air Rails kills where both the killer and victim are airborne)<br>
+             Pummel:  1    (records any pummel/gauntlet kill)<br>
+         Air Pummel:  2    (records any pummel/gauntlet kill where killer and victim are airborne)<br>
+     Direct Grenade:  4    (records any kills with direct grenade hits)<br>
+        Air Rockets:  8    (records any Air Rocket kills)<br>
+         Air Plasma:  16   (records any Air Plasma kills)<br>
+          Air Rails:  32   (records any Air Rails kills where both the killer and victim are airborne)<br>
+           Telefrag:  64   (records any enemy telefrag)<br>
+  Telefrag TeamKill:  128  (records any teamkill telefrag)<br>
 
- The Default value is 'set qlx_killsMonitorKillTypes "63"' which enables
+ The Default value is 'set qlx_killsMonitorKillTypes "255"' which enables
   all the kill monitor types.
 
 <br><br>
@@ -358,12 +360,26 @@ NOTE: This kill type looks at how the server reports the kill. If it is a rail k
 
 Usage: !airrail
 
+<b>!telefrag</b>
+
+Shows your total telefrag kills on enemies on the server and your kill ratio against any connected player.
+
+Usage: !telefrag
+
+<b>!teamtelefrag</b> (alternatively !teamtele)
+
+Shows your total telefrag kills on teammates on the server and your kill ratio against any connected player.
+
+Usage: !teamtelefrag
+
 <br><br>
 <b>CVAR(s)</b>
 <b>The following bot settings used in the kills script can be set with the rest of the minqlx bot settings:</b><br>
 The settings are shown with the default settings.<br>
 
-<b>set qlx_killsMonitorKillTypes "63"</b> Enables/Disables the kill monitor types. See **Kill Monitor Values** above.
+<b>set qlx_killsMonitorKillTypes "255"</b> Enables/Disables the kill monitor types. See **Kill Monitor Values** above.<br>
+<b>set qlx_killsPlaySounds "1"</b> Enables/Disables the sounds played when a monitored kill happens.<br>
+                                   Players can individually turn off sounds with !sounds.<br>
 
 <br><br>
 # Listmaps.py
