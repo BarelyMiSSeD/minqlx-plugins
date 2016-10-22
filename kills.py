@@ -61,6 +61,9 @@ class kills(minqlx.Plugin):
         self.add_hook("kill", self.handle_kill)
         self.add_hook("game_end", self.handle_end_game)
         self.add_hook("map", self.handle_map)
+        self.add_hook("round_countdown", self.handle_round_count)
+        self.add_hook("round_start", self.handle_round_start)
+        self.add_hook("round_end", self.handle_round_end)
 
         self.add_command(("pummel", "gauntlet"), self.cmd_pummel)
         self.add_command(("airpummel", "airgauntlet"), self.cmd_airpummel)
@@ -85,6 +88,8 @@ class kills(minqlx.Plugin):
         self.kills_telefrag = {}
         self.kills_teamtelefrag = {}
 
+        self.kills_roundActive = 0
+
         self.kills_play_sounds = bool(self.get_cvar("qlx_killsPlaySounds"))
         self.kills_killMonitor = [0,0,0,0,0,0,0,0]
         self.cmd_kills_monitor()
@@ -92,6 +97,8 @@ class kills(minqlx.Plugin):
         self.kills_gametype = self.game.type_short
 
     def handle_kill(self, victim, killer, data):
+        #player = self.player(0)
+        #player.tell("{} \n Gamestate: {}".format(str(data), self.game.state))
         if self.kills_gametype in SUPPORTED_GAMETYPES:
             mod = data["MOD"]
             msg = None
@@ -225,7 +232,7 @@ class kills(minqlx.Plugin):
                     else:
                         msg = "^1AIR RAIL KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "TELEFRAG" and self.kills_killMonitor[6] and not data["TEAMKILL"]:
+            elif mod == "TELEFRAG" and self.kills_killMonitor[6] and not data["TEAMKILL"] and self.kills_roundActive:
                 if self.kills_play_sounds:
                     self.sound_play("sound/vo/perforated")
 
@@ -245,7 +252,7 @@ class kills(minqlx.Plugin):
                 else:
                     msg = "^1TELEFRAG KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
-            elif mod == "TELEFRAG" and self.kills_killMonitor[7] and data["TEAMKILL"]:
+            elif mod == "TELEFRAG" and self.kills_killMonitor[7] and data["TEAMKILL"] and self.kills_roundActive:
                 if self.kills_play_sounds:
                     self.sound_play("sound/vo_female/perforated")
 
@@ -270,6 +277,15 @@ class kills(minqlx.Plugin):
 
     def handle_map(self, mapname, factory):
         self.kills_gametype = self.game.type_short
+
+    def handle_round_count(self, round_number):
+        self.kills_roundActive = 0
+
+    def handle_round_start(self, round_number):
+        self.kills_roundActive = 1
+
+    def handle_round_end(self, round_number):
+        self.kills_roundActive = 0
 
     def handle_end_game(self, data):
         self.kills_gametype = self.game.type_short
