@@ -23,6 +23,8 @@
 #  "air rockets" via !rockets or !rocket
 #  "air plasma" via !plasma
 #  "air rail" via !airrail
+#  "telefrag" via !telefrag
+#  "team telefrag" via !teamtele or !teamtelefrag
 # the Total displayed is all of that type kill and it displays kills for
 # the victims that are on the server on the same time.
 
