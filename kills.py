@@ -107,7 +107,7 @@ class kills(minqlx.Plugin):
             if mod == "GAUNTLET" and (self.kills_killMonitor[0] or self.kills_killMonitor[1]):
                 killed = data["VICTIM"]
                 kill = data["KILLER"]
-                if killed["AIRBORNE"] and kill["AIRBORNE"] and self.kills_killMonitor[1]:
+                if killed["AIRBORNE"] and kill["AIRBORNE"] and not killed["SUBMERGED"] and not kill["SUBMERGED"] and self.kills_killMonitor[1]:
                     if self.kills_play_sounds:
                         self.sound_play("sound/vo_evil/rampage2")
 
@@ -169,7 +169,7 @@ class kills(minqlx.Plugin):
 
             elif mod == "ROCKET" and self.kills_killMonitor[3]:
                 killed = data["VICTIM"]
-                if killed["AIRBORNE"]:
+                if killed["AIRBORNE"] and not killed["SUBMERGED"]:
                     if self.kills_play_sounds:
                         self.sound_play("sound/vo_evil/midair1")
 
@@ -191,7 +191,7 @@ class kills(minqlx.Plugin):
 
             elif mod == "PLASMA" and self.kills_killMonitor[4]:
                 killed = data["VICTIM"]
-                if killed["AIRBORNE"]:
+                if killed["AIRBORNE"] and not killed["SUBMERGED"]:
                     if self.kills_play_sounds:
                         self.sound_play("sound/vo_evil/damage")
 
@@ -214,7 +214,7 @@ class kills(minqlx.Plugin):
             elif (mod == "RAILGUN" or mod == "RAILGUN_HEADSHOT") and self.kills_killMonitor[5]:
                 killed = data["VICTIM"]
                 kill = data["KILLER"]
-                if killed["AIRBORNE"] and kill["AIRBORNE"]:
+                if killed["AIRBORNE"] and kill["AIRBORNE"] and not killed["SUBMERGED"] and not kill["SUBMERGED"]:
                     if self.kills_play_sounds:
                         self.sound_play("sound/vo_female/midair3")
 
@@ -235,7 +235,7 @@ class kills(minqlx.Plugin):
                         msg = "^1AIR RAIL KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
             elif mod == "TELEFRAG" and self.kills_killMonitor[6] and not data["TEAMKILL"]:
-                if self.kills_play_sounds:
+                if self.kills_play_sounds and (self.kills_roundActive or self.game.state == "warmup"):
                     self.sound_play("sound/vo/perforated")
 
                 if self.game.state == "in_progress" and self.kills_roundActive:
@@ -255,7 +255,7 @@ class kills(minqlx.Plugin):
                     msg = "^1TELEFRAG KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
             elif mod == "TELEFRAG" and self.kills_killMonitor[7] and data["TEAMKILL"]:
-                if self.kills_play_sounds:
+                if self.kills_play_sounds and (self.kills_roundActive or self.game.state == "warmup"):
                     self.sound_play("sound/vo_female/perforated")
 
                 if self.game.state == "in_progress" and self.kills_roundActive:
@@ -666,4 +666,4 @@ class kills(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
 
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.10")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.11")
