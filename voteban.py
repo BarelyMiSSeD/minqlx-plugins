@@ -16,7 +16,6 @@ qlx_votebanRedisStorage "0" - Set to "1" if you would rather use the Redis datab
 
 import minqlx
 import re
-import threading
 import requests
 import datetime
 import time
@@ -26,7 +25,7 @@ LENGTH_REGEX = re.compile(r"(?P<number>[0-9]+) (?P<scale>seconds?|minutes?|hours
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 PLAYER_KEY = "minqlx:players:{}"
 
-VERSION = "v1.10"
+VERSION = "v1.11"
 
 VOTEBAN_FILE = "voteban.txt"
 
@@ -48,6 +47,7 @@ class voteban(minqlx.Plugin):
         self.add_command(("listvoteban", "list_voteban", "votebanlist", "voteban_list"), self.cmd_voteBanList, int(self.get_cvar("qlx_votebanAdmin")))
         self.add_command("vblist", self.cmd_VBList, 5) # command for testing purposes
 
+        self.voteban = []
         # Checks for a voteban.txt file and loads the entries if the file exists.
         self.load_voteban_list()
 
@@ -91,7 +91,7 @@ class voteban(minqlx.Plugin):
             
         if id in self.voteban:
             if self.get_cvar("qlx_votebanRedisStorage", int):
-                voteban_time, reason = self.is_votebanned(id)
+                voteban_time, reason, banner = self.is_votebanned(id)
                 if voteban_time:
                     if id in self.voteban:
                         self.voteban.remove(id)
@@ -106,7 +106,7 @@ class voteban(minqlx.Plugin):
                     if id == int(searchID.split(None, 1)[0]):
                         words = searchID.split(" ")
                         timeEnd = " ".join(words[3:5])
-                        banEnd = datetime.datetime.strptime(timeEnd, TIME_FORMAT)
+                        banEnd = datetime.datetime.strptime(str(timeEnd), TIME_FORMAT)
                         if (banEnd - datetime.datetime.now()).total_seconds() <= 0:
                             self.voteban.remove(id)
 
@@ -158,9 +158,11 @@ class voteban(minqlx.Plugin):
             else:
                 target_player = "Name not supplied"
 
-        # Checks player permission level and will not vote ban players with at least the qlx_protectPermissionLevel setting.
+        # Checks player permission level and will not vote ban
+        # players with at least the qlx_protectPermissionLevel setting.
         if self.db.has_permission(id, int(self.get_cvar("qlx_votebanProtectionLevel"))):
-            player.tell("^2{} ^3is not allowed to be vote banned. Protected permission level or higher has been assigned.".format(messageName))
+            player.tell("^2{} ^3is not allowed to be vote banned. Protected permission level has been assigned."
+                        .format(messageName))
             return minqlx.RET_STOP_EVENT
             
         if len(msg) > 4:
@@ -200,9 +202,9 @@ class voteban(minqlx.Plugin):
         if self.get_cvar("qlx_votebanRedisStorage", int):
         
             if id in self.voteban:
-                voteban_time, reason = self.is_votebanned(id)
-                banEnd = datetime.datetime.strptime(voteban_time, TIME_FORMAT)
-                newEnd = datetime.datetime.strptime(expires, TIME_FORMAT)
+                voteban_time, reason, banner = self.is_votebanned(id)
+                banEnd = datetime.datetime.strptime(str(voteban_time), TIME_FORMAT)
+                newEnd = datetime.datetime.strptime(str(expires), TIME_FORMAT)
                 if (banEnd - newEnd).total_seconds() > 0:
                     player.tell("^2{} ^3 is already vote banned for longer. Use ^2!votebanlist".format(messageName))
                     return minqlx.RET_STOP_EVENT
@@ -241,8 +243,8 @@ class voteban(minqlx.Plugin):
                     elif id != int(searchID.split(None, 1)[0]): continue
                     words = searchID.split(" ")
                     timeEnd = " ".join(words[3:5])
-                    banEnd = datetime.datetime.strptime(timeEnd, TIME_FORMAT)
-                    newEnd = datetime.datetime.strptime(expires, TIME_FORMAT)
+                    banEnd = datetime.datetime.strptime(str(timeEnd), TIME_FORMAT)
+                    newEnd = datetime.datetime.strptime(str(expires), TIME_FORMAT)
     
                     if (banEnd - newEnd).total_seconds() > 0:
                         player.tell("^2{} ^3 is already vote banned for longer. Use ^2!votebanlist".format(messageName))
@@ -261,7 +263,7 @@ class voteban(minqlx.Plugin):
                         return minqlx.RET_STOP_EVENT
     
             else:
-                newEnd = datetime.datetime.strptime(expires, TIME_FORMAT)
+                newEnd = datetime.datetime.strptime(str(expires), TIME_FORMAT)
                 for searchID in lines:
                     if searchID.startswith("#"): continue
                     elif id == int(searchID.split(None, 1)[0]):
@@ -314,17 +316,14 @@ class voteban(minqlx.Plugin):
             messageName = str(id)
             
         if self.get_cvar("qlx_votebanRedisStorage", int):
-            
-            voteban_time, reason = self.is_votebanned(id)
-
             base_key = PLAYER_KEY.format(id) + ":votebans"
             votebans = self.db.zrangebyscore(base_key, time.time(), "+inf", withscores=True)
             if not votebans:
                 player.tell("^2{}^3 is not on the Vote Ban list.".format(messageName))
             else:
                 db = self.db.pipeline()
-                for id, score in votebans:
-                    db.zincrby(base_key, id, -score)
+                for p, score in votebans:
+                    db.zincrby(base_key, p, -score)
                 db.execute()
                 player.tell("^2{}^3 has been deleted from the Vote Ban list.".format(messageName))
             
@@ -365,24 +364,35 @@ class voteban(minqlx.Plugin):
 
     # List players in the voteban file
     def cmd_voteBanList(self, player, msg, channel):
-        player_list = self.players()
-        list = "^5VoteBan List^7: If Active ^2'EndTime' ^7is in ^2Green\n"
-        
         if self.get_cvar("qlx_votebanRedisStorage", int):
-            for p in player_list:
-                id = p.steam_id
-                voteban_time, reason = self.is_votebanned(id)
-                if voteban_time:
-                    banEnd = datetime.datetime.strptime(str(voteban_time), TIME_FORMAT)
-                    if (banEnd - datetime.datetime.now()).total_seconds() >= 0:
-                        color = "^2EndTime"
-                    else:
-                        color = "^7EndTime"
-                        
-                    list += " ^7SteamID ^1{} {} ^1{}^7: ^3{}\n".format(id, color, voteban_time, p)
+            @minqlx.thread
+            def redis_votebanned():
+                list = "^5VoteBan List^7:\n"
+                for key in self.db.scan_iter("minqlx:players:*:votebans"):
+                    id = key.split(":")[2]
+                    playerName = self.check_conected_name(id)
+                    if not playerName:
+                        try:
+                            playerName = self.db.lindex(PLAYER_KEY.format(id), 0)
+                            if not playerName: raise KeyError
+                        except KeyError:
+                            playerName = id
+                    voteban_time, reason, banner = self.is_votebanned(id)
+                    try:
+                        bannerName = self.db.lindex(PLAYER_KEY.format(banner), 0)
+                        if not bannerName: raise KeyError
+                    except KeyError:
+                        bannerName = banner
+                    if voteban_time:
+                        list += " ^7SteamID ^1{} ^2EndTime ^1{}^7: ^3{} : \n^2Banned By^7 {}\n".format(id, voteban_time, playerName, bannerName)
+
+                player.tell(list[:-1])
                 
-        
+            redis_votebanned()
+                    
         else:
+            player_list = self.players()
+            list = "^5VoteBan List^7: If Active ^2'EndTime' ^7is in ^2Green\n"
             file = os.path.join(self.get_cvar("fs_homepath"), VOTEBAN_FILE)
     
             try:
@@ -402,7 +412,7 @@ class voteban(minqlx.Plugin):
                     if int(id) == p.steam_id:
                         foundName = p.name
                 endTime = " ".join(words[3:5])
-                banEnd = datetime.datetime.strptime(endTime, TIME_FORMAT)
+                banEnd = datetime.datetime.strptime(str(endTime), TIME_FORMAT)
                 if (banEnd - datetime.datetime.now()).total_seconds() >= 0:
                     color = "^2EndTime"
                 else:
@@ -415,7 +425,7 @@ class voteban(minqlx.Plugin):
                 else:
                     list += " ^7SteamID ^1{} {} ^1{}^7: ^3No Name saved\n".format(id, color, endTime)
     
-        player.tell(list[:-1])
+            player.tell(list[:-1])
             
         return minqlx.RET_STOP_EVENT
         
@@ -423,25 +433,21 @@ class voteban(minqlx.Plugin):
         base_key = PLAYER_KEY.format(steam_id) + ":votebans"
         votebans = self.db.zrangebyscore(base_key, time.time(), "+inf", withscores=True)
         if not votebans:
-            return False, False
+            return False, False, False
 
         longest_voteban = self.db.hgetall(base_key + ":{}".format(votebans[-1][0]))
-        expires = datetime.datetime.strptime(longest_voteban["expires"], TIME_FORMAT)
-        if (expires - datetime.datetime.now()).total_seconds() > 0:
-            return expires, longest_voteban["reason"]
-        
-        return False, False
+        expires = datetime.datetime.strptime(str(longest_voteban["expires"]), TIME_FORMAT)
+        return expires, longest_voteban["reason"], longest_voteban["issued_by"]
         
     def load_voteban_list(self):
         if self.get_cvar("qlx_votebanRedisStorage", int):
-            self.voteban = []
             playerlist = self.db.keys("minqlx:players:*:votebans")
             for player in playerlist:
                 id = player.split(":")[2]
                 votebans = self.db.zrangebyscore(PLAYER_KEY.format(id) + ":votebans", time.time(), "+inf", withscores=True)
                 if votebans:
-                    longest_ban = self.db.hgetall(PLAYER_KEY.format(id) + ":votebans" + ":{}".format(votebans[-1][0]))
-                    expires = datetime.datetime.strptime(longest_ban["expires"], TIME_FORMAT)
+                    longest_ban = self.db.hgetall(PLAYER_KEY.format(id) + ":votebans:{}".format(votebans[-1][0]))
+                    expires = datetime.datetime.strptime(str(longest_ban["expires"]), TIME_FORMAT)
                     if (expires - datetime.datetime.now()).total_seconds() > 0:
                         self.voteban.append(int(id))
         
@@ -454,9 +460,18 @@ class voteban(minqlx.Plugin):
                     words = id.split(" ")
                     steamID = words[0]
                     timeEnd = " ".join(words[3:5])
-                    banEnd = datetime.datetime.strptime(timeEnd, TIME_FORMAT)
+                    banEnd = datetime.datetime.strptime(str(timeEnd), TIME_FORMAT)
                     if (banEnd - datetime.datetime.now()).total_seconds() > 0:
                         self.voteban.append(int(steamID))
             except:
                 self.voteban = []
-        
+                
+    def check_conected_name(self, id):
+        playerName = None
+        player_list = self.players()
+        for p in player_list:
+            if int(id) == p.steam_id:
+                playerName = p.name
+                break
+                
+        return playerName
