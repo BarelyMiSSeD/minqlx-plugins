@@ -1,8 +1,8 @@
 # This is an extension plugin  for minqlx.
 # Copyright (C) 2016 mattiZed (github) aka mattiZed (ql)
 # ** This plugin is thanks to mattiZed. Just modified EXTENSIVELY by BarelyMiSSeD
-# to expand on the pummel counting and add grenade, air rockets,
-# and air plasma, air pummel, and air rail. It also adds end of match reports for the match,
+# to expand on the pummel counting and add other kill type monitors.
+# It also adds end of match reports for the match,
 # and total counts for each of the kill types when called.
 
 # You can redistribute it and/or modify it under the terms of the
@@ -13,7 +13,7 @@
 # along with this plugin. If not, see <http://www.gnu.org/licenses/>.
 
 # This is a fun plugin written for Mino's Quake Live Server Mod minqlx.
-# It displays "Killer x:y Victim" message when Victim gets killed with gauntlet
+# It displays "Killer x:y Victim" message when Victim gets a monitored kill
 # and stores the information within REDIS DB
 
 # Players can display their kill stats with:
@@ -340,6 +340,7 @@ class kills(minqlx.Plugin):
                 count += 1
             if count > 0:
                 self.msg(msg)
+                count = 0
 
             msg = "^3Telefrag ^1Killers^7: "
             for k, v in self.kills_telefrag.items():
@@ -347,6 +348,7 @@ class kills(minqlx.Plugin):
                 count += 1
             if count > 0:
                 self.msg(msg)
+                count = 0
 
             msg = "^3Team Telefrag ^1Killers^7: "
             for k, v in self.kills_teamtelefrag.items():
@@ -354,6 +356,7 @@ class kills(minqlx.Plugin):
                 count += 1
             if count > 0:
                 self.msg(msg)
+                #count = 0
 
             self.kills_pummel = {}
             self.kills_airpummel = {}
@@ -368,6 +371,7 @@ class kills(minqlx.Plugin):
         player.tell("^2The current gametype is \'{}\'".format(self.kills_gametype))
         return minqlx.RET_STOP_ALL
 
+    @minqlx.thread
     def cmd_pummel(self, player, msg, channel):
         if not self.kills_killMonitor[0]:
                 self.msg("^4Pummel Kill ^7stats are not enabled on this server.")
@@ -393,6 +397,7 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4pummeled^7 anybody on this server.".format(player))
 
+    @minqlx.thread
     def cmd_airpummel(self, player, msg, channel):
         if not self.kills_killMonitor[1]:
                 self.msg("^4Air Pummel Kill ^7stats are not enabled on this server.")
@@ -418,6 +423,7 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
 
+    @minqlx.thread
     def cmd_grenades(self, player, msg, channel):
         if not self.kills_killMonitor[2]:
                 self.msg("^4Grenade Kill ^7stats are not enabled on this server.")
@@ -443,6 +449,7 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4grenade^7 killed anybody on this server.".format(player))
 
+    @minqlx.thread
     def cmd_rocket(self, player, msg, channel):
         if not self.kills_killMonitor[3]:
                 self.msg("^4Air Rocket Kill ^7stats are not enabled on this server.")
@@ -468,6 +475,7 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4air rocket^7 killed anybody on this server.".format(player))
 
+    @minqlx.thread
     def cmd_plasma(self, player, msg, channel):
         if not self.kills_killMonitor[4]:
                 self.msg("^4Air Plasma Kill ^7stats are not enabled on this server.")
@@ -493,6 +501,7 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4air plasma^7 killed anybody on this server.".format(player))
 
+    @minqlx.thread
     def cmd_airrail(self, player, msg, channel):
         if not self.kills_killMonitor[5]:
                 self.msg("^4Air Rail Kill ^7stats are not enabled on this server.")
@@ -518,6 +527,7 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4air railed^7 anybody on this server.".format(player))
 
+    @minqlx.thread
     def cmd_telefrag(self, player, msg, channel):
         if not self.kills_killMonitor[6]:
                 self.msg("^4Telefrag Kill ^7stats are not enabled on this server.")
@@ -543,6 +553,7 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4telefrag^7 killed anybody on this server.".format(player))
 
+    @minqlx.thread
     def cmd_teamtelefrag(self, player, msg, channel):
         if not self.kills_killMonitor[7]:
                 self.msg("^4Team Telefrag Kill ^7stats are not enabled on this server.")
@@ -666,4 +677,4 @@ class kills(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
 
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.11")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.12")
