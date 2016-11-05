@@ -298,8 +298,9 @@ This uses the built-in minqlx sounds feature.
           Air Rails:  32   (records any Air Rails kills where both the killer and victim are airborne)<br>
            Telefrag:  64   (records any enemy telefrag)<br>
   Telefrag TeamKill:  128  (records any teamkill telefrag)<br>
+         Speed Kill:  256  (records any kill when the killer is traveling over the set speed)<br>
 
- The Default value is 'set qlx_killsMonitorKillTypes "255"' which enables
+ The Default value is 'set qlx_killsMonitorKillTypes "511"' which enables
   all the kill monitor types.
 
 <br><br>
@@ -372,12 +373,25 @@ Shows your total telefrag kills on teammates on the server and your kill ratio a
 
 Usage: !teamtelefrag
 
+<b>!speed</b> (alternatively !speedkill)
+
+Shows your total speed kills on the server and your kill ratio against any connected player.
+
+Usage: !speed
+
+<b>!speedlimit</b>
+
+Shows the minimum speed a player must be traveling when killing someone to record a speed kill.
+
+Usage: !speedlimit
+
 <br><br>
 <b>CVAR(s)</b>
 <b>The following bot settings used in the kills script can be set with the rest of the minqlx bot settings:</b><br>
 The settings are shown with the default settings.<br>
 
 <b>set qlx_killsMonitorKillTypes "255"</b> Enables/Disables the kill monitor types. See **Kill Monitor Values** above.<br>
+<b>set qlx_killsSpeedMinimum "800"</b> Sets the minimum speed needed to record a speed kill
 <b>set qlx_killsPlaySounds "1"</b> Enables/Disables the sounds played when a monitored kill happens.<br>
                                    Players can individually turn off sounds with !sounds.<br>
 
