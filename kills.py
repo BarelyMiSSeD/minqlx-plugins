@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this plugin. If not, see <http://www.gnu.org/licenses/>.
-#
+
 # This is a fun plugin written for Mino's Quake Live Server Mod minqlx.
 # It displays "Killer x:y Victim" message when Victim gets a monitored kill
 # and stores the information within REDIS DB
@@ -126,6 +126,12 @@ class kills(minqlx.Plugin):
                     victim_steam_id = victim.steam_id
                     self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":speedkill", str(victim_steam_id))
                     self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":speedkill:" + str(victim_steam_id))
+                    speed_value = PLAYER_KEY.format(killer_steam_id) + ":highspeed"
+                    if speed_value in self.db:
+                        if int(data["KILLER"]["SPEED"]) > int(self.db[PLAYER_KEY.format(killer_steam_id) + ":highspeed"].split(".")[0]):
+                            self.db[PLAYER_KEY.format(killer_steam_id) + ":highspeed"] = int(data["KILLER"]["SPEED"])
+                    else:
+                        self.db[PLAYER_KEY.format(killer_steam_id) + ":highspeed"] = int(data["KILLER"]["SPEED"])
 
                     killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":speedkill:" + str(victim_steam_id)]
                     victim_score = 0
@@ -441,7 +447,8 @@ class kills(minqlx.Plugin):
                         msg +=  pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Pummel^7 Stats for {}: Total ^4Pummels^7: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} ^7has not ^4pummeled^7 anybody on this server.".format(player))
 
@@ -467,7 +474,8 @@ class kills(minqlx.Plugin):
                         msg +=  pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Air Gauntlet^7 Stats for {}: Total ^4Air Gauntlets^7: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
 
@@ -493,7 +501,8 @@ class kills(minqlx.Plugin):
                         msg += pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Grenade^7 Stats for {}: Total ^4Grenade^7 Kills: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} ^7has not ^4grenade^7 killed anybody on this server.".format(player))
 
@@ -519,7 +528,8 @@ class kills(minqlx.Plugin):
                         msg += pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Air Rocket^7 Stats for {}: Total ^4Air Rocket^7 Kills: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} has not ^4air rocket^7 killed anybody on this server.".format(player))
 
@@ -545,7 +555,8 @@ class kills(minqlx.Plugin):
                         msg += pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Air Plasma^7 Stats for {}: Total ^4Air Plasma^7 Kills: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} has not ^4air plasma^7 killed anybody on this server.".format(player))
 
@@ -571,7 +582,8 @@ class kills(minqlx.Plugin):
                         msg +=  pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Air Rail^7 Stats for {}: Total ^4Air Rails^7: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} ^7has not ^4air railed^7 anybody on this server.".format(player))
 
@@ -597,7 +609,8 @@ class kills(minqlx.Plugin):
                         msg += pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Telefrag^7 Stats for {}: Total ^4Telefrag^7 Kills: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} has not ^4telefrag^7 killed anybody on this server.".format(player))
 
@@ -623,7 +636,8 @@ class kills(minqlx.Plugin):
                         msg += pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Team Telefrag^7 Stats for {}: Total ^4Team Telefrag^7 Kills: ^1{}".format(player, total))
-                self.msg(msg)
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} has not ^4team telefrag^7 killed anybody on this server.".format(player))
 
@@ -649,7 +663,10 @@ class kills(minqlx.Plugin):
                         msg += pl.name + ": ^1" + count + "^7 "
             if total:
                 self.msg("^4Speed Kill^7 Stats for {}: Total ^4Speed^7 Kills: ^1{}".format(player, total))
-                self.msg(msg)
+                self.msg("^4Highest Kill Speed^7: ^3{}"
+                         .format(self.db[PLAYER_KEY.format(player.steam_id) + ":highspeed"].split(".")[0]))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
             else:
                 self.msg("{} has not ^4speed^7 killed anybody on this server.".format(player))
 
@@ -712,7 +729,8 @@ class kills(minqlx.Plugin):
     def kills_recorded(self, player, msg, channel):
         self.msg("^4Special kills ^7may be recorded when these kills are made:")
         self.msg("^3Pummel^7, ^3Air Gauntlet^7, ^3Direct Grenade^7, ^3Mid-Air Rocket^7,\n"
-                 "^3Mid-Air Plasma^7, ^3Air Rails^7, ^3Telefrags^7, and ^3Team Telefrags")
+                 "^3Mid-Air Plasma^7, ^3Air Rails^7, ^3Telefrags^7, ^3Team Telefrags^7,\n"
+                 " and ^3Speed Kills")
         self.msg("^6Commands^7: ^4!pummel^7, ^4!airgauntlet^7, ^4!grenades^7, ^4!rockets^7,\n"
                 " ^4!plasma^7, ^4!airrails^7, ^4!telefrag^7, ^4!teamtelefrag^7, ^4!speed^7,\n"
                  " ^4!speedlimit")
@@ -757,4 +775,4 @@ class kills(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
 
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.13")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.14")
