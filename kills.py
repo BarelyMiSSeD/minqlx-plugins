@@ -413,7 +413,10 @@ class kills(minqlx.Plugin):
         return minqlx.RET_STOP_ALL
 
     def cmd_speedlimit(self, player, msg, channel):
-        self.msg("^3You need a speed of at least ^1{} ^3to register a speed kill.".format(self.get_cvar("qlx_killsSpeedMinimum")))
+        if self.kills_killMonitor[8]:
+            self.msg("^3You need a speed of at least ^1{} ^3to register a speed kill.".format(self.get_cvar("qlx_killsSpeedMinimum")))
+        else:
+            self.msg("^4Speed Kill ^7stats are not enabled on this server.")
 
     @minqlx.thread
     def cmd_pummel(self, player, msg, channel):
