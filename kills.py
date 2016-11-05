@@ -33,6 +33,12 @@
 #  to the qlx_killsMonitorKillTypes in the same location as the rest of
 #  your minqlx cvar's.
 #
+#
+# CVAR Settings:
+# set qlx_killsPlaySounds "1"           : Turns the sound playing when a kill is made On/Off
+# set qlx_killsSpeedMinimum "800"       : Sets the minimum speed needed to record a speed kill
+# set qlx_killsMonitorKillTypes "511"   : Sets the types of kills that are monitored. See Below for settings.
+#
 #  ****Kill Monitor Values****
 #             Pummel:  1    (records any pummel/gauntlet kill)
 #         Air Pummel:  2    (records any pummel/gauntlet kill where killer and victim are airborne)
@@ -42,8 +48,9 @@
 #          Air Rails:  32   (records any Air Rails kills where both the killer and victim are airborne)
 #           Telefrag:  64   (records any enemy telefrag)
 #  Telefrag TeamKill:  128  (records any teamkill telefrag)
+#         Speed Kill:  256
 #
-# The Default value is 'set qlx_killsMonitorKillTypes "255"' which enables
+# The Default value is 'set qlx_killsMonitorKillTypes "511"' which enables
 #  all the kill monitor types.
 
 import minqlx
@@ -57,8 +64,9 @@ SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ffa", "ictf", "ad")
 
 class kills(minqlx.Plugin):
     def __init__(self):
-        self.set_cvar_once("qlx_killsMonitorKillTypes", "255")
+        self.set_cvar_once("qlx_killsMonitorKillTypes", "511")
         self.set_cvar_once("qlx_killsPlaySounds", "1")
+        self.set_cvar_once("qlx_killsSpeedMinimum", "800")
 
         self.add_hook("kill", self.handle_kill)
         self.add_hook("game_end", self.handle_end_game)
@@ -75,6 +83,8 @@ class kills(minqlx.Plugin):
         self.add_command(("airrail", "airrails"), self.cmd_airrail)
         self.add_command("telefrag", self.cmd_telefrag)
         self.add_command(("teamtelefrag", "teamtele"), self.cmd_teamtelefrag)
+        self.add_command(("speed", "speedkill"), self.cmd_speedkill)
+        self.add_command("speedlimit", self.cmd_speedlimit)
         self.add_command("kills_version", self.kills_version)
         self.add_command(("gametypes", "games"), self.supported_games)
         self.add_command("kills", self.kills_recorded)
@@ -89,22 +99,44 @@ class kills(minqlx.Plugin):
         self.kills_airrail = {}
         self.kills_telefrag = {}
         self.kills_teamtelefrag = {}
+        self.kills_speed = {}
 
         self.kills_roundActive = 0
 
         self.kills_play_sounds = bool(self.get_cvar("qlx_killsPlaySounds"))
-        self.kills_killMonitor = [0,0,0,0,0,0,0,0]
+        self.kills_killMonitor = [0,0,0,0,0,0,0,0,0]
         self.cmd_kills_monitor()
 
         self.kills_gametype = self.game.type_short
 
     def handle_kill(self, victim, killer, data):
-        #player = self.player(0)
-        #player.tell("{} \n Gamestate: {}".format(str(data), self.game.state))
+        #player = self.player(2)
+        #player.tell("{} \n Gamestate: {}\nSPEED: {}".format(str(data), self.game.state, int(data["KILLER"]["SPEED"])))
+        #minqlx.console_print("{} \n Gamestate: {}".format(str(data), self.game.state))
         if self.kills_gametype in SUPPORTED_GAMETYPES:
             mod = data["MOD"]
             msg = None
-            if mod == "GAUNTLET" and (self.kills_killMonitor[0] or self.kills_killMonitor[1]):
+            if data["KILLER"]["SPEED"] > self.get_cvar("qlx_killsSpeedMinimum", int) and self.kills_killMonitor[8]:
+                if self.kills_play_sounds:
+                    self.sound_play("sound/feedback/impact4")
+
+                if self.game.state == "in_progress":
+                    killer_steam_id = killer.steam_id
+                    victim_steam_id = victim.steam_id
+                    self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":speedkill", str(victim_steam_id))
+                    self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":speedkill:" + str(victim_steam_id))
+
+                    killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":speedkill:" + str(victim_steam_id)]
+                    victim_score = 0
+                    if PLAYER_KEY.format(victim_steam_id) + ":speedkill:" + str(killer_steam_id) in self.db:
+                        victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":speedkill:" + str(killer_steam_id)]
+
+                    msg = "^1SPEED ^3{}^1! ^7{} ^1{}^7:^1{}^7 {}".format(int(data["KILLER"]["SPEED"]), killer.name, killer_score, victim_score, victim.name)
+                    self.add_killer(str(killer.name), "SPEED")
+                else:
+                    msg = "^1SPEED ^3{}^1! ^7{}^7 :^7 {} ^7(^3warmup^7)".format(int(data["KILLER"]["SPEED"]), killer.name, victim.name)
+
+            elif mod == "GAUNTLET" and (self.kills_killMonitor[0] or self.kills_killMonitor[1]):
                 killed = data["VICTIM"]
                 kill = data["KILLER"]
                 if killed["AIRBORNE"] and kill["AIRBORNE"] and not killed["SUBMERGED"] and not kill["SUBMERGED"] and self.kills_killMonitor[1]:
@@ -356,6 +388,14 @@ class kills(minqlx.Plugin):
                 count += 1
             if count > 0:
                 self.msg(msg)
+                count = 0
+
+            msg = "^3Speed ^1Killers^7: "
+            for k, v in self.kills_speed.items():
+                msg += "{}^7:^1{}^7 ".format(k, v)
+                count += 1
+            if count > 0:
+                self.msg(msg)
                 #count = 0
 
             self.kills_pummel = {}
@@ -366,10 +406,14 @@ class kills(minqlx.Plugin):
             self.kills_airrail = {}
             self.kills_telefrag = {}
             self.kills_teamtelefrag = {}
+            self.kills_speed = {}
 
     def cmd_kills_gametype(self, player, msg, channel):
         player.tell("^2The current gametype is \'{}\'".format(self.kills_gametype))
         return minqlx.RET_STOP_ALL
+
+    def cmd_speedlimit(self, player, msg, channel):
+        self.msg("^3You need a speed of at least ^1{} ^3to register a speed kill.".format(self.get_cvar("qlx_killsSpeedMinimum")))
 
     @minqlx.thread
     def cmd_pummel(self, player, msg, channel):
@@ -579,6 +623,32 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4team telefrag^7 killed anybody on this server.".format(player))
 
+    @minqlx.thread
+    def cmd_speedkill(self, player, msg, channel):
+        if not self.kills_killMonitor[8]:
+                self.msg("^4Speed Kill ^7stats are not enabled on this server.")
+        else:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":speedkill")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":speedkill:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":speedkill:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Speed Kill^7 Stats for {}: Total ^4Speed^7 Kills: ^1{}".format(player, total))
+                self.msg(msg)
+            else:
+                self.msg("{} has not ^4speed^7 killed anybody on this server.".format(player))
+
     def add_killer(self, killer, method):
         if method == "GAUNTLET":
             try:
@@ -617,9 +687,14 @@ class kills(minqlx.Plugin):
                 self.kills_telefrag[killer] = 1
         elif method == "TEAMTELEFRAG":
             try:
-                self.kills_telefrag[killer] += 1
+                self.kills_teamtelefrag[killer] += 1
             except:
-                self.kills_telefrag[killer] = 1
+                self.kills_teamtelefrag[killer] = 1
+        elif method == "SPEED":
+            try:
+                self.kills_speed[killer] += 1
+            except:
+                self.kills_speed[killer] = 1
 
     def sound_play(self, path):
         for p in self.players():
@@ -634,8 +709,9 @@ class kills(minqlx.Plugin):
         self.msg("^4Special kills ^7may be recorded when these kills are made:")
         self.msg("^3Pummel^7, ^3Air Gauntlet^7, ^3Direct Grenade^7, ^3Mid-Air Rocket^7,\n"
                  "^3Mid-Air Plasma^7, ^3Air Rails^7, ^3Telefrags^7, and ^3Team Telefrags")
-        self.msg("^6Commands^7: ^4!pummel^7, ^4!airgauntlet^7, ^4!grenades^7, ^4!rockets^7,\n "
-                "^4!plasma, ^4!airrails, ^4!telefrag, ^4!teamtelefrag")
+        self.msg("^6Commands^7: ^4!pummel^7, ^4!airgauntlet^7, ^4!grenades^7, ^4!rockets^7,\n"
+                " ^4!plasma^7, ^4!airrails^7, ^4!telefrag^7, ^4!teamtelefrag^7, ^4!speed^7,\n"
+                 " ^4!speedlimit")
 
     def player_id(self, id, player):
         try:
@@ -677,4 +753,4 @@ class kills(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
 
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.12")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.13")
