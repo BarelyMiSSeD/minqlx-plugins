@@ -4,18 +4,18 @@
 # to expand on the pummel counting and add other kill type monitors.
 # It also adds end of match reports for the match,
 # and total counts for each of the kill types when called.
-
+#
 # You can redistribute it and/or modify it under the terms of the
 # GNU General Public License as published by the Free Software Foundation,
 # either version 3 of the License, or (at your option) any later version.
-
+#
 # You should have received a copy of the GNU General Public License
 # along with this plugin. If not, see <http://www.gnu.org/licenses/>.
-
+#
 # This is a fun plugin written for Mino's Quake Live Server Mod minqlx.
 # It displays "Killer x:y Victim" message when Victim gets a monitored kill
 # and stores the information within REDIS DB
-
+#
 # Players can display their kill stats with:
 #  "pummels" via !pummel or !gauntlet
 #  "air gauntlets" via !airgauntlet
@@ -25,19 +25,20 @@
 #  "air rail" via !airrail
 #  "telefrag" via !telefrag
 #  "team telefrag" via !teamtele or !teamtelefrag
+#  "speed kill" via !speed or !speedkill
 # the Total displayed is all of that type kill and it displays kills for
 # the victims that are on the server on the same time.
-
+#
+#
+# **** CVAR Settings ****
+# set qlx_killsPlaySounds "1"           : Turns the sound playing when a kill is made On/Off
+# set qlx_killsSpeedMinimum "800"       : Sets the minimum speed needed to record a speed kill
+# set qlx_killsMonitorKillTypes "511"   : Sets the types of kills that are monitored. See Below for settings.
+#
 # ******  How to set which kill types are recorded ******
 # Add the values for each type of kill listed below and set that value
 #  to the qlx_killsMonitorKillTypes in the same location as the rest of
 #  your minqlx cvar's.
-#
-#
-# CVAR Settings:
-# set qlx_killsPlaySounds "1"           : Turns the sound playing when a kill is made On/Off
-# set qlx_killsSpeedMinimum "800"       : Sets the minimum speed needed to record a speed kill
-# set qlx_killsMonitorKillTypes "511"   : Sets the types of kills that are monitored. See Below for settings.
 #
 #  ****Kill Monitor Values****
 #             Pummel:  1    (records any pummel/gauntlet kill)
