@@ -16,8 +16,16 @@ It will calculate the percentage of a handicap to put on a player based on the l
 import minqlx
 import requests
 
+"""
+The handicap given to players above the LOWER_ELO setting.
+The severity of the handicap given can be adjusted by changing the UPPER_ELO setting.
+Increase it to reduce the severity of the handicap and lower it to increase the severity.
+It should not be lowered further than the highest ELO connected to the server.
+"""
 UPPER_ELO = 2500
 LOWER_ELO = 1800
+
+
 MAX_ATTEMPTS = 3
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
 VERSION = 1.00
