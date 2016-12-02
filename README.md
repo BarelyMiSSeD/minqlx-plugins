@@ -195,6 +195,14 @@ Lists the script version running on the server.
 
 Usage: !hversion
 
+"""
+The handicap given to players above the LOWER_ELO setting.
+The severity of the handicap given can be adjusted by changing the UPPER_ELO setting.
+Increase it to reduce the severity of the handicap and lower it to increase the severity.
+It should not be lowered further than the highest ELO connected to the server.
+Edit the handicap.py file to change these settings.
+"""
+
 <br><br>
 <b>CVARs</b>
 <b>The following bot settings used in the voteban script can be set with the rest of the minqlx bot settings:</b><br>
