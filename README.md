@@ -156,6 +156,54 @@ The setting(s) are shown with the default settings.<br>
 <b>set qlx_clanmembersLetterCase "0"</b> - If on: Tag enforcement will check for exact case matching. If off: upper/lower case is ignored. (0 = off, 1 = on)<br>
 <b>set qlx_clanmembersCheckSteamName "1"</b> - Checks for clan tag(s) in player's steam name and renames the player without the clan tag. (0 = off, 1 = on)<br>
 <br><br>
+
+# Handicap.py
+
+I created this script to be able to handicap people who join the server based on their ELO.
+That means you could uncap your server and just have it auto handicap people as they join.
+It will not let the client change their handicap without admin permission.
+
+<br><br>
+Commands available with handicap.py listed with the default settings
+
+<b>•	Permission level 'qlx_handicapAdminLevel'</b>
+
+<b>!handicap</b> (alternatively !handi)
+
+Sets the players handicap on the server, overriding the handicap calculated by the script.
+This setting is good until the player connects again.
+
+Usage: !handicap 'clientID' 'number[1-100]'
+
+<b>!handicapon</b> (alternatively !handion)
+
+Turns on the handicap limiting of the script. Only useful after a !handicapoff.
+
+Usage: !handicapon
+
+<b>!handicapoff</b> (alternatively !handioff)
+
+Turns off the handicap limiting of the script. Effective until server restart or script reload.
+
+Usage: !handicapoff
+
+<b>•	Permission level 0</b>
+
+<b>!hversion</b>
+
+Lists the script version running on the server.
+
+Usage: !hversion
+
+<br><br>
+<b>CVARs</b>
+<b>The following bot settings used in the voteban script can be set with the rest of the minqlx bot settings:</b><br>
+The settings are shown with the default settings. Edit them to change the permission levels or on/off status.<br>
+
+<b>set qlx_handicapAdminLevel "3"</b> - Sets the minqlx server permisson level needed execute admin level minqlx script commands.<br>
+<b>set qlx_handicapMsgPlayer "1"</b> - Turns on/off the server sending messages to players who have been handicapped by the server.<br>
+<br><br>
+
 # Voteban.py
 
 I created this script to be able to ban the annoying players from voting on the server.
