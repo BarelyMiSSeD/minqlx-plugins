@@ -22,13 +22,13 @@ The severity of the handicap given can be adjusted by changing the UPPER_ELO set
 Increase it to reduce the severity of the handicap and lower it to increase the severity.
 It should not be lowered further than the highest ELO connected to the server.
 """
-UPPER_ELO = 2500
+UPPER_ELO = 3500
 LOWER_ELO = 1800
 
 
 MAX_ATTEMPTS = 3
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
-VERSION = 1.00
+VERSION = 1.10
 
 
 class handicap(minqlx.Plugin):
@@ -40,11 +40,13 @@ class handicap(minqlx.Plugin):
         self.add_hook("player_loaded", self.handle_player_loaded)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("userinfo", self.handle_user_info)
-        self.add_command(("handicap", "handi"), self.cmd_handicap, 3)
+        self.add_command(("handicap", "handi"), self.cmd_handicap, self.get_cvar("qlx_handicapAdminLevel", int))
         self.add_command("hversion", self.cmd_hversion)
         self.add_command(("handicapon", "handion"), self.cmd_handicap_on,
                          self.get_cvar("qlx_handicapAdminLevel", int))
         self.add_command(("handicapoff", "handioff"), self.cmd_handicap_off,
+                         self.get_cvar("qlx_handicapAdminLevel", int))
+        self.add_command(("listhandicaps", "listhandi"), self.cmd_list_handicaps,
                          self.get_cvar("qlx_handicapAdminLevel", int))
 
         self.handicapped_players = {}
@@ -136,6 +138,22 @@ class handicap(minqlx.Plugin):
                 self.message_player(target_player, handi)
         return minqlx.RET_STOP_ALL
 
+    def cmd_list_handicaps(self, player, msg, channel):
+        if len(self.handicapped_players):
+            handi_list = ""
+            players = self.players()
+            for pl, handi in self.handicapped_players.items():
+                for p in players:
+                    if p.steam_id == int(pl):
+                        plyer = p
+                handi_list += "^7{} ^7: ^2{}％\n".format(plyer, handi)
+            player.tell(handi_list)
+        else:
+            player.tell("^3There is no one being hadnicapped on the server by the {} script."
+                        .format(self.__class__.__name__))
+        return minqlx.RET_STOP_ALL
+
+
     def handle_player_loaded(self, player):
         if self.temp_on:
             gtype = self.handicap_gametype
@@ -178,6 +196,7 @@ class handicap(minqlx.Plugin):
                 info['handicap'] = self.handicapped_players[str(player.steam_id)]
             return info
 
+    @minqlx.delay(5)
     def handle_new_game(self):
         gtype = self.game.type_short
         if gtype != self.handicap_gametype and self.temp_on:
