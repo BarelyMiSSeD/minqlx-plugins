@@ -21,6 +21,9 @@ The handicap given to players above the LOWER_ELO setting.
 The severity of the handicap given can be adjusted by changing the UPPER_ELO setting.
 Increase it to reduce the severity of the handicap and lower it to increase the severity.
 It should not be lowered further than the highest ELO connected to the server.
+****Adjust the LOWER_ELO to the level you want the script to start giving handicaps***
+****Adjust the UPPER_ELO to adjust the amount of handicap it gives. The higher the UPPER_ELO***
+****the less severe the handicap.***
 """
 UPPER_ELO = 3500
 LOWER_ELO = 1800
