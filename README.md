@@ -203,6 +203,7 @@ It should not be lowered further than the highest ELO connected to the server.
 ****Adjust the LOWER_ELO to the level you want the script to start giving handicaps***
 ****Adjust the UPPER_ELO to adjust the amount of handicap it gives. The higher the UPPER_ELO***
 ****the less severe the handicap.***
+<br>Edit the PING_ADJUSTMENT setting to set at what ping the adjustments for high ping will start.<br>
 Edit the handicap.py file to change these settings.
 """
 
