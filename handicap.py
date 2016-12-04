@@ -26,12 +26,11 @@ It should not be lowered further than the highest ELO connected to the server.
 ****the less severe the handicap.***
 """
 UPPER_ELO = 3500
-LOWER_ELO = 1800
-
-
+LOWER_ELO = 1750
+PING_ADJUSTMENT = 50
 MAX_ATTEMPTS = 3
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
-VERSION = 1.10
+VERSION = 1.11
 
 
 class handicap(minqlx.Plugin):
@@ -40,7 +39,7 @@ class handicap(minqlx.Plugin):
         self.set_cvar_once("qlx_handicapMsgPlayer", "1")
 
         self.add_hook("new_game", self.handle_new_game)
-        self.add_hook("player_loaded", self.handle_player_loaded)
+        self.add_hook("player_connect", self.handle_player_connect)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("userinfo", self.handle_user_info)
         self.add_command(("handicap", "handi"), self.cmd_handicap, self.get_cvar("qlx_handicapAdminLevel", int))
@@ -54,13 +53,13 @@ class handicap(minqlx.Plugin):
 
         self.handicapped_players = {}
         self.handicap_gametype = self.game.type_short
-        self.temp_on = True
+        self.handicap_on = True
 
         self.check_players()
 
     @minqlx.thread
     def check_players(self):
-        if self.temp_on:
+        if self.handicap_on:
             players = self.players()
             pids = ""
             gtype = self.handicap_gametype
@@ -85,6 +84,7 @@ class handicap(minqlx.Plugin):
             if response:
                 for info in info_js["players"]:
                     rating = int(info[str(gtype)]["elo"])
+                    self.db[ELO_KEY.format(int(info["steamid"]), elo, gtype)] = int(info[str(gtype)]["elo"])
                     if rating > LOWER_ELO:
                         percentage = 100 - abs(round(((LOWER_ELO - rating) / (UPPER_ELO - LOWER_ELO)) * 100))
                         self.handicapped_players[str(info["steamid"])] = percentage
@@ -103,16 +103,19 @@ class handicap(minqlx.Plugin):
             for player in players:
                 pid = player.steam_id
                 if self.handicapped_players[str(pid)]:
-                    player.handicap = int(self.handicapped_players[str(pid)])
+                    percentage = int(self.handicapped_players[str(pid)])
+                    if player.ping > PING_ADJUSTMENT:
+                        percentage = round(percentage + (percentage * ping / 1000 / 2))
+                    player.handicap = percentage
 
     def cmd_handicap_on(self, player, msg, channel):
-        self.temp_on = True
+        self.handicap_on = True
         player.tell("^3Players will now not be able to change their handicaps")
         self.check_players()
         return minqlx.RET_STOP_ALL
 
     def cmd_handicap_off(self, player, msg, channel):
-        self.temp_on = False
+        self.handicap_on = False
         player.tell("^3Players will now be able to change their handicaps")
         return minqlx.RET_STOP_ALL
 
@@ -156,14 +159,17 @@ class handicap(minqlx.Plugin):
                         .format(self.__class__.__name__))
         return minqlx.RET_STOP_ALL
 
-
-    def handle_player_loaded(self, player):
-        if self.temp_on:
+    @minqlx.delay(15)
+    def handle_player_connect(self, player):
+        @minqlx.thread
+        def check_handi():
             gtype = self.handicap_gametype
             elo = self.get_cvar("qlx_balanceApi")
             response = False
             pid = player.steam_id
+            ping = player.ping
             url = "http://{}/{}/{}".format(self.get_cvar("qlx_balanceUrl"), elo, pid)
+            rating = 0
             attempts = 0
             while attempts < MAX_ATTEMPTS:
                 attempts += 1
@@ -177,12 +183,23 @@ class handicap(minqlx.Plugin):
             if response:
                 for info in info_js["players"]:
                     rating = int(info[str(gtype)]["elo"])
-                    if rating > LOWER_ELO:
-                        percentage = 100 - abs(round(((LOWER_ELO - rating) / (UPPER_ELO - LOWER_ELO)) * 100))
-                        self.handicapped_players[str(pid)] = percentage
-                        player.handicap = abs(int(self.handicapped_players[str(pid)]))
-                        if int(self.get_cvar("qlx_handicapMsgPlayer")):
-                            self.message_player(player, percentage)
+                    self.db[ELO_KEY.format(int(pid), elo, gtype)] = int(info[str(gtype)]["elo"])
+            else:
+                try:
+                    rating = int(self.db.get(ELO_KEY.format(pid, elo, gtype)))
+                except:
+                    return
+            if rating > LOWER_ELO:
+                percentage = 100 - abs(round(((LOWER_ELO - rating) / (UPPER_ELO - LOWER_ELO)) * 100))
+                if ping > PING_ADJUSTMENT:
+                    percentage = round(percentage + (percentage * ping / 1000 / 2))
+                self.handicapped_players[str(pid)] = percentage
+                player.handicap = percentage
+                if int(self.get_cvar("qlx_handicapMsgPlayer")):
+                    self.message_player(player, percentage)
+
+        if self.handicap_on:
+            check_handi()
 
     def message_player(self, player, percentage):
         player.tell("^7You, {}^7 have been set to an auto handicap of ^1{}％ ^7because your elo is over ^4{}^7."
@@ -194,7 +211,7 @@ class handicap(minqlx.Plugin):
 
     def handle_user_info(self, player, info):
         if "handicap" in info:
-            if self.handicapped_players[str(player.steam_id)] and self.temp_on:
+            if self.handicapped_players[str(player.steam_id)] and self.handicap_on:
                 player.tell("^1Your handicap is being set by the server and can't be changed.")
                 info['handicap'] = self.handicapped_players[str(player.steam_id)]
             return info
@@ -202,7 +219,7 @@ class handicap(minqlx.Plugin):
     @minqlx.delay(5)
     def handle_new_game(self):
         gtype = self.game.type_short
-        if gtype != self.handicap_gametype and self.temp_on:
+        if gtype != self.handicap_gametype and self.handicap_on:
             self.handicap_gametype = gtype
             self.check_players()
 
