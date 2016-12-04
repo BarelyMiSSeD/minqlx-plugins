@@ -27,7 +27,7 @@ It should not be lowered further than the highest ELO connected to the server.
 """
 UPPER_ELO = 3500
 LOWER_ELO = 1750
-PING_ADJUSTMENT = 50
+PING_ADJUSTMENT = 70
 MAX_ATTEMPTS = 3
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
 VERSION = 1.11
