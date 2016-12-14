@@ -30,7 +30,7 @@ LOWER_ELO = 1750
 PING_ADJUSTMENT = 70
 MAX_ATTEMPTS = 3
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
-VERSION = 1.11
+VERSION = 1.13
 
 
 class handicap(minqlx.Plugin):
@@ -42,7 +42,7 @@ class handicap(minqlx.Plugin):
         self.add_hook("player_connect", self.handle_player_connect)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("userinfo", self.handle_user_info)
-        self.add_command(("handicap", "handi"), self.cmd_handicap, self.get_cvar("qlx_handicapAdminLevel", int))
+        self.add_command(("handicap", "handi"), self.cmd_handicap)
         self.add_command("hversion", self.cmd_hversion)
         self.add_command(("handicapon", "handion"), self.cmd_handicap_on,
                          self.get_cvar("qlx_handicapAdminLevel", int))
@@ -121,38 +121,57 @@ class handicap(minqlx.Plugin):
 
     def cmd_handicap(self, player, msg, channel):
         if len(msg) < 3:
-            player.msg("^3Usage: <player ID> <handicap>")
+            if len(msg) < 2:
+                if str(player.steam_id) in self.handicapped_players:
+                    channel.reply("{} ^7has a handicap of ^1{}^7％"
+                                  .format(player, self.handicapped_players[str(player.steam_id)]))
+                else:
+                    channel.reply("{} ^7is not handicapped by the server.".format(player))
+            else:
+                try:
+                    pid = int(msg[1])
+                except ValueError:
+                    player.tell("^3Enter a player ID from ^10 ^3to ^163^3.")
+                    return
+                if 0 <= pid < 64:
+                    p = self.player(pid)
+                    if not p:
+                        player.tell("^3There is no player associated with that player ID.")
+                        return
+                    else:
+                        if str(p.steam_id) in self.handicapped_players:
+                            channel.reply("{} ^7has a handicap of ^1{}^7％"
+                                          .format(p, self.handicapped_players[str(p.steam_id)]))
+                        else:
+                            channel.reply("{} ^7is not handicapped by the server.".format(p))
+
+        elif self.db.has_permission(player, self.get_cvar("qlx_handicapAdminLevel", int)):
+            try:
+                pid = int(msg[1])
+                handi = int(msg[2])
+            except ValueError:
+                player.tell("^1Use a valid Player ID and a handicap between 1 and 100.")
+                return minqlx.RET_STOP_ALL
+
+            target_player = self.player(pid)
+
+            if handi <= 0 or handi > 100:
+                player.tell("^3The handicap must be between 1 and 100.")
+                return minqlx.RET_STOP_ALL
+
+            if target_player:
+                self.handicapped_players[str(target_player.steam_id)] = handi
+                target_player.handicap = handi
+                if int(self.get_cvar("qlx_handicapMsgPlayer")):
+                    self.admin_message_player(target_player, handi)
             return minqlx.RET_STOP_ALL
-
-        try:
-            pid = int(msg[1])
-            handi = int(msg[2])
-        except ValueError:
-            player.tell("^1Use a valid Player ID and a handicap between 1 and 100.")
-            return minqlx.RET_STOP_ALL
-
-        target_player = self.player(pid)
-
-        if handi <= 0 or handi > 100:
-            player.tell("^3The handicap must be between 1 and 100.")
-            return minqlx.RET_STOP_ALL
-
-        if target_player:
-            self.handicapped_players[str(target_player.steam_id)] = handi
-            target_player.handicap = handi
-            if int(self.get_cvar("qlx_handicapMsgPlayer")):
-                self.message_player(target_player, handi)
-        return minqlx.RET_STOP_ALL
 
     def cmd_list_handicaps(self, player, msg, channel):
         if len(self.handicapped_players):
-            handi_list = ""
-            players = self.players()
+            handi_list = "^2Minimum ^7handicaps being enforced by the server:\n"
             for pl, handi in self.handicapped_players.items():
-                for p in players:
-                    if p.steam_id == int(pl):
-                        plyer = p
-                handi_list += "^7{} ^7: ^2{}％\n".format(plyer, handi)
+                p = self.player(int(pl))
+                handi_list += "^7{} ^7: ^2{}％\n".format(p, handi)
             player.tell(handi_list)
         else:
             player.tell("^3There is no one being hadnicapped on the server by the {} script."
@@ -205,6 +224,10 @@ class handicap(minqlx.Plugin):
         player.tell("^7You, {}^7 have been set to an auto handicap of ^1{}％ ^7because your elo is over ^4{}^7."
                     .format(player, percentage, LOWER_ELO))
 
+    def admin_message_player(self, player, percentage):
+        player.tell("^7You, {}^7 have been set to a handicap of ^1{}％ ^7on this server."
+                    .format(player, percentage, LOWER_ELO))
+
     def cmd_hversion(self, player, msg, channel):
         channel.reply('^7This server has installed ^2{} version {} by BarelyMiSSeD'
                       .format(self.__class__.__name__, VERSION))
@@ -212,8 +235,9 @@ class handicap(minqlx.Plugin):
     def handle_user_info(self, player, info):
         if "handicap" in info:
             if self.handicapped_players[str(player.steam_id)] and self.handicap_on:
-                player.tell("^1Your handicap is being set by the server and can't be changed.")
-                info['handicap'] = self.handicapped_players[str(player.steam_id)]
+                if int(info["handicap"]) > self.handicapped_players[str(player.steam_id)] or int(info["handicap"]) == 0:
+                    player.tell("^1Your handicap is being set by the server and can't be raised.")
+                    info["handicap"] = self.handicapped_players[str(player.steam_id)]
             return info
 
     @minqlx.delay(5)
@@ -224,6 +248,10 @@ class handicap(minqlx.Plugin):
             self.check_players()
 
     def handle_player_disconnect(self, player, reason):
-        pid = player.steam_id
-        if self.handicapped_players[str(pid)]:
-            del self.handicapped_players[str(pid)]
+        @minqlx.thread
+        def remove_from_list():
+            pid = player.steam_id
+            if self.handicapped_players[str(pid)]:
+                del self.handicapped_players[str(pid)]
+        remove_from_list()
+
