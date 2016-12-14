@@ -19,12 +19,11 @@ qlx_protectFTS "5" - Sets the minqlx server permisson level needed to force team
 """
 
 import minqlx
-import re
-import threading
 import requests
 import os
+import codecs
 
-VERSION = "v1.06"
+VERSION = "v1.07"
 PROTECT_FILE = "protect.txt"
 
 class protect(minqlx.Plugin):
@@ -200,7 +199,7 @@ class protect(minqlx.Plugin):
     # Checks for a protect.txt file and loads the entries if the file exists. Creates one if it doesn't.
     def cmd_loadProtects(self, player=None, msg=None, channel=None):
         try:
-            f = open(os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE), "r")
+            f = codecs.open(os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE), "r", "utf-8")
             lines = f.readlines()
             f.close()
             tempList = []
@@ -215,7 +214,7 @@ class protect(minqlx.Plugin):
                 player.tell("^3The protect list has been reloaded. ^1!protect list ^3 to see current load.")
         except IOError as e:
             try:
-                m = open(os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE), "w")
+                m = codecs.open(os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE), "w", "utf-8")
                 m.write("# This is a commented line because it starts with a '#'\n")
                 m.write("# Enter every protect SteamID and name on a newline, format: SteamID Name\n")
                 m.write("# The NAME is for a mental reference and may contain spaces.\n")
@@ -293,7 +292,7 @@ class protect(minqlx.Plugin):
             if not target_player:
                 target_player = "Name not supplied"
 
-            h = open(file, "a")
+            h = codecs.open(file, "a", "utf-8")
             h.write(str(id) + " " + str(target_player) + "\n")
             h.close()
             self.protect.append(id)
@@ -327,13 +326,13 @@ class protect(minqlx.Plugin):
                 player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
                 return minqlx.RET_STOP_EVENT
 
-            f = open(file, "r")
+            f = codecs.open(file, "r", "utf-8")
             lines = f.readlines()
             f.close()
             for search_id in lines:
                 if search_id.startswith("#"): continue
                 if id == int(search_id.split(None, 1)[0]):
-                    h = open(file, "w")
+                    h = codecs.open(file, "w", "utf-8")
                     for line in lines:
                         if line[0] == "#":
                             h.write(line)
@@ -399,7 +398,7 @@ class protect(minqlx.Plugin):
             if not player_list:
                 player.tell("There are no players connected at the moment.")
             list = "^5Protect List:\n"
-            f = open(file, "r")
+            f = codecs.open(file, "r", "utf-8")
             lines = f.readlines()
             f.close()
             for line in lines:
@@ -431,14 +430,14 @@ class protect(minqlx.Plugin):
     def updateLine(self, player=None, addName=None):
         if len(addName) > 1:
             file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
-            f = open(file, "r")
+            f = codecs.open(file, "r", "utf-8")
             lines = f.readlines()
             f.close()
             id = int(addName[0])
             for checkID in lines:
                 check = checkID.split()
                 if id == int(check[0]) and len(check) == 1:
-                    h = open(file, "w")
+                    h = codecs.open(file, "w", "utf-8")
                     for line in lines:
                         if line[0] == "#":
                             h.write(line)
