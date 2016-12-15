@@ -30,7 +30,7 @@ LOWER_ELO = 1750
 PING_ADJUSTMENT = 70
 MAX_ATTEMPTS = 3
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
-VERSION = 1.13
+VERSION = 1.14
 
 
 class handicap(minqlx.Plugin):
@@ -238,7 +238,7 @@ class handicap(minqlx.Plugin):
                 if int(info["handicap"]) > self.handicapped_players[str(player.steam_id)] or int(info["handicap"]) == 0:
                     player.tell("^1Your handicap is being set by the server and can't be raised.")
                     info["handicap"] = self.handicapped_players[str(player.steam_id)]
-            return info
+                    return info
 
     @minqlx.delay(5)
     def handle_new_game(self):
@@ -254,4 +254,3 @@ class handicap(minqlx.Plugin):
             if self.handicapped_players[str(pid)]:
                 del self.handicapped_players[str(pid)]
         remove_from_list()
-
