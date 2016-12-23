@@ -68,7 +68,7 @@ class handicap(minqlx.Plugin):
             response = False
 
             for player in players:
-                pids.append(player.steam_id)
+                pids.append(str(player.steam_id))
 
             url = "http://{}/{}/{}".format(self.get_cvar("qlx_balanceUrl"), elo, "+".join(pids))
             attempts = 0
@@ -168,10 +168,10 @@ class handicap(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
 
     def cmd_list_handicaps(self, player, msg, channel):
-        if len(self.handicapped_players):
+        if len(self.handicapped_players) > 0:
             handi_list = ["^1Handicapped ^7Players:\n"]
             for pl, handi in self.handicapped_players.items():
-                handi_list.append("  ^7{} ^7: ^2{}％\n".format(self.players(int(pl)), handi))
+                handi_list.append("  ^7{} ^7: ^2{}％\n".format(self.player(int(pl)), handi))
             player.tell("".join(handi_list))
         else:
             player.tell("^3There is no one being hadnicapped on the server by the {} script."
@@ -233,12 +233,14 @@ class handicap(minqlx.Plugin):
                       .format(self.__class__.__name__, VERSION))
 
     def handle_user_info(self, player, info):
-        if "handicap" in info:
-            if self.handicapped_players[str(player.steam_id)] and self.handicap_on:
-                if int(info["handicap"]) > self.handicapped_players[str(player.steam_id)] or int(info["handicap"]) == 0:
-                    player.tell("^1Your handicap is being set by the server and can't be raised.")
-                    info["handicap"] = self.handicapped_players[str(player.steam_id)]
-        return info
+        if 'handicap' not in info:
+            return info
+
+        if self.handicapped_players[str(player.steam_id)] and self.handicap_on:
+            if int(info["handicap"]) > self.handicapped_players[str(player.steam_id)] or int(info["handicap"]) == 0:
+                player.tell("^1Your handicap is being set by the server and can't be raised.")
+                info["handicap"] = self.handicapped_players[str(player.steam_id)]
+                return info
 
     @minqlx.delay(5)
     def handle_new_game(self):
@@ -254,4 +256,3 @@ class handicap(minqlx.Plugin):
             if self.handicapped_players[str(pid)]:
                 del self.handicapped_players[str(pid)]
         remove_from_list()
-
