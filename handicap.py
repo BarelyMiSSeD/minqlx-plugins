@@ -25,12 +25,13 @@ It should not be lowered further than the highest ELO connected to the server.
 ****Adjust the UPPER_ELO to adjust the amount of handicap it gives. The higher the UPPER_ELO***
 ****the less severe the handicap.***
 """
+
 UPPER_ELO = 3500
 LOWER_ELO = 1750
 PING_ADJUSTMENT = 70
 MAX_ATTEMPTS = 3
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
-VERSION = 1.14
+VERSION = 1.15
 
 
 class handicap(minqlx.Plugin):
@@ -39,7 +40,7 @@ class handicap(minqlx.Plugin):
         self.set_cvar_once("qlx_handicapMsgPlayer", "1")
 
         self.add_hook("new_game", self.handle_new_game)
-        self.add_hook("player_connect", self.handle_player_connect)
+        self.add_hook("player_loaded", self.handle_player_loaded)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("userinfo", self.handle_user_info)
         self.add_command(("handicap", "handi"), self.cmd_handicap)
@@ -61,16 +62,15 @@ class handicap(minqlx.Plugin):
     def check_players(self):
         if self.handicap_on:
             players = self.players()
-            pids = ""
+            pids = []
             gtype = self.handicap_gametype
             elo = self.get_cvar("qlx_balanceApi")
             response = False
 
             for player in players:
-                pids += "{}+".format(player.steam_id)
-            pids = pids[:-1]
+                pids.append(player.steam_id)
 
-            url = "http://{}/{}/{}".format(self.get_cvar("qlx_balanceUrl"), elo, pids)
+            url = "http://{}/{}/{}".format(self.get_cvar("qlx_balanceUrl"), elo, "+".join(pids))
             attempts = 0
             while attempts < MAX_ATTEMPTS:
                 attempts += 1
@@ -104,7 +104,8 @@ class handicap(minqlx.Plugin):
                 pid = player.steam_id
                 if self.handicapped_players[str(pid)]:
                     percentage = int(self.handicapped_players[str(pid)])
-                    if player.ping > PING_ADJUSTMENT:
+                    ping = player.ping
+                    if ping > PING_ADJUSTMENT:
                         percentage = round(percentage + (percentage * ping / 1000 / 2))
                     player.handicap = percentage
 
@@ -168,18 +169,17 @@ class handicap(minqlx.Plugin):
 
     def cmd_list_handicaps(self, player, msg, channel):
         if len(self.handicapped_players):
-            handi_list = "^2Minimum ^7handicaps being enforced by the server:\n"
+            handi_list = ["^1Handicapped ^7Players:\n"]
             for pl, handi in self.handicapped_players.items():
-                p = self.player(int(pl))
-                handi_list += "^7{} ^7: ^2{}％\n".format(p, handi)
-            player.tell(handi_list)
+                handi_list.append("  ^7{} ^7: ^2{}％\n".format(self.players(int(pl)), handi))
+            player.tell("".join(handi_list))
         else:
             player.tell("^3There is no one being hadnicapped on the server by the {} script."
                         .format(self.__class__.__name__))
         return minqlx.RET_STOP_ALL
 
-    @minqlx.delay(15)
-    def handle_player_connect(self, player):
+    @minqlx.delay(6)
+    def handle_player_loaded(self, player):
         @minqlx.thread
         def check_handi():
             gtype = self.handicap_gametype
@@ -238,7 +238,7 @@ class handicap(minqlx.Plugin):
                 if int(info["handicap"]) > self.handicapped_players[str(player.steam_id)] or int(info["handicap"]) == 0:
                     player.tell("^1Your handicap is being set by the server and can't be raised.")
                     info["handicap"] = self.handicapped_players[str(player.steam_id)]
-                    return info
+        return info
 
     @minqlx.delay(5)
     def handle_new_game(self):
@@ -254,3 +254,4 @@ class handicap(minqlx.Plugin):
             if self.handicapped_players[str(pid)]:
                 del self.handicapped_players[str(pid)]
         remove_from_list()
+
