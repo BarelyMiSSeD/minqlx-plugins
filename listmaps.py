@@ -187,18 +187,19 @@ class listmaps(minqlx.Plugin):
             player.tell("^4Server^7: There is no Map Name file to reference. Talk to a server admin.")
             return
 
-        map = msg[1]
-        matching = [s for s in lines if map in s]
+        mapname = msg[1]
+       
+        matching = [s for s in lines if mapname.lower() in s.lower()]
         if len(matching) == 1:
             item = matching[0].split(" - ")
             if len(item) > 1:
                 item = item[1].strip("\n")
                 item = item.rstrip(" ")
-                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
             else:
                 item = item[0].strip("\n")
                 item = item.rstrip(" ")
-                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
             return
         elif len(matching) > 1:
             for item in matching:
@@ -207,11 +208,11 @@ class listmaps(minqlx.Plugin):
                     if len(item) > 1:
                         item = item[1].strip("\n")
                         item = item.rstrip(" ")
-                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
                     else:
                         item = item[0].strip("\n")
                         item = item.rstrip(" ")
-                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
+                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
                     return
             matched = ""
             count = 0
@@ -220,6 +221,6 @@ class listmaps(minqlx.Plugin):
                 matched += item[0] + ", "
                 count += 1
             matched = matched[:-2]
-            channel.reply("^4Server^7: {} matches to your search for {}. ({})".format(count, map, matched))
+            channel.reply("^4Server^7: {} matches to your search for {}. ({})".format(count, mapname, matched))
         else:
-            channel.reply("^4Server^7: There is no map called {} in the map name file.".format(map))
+            channel.reply("^4Server^7: There is no map called {} in the map name file.".format(mapname))
