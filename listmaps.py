@@ -14,11 +14,12 @@ qlx_listmapsUser "0" - Permission level needed to use !listmaps, which show the 
 import minqlx
 import requests
 
-VERSION = "v1.11"
+VERSION = "v1.12"
 FILE_NAME = 'server_map_list.txt'
 MAP_NAME_FILE = 'Map_Names.txt'
-_map_buffer = ""
-_map_redirection = None
+_map_buffer = []
+_map_redirection = False
+
 
 class listmaps(minqlx.Plugin):
     def __init__(self):
@@ -83,68 +84,11 @@ class listmaps(minqlx.Plugin):
             if _map_redirection:
                 global _map_buffer
                 if '.bsp' in text:
-                    _map_buffer += text
+                    _map_buffer.append(text)
 
         except:
             minqlx.log_exception()
             return True
-
-    def cmd_list_maps(self, player, msg, channel):
-        maps = "^1MAPS: These are the map designations, not always the map name. Use these in a callvote.^7\n"
-        try:
-            f = open(FILE_NAME, 'r')
-            lines = f.readlines()
-            f.close()
-        except IOError:
-            channel.reply("^4Server^7: Map List creation ^1failed^7. Contact a server admin.")
-            return
-        lines.sort()
-        items = 0
-        if len(msg) < 2:
-            for line in lines:
-                line = line.split(".")
-                addMap = line[0]
-                mapLine = maps.split("\n")[-1]
-                maps += self.line_up(mapLine, addMap)
-                items += 1
-
-        else:
-            count = 0
-            search = msg[1]
-            for line in lines:
-                line = line.split(".")
-                addMap = line[0]
-                if search in addMap:
-                    count += 1
-                    mapLine = maps.split("\n")[-1]
-                    maps += self.line_up(mapLine, addMap)
-                    items += 1
-            if count == 0:
-                player.tell("^4Server^7: No maps contain the search string ^1{}^7.".format(search))
-                return
-        if maps.endswith("\n"):
-            maps += "^1{} MAPS: These are the map designations, not always the map name. Use these in a callvote.".format(items)
-        else:
-            maps += "\n^1{} MAPS: These are the map designations, not always the map name. Use these in a callvote.".format(items)
-        player.tell(maps)
-
-    def line_up(self, mapLine, addMap):
-        length = len(mapLine)
-        if length == 0:
-            append = addMap
-        elif length < 15:
-            append = " " * (15 - length) + addMap
-        elif length < 30:
-            append = " " * (30 - length) + addMap
-        elif length < 45:
-            append = " " * (45 - length) + addMap
-        elif length < 60:
-            append = " " * (60 - length) + addMap
-        elif length < 75:
-            append = " " * (75 - length) + addMap
-        else:
-            append = "\n" + addMap
-        return append
 
     def get_maps(self, player=None, msg=None, channel=None):
         with self.gather_maps():
@@ -168,12 +112,91 @@ class listmaps(minqlx.Plugin):
             def __exit__(self, exc_type, exc_val, exc_tb):
                 global _map_redirection, _map_buffer
                 f = open(FILE_NAME, "w")
-                f.write(str(_map_buffer))
+                for item in _map_buffer:
+                    f.write(str(item))
                 f.close()
-                _map_redirection = None
-                _map_buffer = ""
+                _map_redirection = False
+                _map_buffer.clear()
 
         return Redirector()
+
+    @minqlx.thread
+    def cmd_list_maps(self, player, msg, channel):
+        title = ["^1MAPS: These are the map designations, not always the map name. Use these in a callvote.^7\n"]
+        maps = []
+        try:
+            f = open(FILE_NAME, 'r')
+            lines = f.readlines()
+            f.close()
+        except IOError:
+            channel.reply("^4Server^7: Map List creation ^1failed^7. Contact a server admin.")
+            return
+        lines.sort()
+        items = 0
+        if len(msg) < 2:
+            for line in lines:
+                line = line.split(".")
+                addMap = line[0]
+                map_line = len(maps)
+                map_line -= 1
+                try:
+                    mapLine = maps[map_line]
+                except IndexError:
+                    mapLine = ""
+                lineA, lineB = self.line_up(mapLine, addMap)
+                try:
+                    maps[map_line] = lineA
+                except IndexError:
+                    maps.append(lineA)
+                if lineB:
+                    maps.append(lineB)
+                items += 1
+        else:
+            search = msg[1]
+            for line in lines:
+                line = line.split(".")
+                addMap = line[0]
+                if search in addMap:
+                    map_line = len(maps)
+                    map_line -= 1
+                    try:
+                        mapLine = maps[map_line]
+                    except IndexError:
+                        mapLine = ""
+                    lineA, lineB = self.line_up(mapLine, addMap)
+                    try:
+                        maps[map_line] = lineA
+                    except IndexError:
+                        maps.append(lineA)
+                    if lineB:
+                        maps.append(lineB)
+                    items += 1
+            if items == 0:
+                player.tell("^4Server^7: No maps contain the search string ^1{}^7.".format(search))
+                return
+        title.append("\n^2{} ^1MAPS: These are the map designations, not always the map name. Use these in a callvote."
+                     .format(items))
+        player.tell("{}{}{}".format(title[0], "\n".join(maps), title[1]))
+
+    def line_up(self, mapLine, addMap):
+        length = len(mapLine)
+        newLine = None
+        if length == 0:
+            line = addMap
+        elif length < 15:
+            line = mapLine + " " * (15 - length) + addMap
+        elif length < 30:
+            line = mapLine + " " * (30 - length) + addMap
+        elif length < 45:
+            line = mapLine + " " * (45 - length) + addMap
+        elif length < 60:
+            line = mapLine + " " * (60 - length) + addMap
+        elif length < 75:
+            line = mapLine + " " * (75 - length) + addMap
+        else:
+            line = mapLine
+            newLine = addMap
+        return line, newLine
 
     def cmd_mapname(self, player, msg, channel):
         if len(msg) < 2:
@@ -187,19 +210,18 @@ class listmaps(minqlx.Plugin):
             player.tell("^4Server^7: There is no Map Name file to reference. Talk to a server admin.")
             return
 
-        mapname = msg[1]
-       
-        matching = [s for s in lines if mapname.lower() in s.lower()]
+        map = msg[1]
+        matching = [s for s in lines if map in s]
         if len(matching) == 1:
             item = matching[0].split(" - ")
             if len(item) > 1:
                 item = item[1].strip("\n")
                 item = item.rstrip(" ")
-                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
+                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
             else:
                 item = item[0].strip("\n")
                 item = item.rstrip(" ")
-                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
+                channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
             return
         elif len(matching) > 1:
             for item in matching:
@@ -208,19 +230,18 @@ class listmaps(minqlx.Plugin):
                     if len(item) > 1:
                         item = item[1].strip("\n")
                         item = item.rstrip(" ")
-                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
+                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
                     else:
                         item = item[0].strip("\n")
                         item = item.rstrip(" ")
-                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(mapname, item))
+                        channel.reply("^4Server^7: The name associated with {} map is ^3{}^7.".format(map, item))
                     return
-            matched = ""
+            matched = []
             count = 0
             for item in matching:
                 item = item.split(" - ")
-                matched += item[0] + ", "
+                matched.append(item[0])
                 count += 1
-            matched = matched[:-2]
-            channel.reply("^4Server^7: {} matches to your search for {}. ({})".format(count, mapname, matched))
+            channel.reply("^4Server^7: {} matches to your search for {}. ({})".format(count, map, ", ".join(matched)))
         else:
-            channel.reply("^4Server^7: There is no map called {} in the map name file.".format(mapname))
+            channel.reply("^4Server^7: There is no map called {} in the map name file.".format(map))
