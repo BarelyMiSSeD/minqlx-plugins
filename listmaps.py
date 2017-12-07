@@ -14,28 +14,30 @@ qlx_listmapsUser "0" - Permission level needed to use !listmaps, which show the 
 import minqlx
 import requests
 
-VERSION = "v1.12"
-FILE_NAME = 'server_map_list.txt'
+VERSION = "v1.13"
+FILE_NAME = "server_{}_map_list.txt"
 MAP_NAME_FILE = 'Map_Names.txt'
 _map_buffer = []
 _map_redirection = False
 
+#*** Change Allowed Admin and User Minqlx Bot Perm Levels HERE ***
+MAPLIST_ADMIN = 4
+MAPLIST_USER = 0
+
 
 class listmaps(minqlx.Plugin):
     def __init__(self):
-        # Cvars.
-        self.set_cvar_once("qlx_listmapsAdmin", "4")
-        self.set_cvar_once("qlx_listmapsUser", "0")
-        
         # Minqlx Hooks
         self.add_hook("console_print", self.handle_console_print)
         self.add_hook("player_loaded", self.player_loaded)
         
         # Minqlx server commands
-        self.add_command("getmaps", self.get_maps, int(self.get_cvar("qlx_listmapsAdmin")))
-        self.add_command(("listmaps", "listmap"), self.cmd_list_maps, int(self.get_cvar("qlx_listmapsUser")), usage="|search string|")
-        self.add_command(("listmapsversion", "listmaps_version"), self.listmaps_version, int(self.get_cvar("qlx_listmapsAdmin")))
-        self.add_command("mapname", self.cmd_mapname, int(self.get_cvar("qlx_listmapsUser")))
+        self.add_command("getmaps", self.get_maps, MAPLIST_ADMIN)
+        self.add_command(("listmaps", "listmap"), self.cmd_list_maps, MAPLIST_USER, usage="|search string|")
+        self.add_command(("listmapsversion", "listmaps_version"), self.listmaps_version, MAPLIST_ADMIN)
+        self.add_command("mapname", self.cmd_mapname, MAPLIST_USER)
+
+        listmaps.map_file = FILE_NAME.format(self.get_cvar("net_port"))
 
         self.get_maps()
 
@@ -95,13 +97,15 @@ class listmaps(minqlx.Plugin):
             minqlx.console_command("dir maps")
 
         if player:
-            player.tell("^4Server^7: The server maps have been stored in the file ^3{}^7.".format(FILE_NAME))
+            player.tell("^4Server^7: The server maps have been stored in the file ^3{}^7.".format(listmaps.map_file))
+
+        minqlx.console_print("The server maps have been stored in the file ^3{}".format(listmaps.map_file))
 
         return True
 
     def gather_maps(self):
 
-        class Redirector:
+        class Redirector(listmaps):
             def __init__(self):
                 self.trigger = True
 
@@ -111,7 +115,7 @@ class listmaps(minqlx.Plugin):
 
             def __exit__(self, exc_type, exc_val, exc_tb):
                 global _map_redirection, _map_buffer
-                f = open(FILE_NAME, "w")
+                f = open(listmaps.map_file, "w")
                 for item in _map_buffer:
                     f.write(str(item))
                 f.close()
@@ -125,7 +129,7 @@ class listmaps(minqlx.Plugin):
         title = ["^1MAPS: These are the map designations, not always the map name. Use these in a callvote.^7\n"]
         maps = []
         try:
-            f = open(FILE_NAME, 'r')
+            f = open(listmaps.map_file, 'r')
             lines = f.readlines()
             f.close()
         except IOError:
