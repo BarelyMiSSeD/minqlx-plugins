@@ -14,7 +14,7 @@ qlx_listmapsUser "0" - Permission level needed to use !listmaps, which show the 
 import minqlx
 import requests
 
-VERSION = "v1.13"
+VERSION = "v1.14"
 FILE_NAME = "server_{}_map_list.txt"
 MAP_NAME_FILE = 'Map_Names.txt'
 _map_buffer = []
@@ -178,25 +178,35 @@ class listmaps(minqlx.Plugin):
             if items == 0:
                 player.tell("^4Server^7: No maps contain the search string ^1{}^7.".format(search))
                 return
+
         title.append("\n^2{} ^1MAPS: These are the map designations, not always the map name. Use these in a callvote."
                      .format(items))
+
+        if "console" == channel:
+            minqlx.console_print(title[0].strip("\n"))
+            for line in maps:
+                minqlx.console_print("^4" + line)
+            minqlx.console_print(title[1].strip("\n"))
+            return
+
         player.tell("{}{}{}".format(title[0], "\n".join(maps), title[1]))
+        return
 
     def line_up(self, mapLine, addMap):
         length = len(mapLine)
         newLine = None
         if length == 0:
             line = addMap
-        elif length < 15:
-            line = mapLine + " " * (15 - length) + addMap
-        elif length < 30:
-            line = mapLine + " " * (30 - length) + addMap
-        elif length < 45:
-            line = mapLine + " " * (45 - length) + addMap
-        elif length < 60:
-            line = mapLine + " " * (60 - length) + addMap
-        elif length < 75:
-            line = mapLine + " " * (75 - length) + addMap
+        elif length < 14:
+            line = mapLine + " " * (14 - length) + addMap
+        elif length < 29:
+            line = mapLine + " " * (29 - length) + addMap
+        elif length < 44:
+            line = mapLine + " " * (44 - length) + addMap
+        elif length < 59:
+            line = mapLine + " " * (59 - length) + addMap
+        elif length < 74:
+            line = mapLine + " " * (74 - length) + addMap
         else:
             line = mapLine
             newLine = addMap
@@ -249,3 +259,5 @@ class listmaps(minqlx.Plugin):
             channel.reply("^4Server^7: {} matches to your search for {}. ({})".format(count, map, ", ".join(matched)))
         else:
             channel.reply("^4Server^7: There is no map called {} in the map name file.".format(map))
+
+        return
