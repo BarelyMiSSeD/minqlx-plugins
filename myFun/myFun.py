@@ -8,7 +8,22 @@
 # This plugin comes with no warranty or guarantee
 
 """
+This is my replacement for the minqlx fun.py so if you use this file make sure not to load fun.py
+
 This plugin plays sounds on the Quake Live server
+It plays the sounds included in fun.py and some from three other workshop items.
+
+This will limit sound spamming to the server.
+It only allows one sound to be played at a time and each user is limited in the frequency they can play sounds.
+
+
+To set the time required between sounds add this line to your server.cfg and edit the "5":
+set qlx_funSoundDelay "5"
+
+To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
+set qlx_funPlayerSoundRepeat "30"
+
+
 Three extra workshop items need to be loaded on the server for it to work correctly:
 #prestige worldwide sounds workshop
 585892371
