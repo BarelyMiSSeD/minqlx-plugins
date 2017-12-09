@@ -1,0 +1,30 @@
+This is my replacement for the minqlx fun.py
+
+This plugin plays sounds on the Quake Live server
+It plays the sounds included in fun.py and some from three other workshop items.
+
+Three extra workshop items need to be loaded on the server for it to work correctly:
+#prestige worldwide sounds workshop
+585892371
+#Funny Sounds Pack for Minqlx
+620087103
+#Duke Nukem Sounds
+572453229
+
+The minqlx 'workshop' plugin needs to be loaded and the required workshop
+ items added to the set qlx_workshopReferences line of your server.cfg
+  (this example shows only these three required workshop items):
+set qlx_workshopReferences "585892371, 620087103, 572453229"
+
+Put the sound_names.txt file into the server's fs_homepath directory for
+the !listsounds to work on the server.
+!listsounds can be issued by itself to see all the sounds that can be played on the server
+or it can be issued with one argument to limit the listed sounds to the sound phrases that contain that argument.
+Example: '!listsounds yeah' would list all the sound phrases containing 'yeah'
+ and would print this to the player's console (based on sound_names.txt at the time of this file creation):
+
+SOUNDS: Type These words/phrases in normal chat to get a sound to play on the server.
+haha yeah haha    hahaha yeah    yeah hahaha    yeahhh
+4 SOUNDS: These are the sounds that work on this server.
+
+If you edit the sound_names.txt put one sound phrase on each line and any line beginning with a # will be ignored
