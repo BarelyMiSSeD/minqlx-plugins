@@ -47,10 +47,6 @@ from minqlx.database import Redis
 
 FILE_NAME = 'sound_names.txt'
 VERSION = 1.1
-"""Change this to the seconds a player must wait after playing a sound before the player can play another sound"""
-PLAYER_REPEAT_SOUND = "30"
-"""Change this to the amount of time to wait after a sound is played before another sound can be played my any player"""
-DELAY_AFTER_SOUND = "5"
 
 _re_hahaha_yeah = re.compile(r"^haha(?:ha)?,? yeah?\W?$", flags=re.IGNORECASE)
 _re_haha_yeah_haha = re.compile(r"^haha(?:ha)?,? yeah?,? haha\W?$", flags=re.IGNORECASE)
@@ -514,11 +510,11 @@ class myFun(minqlx.Plugin):
         self.last_sound = None
 
         #Delay between sounds being played
-        self.set_cvar_once("qlx_funSoundDelay", DELAY_AFTER_SOUND)
+        self.set_cvar_once("qlx_funSoundDelay", "5")
 
         #**** Used for limiting players spamming sounds. ****
         # Amount of seconds player has to wait before allowed to play another sound
-        self.set_cvar_once("qlx_funPlayerSoundRepeat", PLAYER_REPEAT_SOUND)
+        self.set_cvar_once("qlx_funPlayerSoundRepeat", "30")
         # Dictionary used to store player sound call times.
         self.sound_limiting = {}
 
