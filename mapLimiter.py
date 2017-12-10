@@ -52,12 +52,24 @@ class mapLimiter(minqlx.Plugin):
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
 
         # Minqlx server commands
-        self.add_command(("votablemaps", "votemaps", "allowedmaps", "maps"), self.voteable_maps)
+        self.add_command(("votablemaps", "votemaps", "allowedmaps", "mappool", "maps", "maplist"), self.voteable_maps)
 
         # Allowed maps dictionary with the allowed factories for each map
         self.allowed_maps = {}
 
         self.get_allowed_maps()
+        self.unload_overlapping_commands()
+
+    @minqlx.delay(1)
+    def unload_overlapping_commands(self):
+        try:
+            essentials = minqlx.Plugin._loaded_plugins['essentials']
+            remove_commands = set(['maps'])
+            for cmd in essentials.commands.copy():
+                if remove_commands.intersection(cmd.name):
+                    essentials.remove_command(cmd.name, cmd.handler)
+        except Exception as e:
+            pass
 
     def handle_vote_called(self, caller, vote, args):
         vote = vote.lower()
