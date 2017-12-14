@@ -7,13 +7,13 @@ This will limit sound spamming to the server.
 It only allows one sound to be played at a time and each user is limited in the frequency they can play sounds.
 
 
-To set the time required between sounds add this line to your server.cfg and edit the "5":
+To set the time required between sounds add this line to your server.cfg and edit the "5":<br>
 <b>set qlx_funSoundDelay "5"</b>
 
-To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
+To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":<br>
 <b>set qlx_funPlayerSoundRepeat "30"</b>
 
-To remove the individual sound repeat restriction from players with perm level 5 set this cvar to "1" the qlx_funSoundDelay restriction still applies.
+To remove the individual sound repeat restriction from players with perm level 5 set this cvar to "1" the qlx_funSoundDelay restriction still applies:<br>
 <b>set qlx_funUnrestrictAdmin "0"</b>
 
 
