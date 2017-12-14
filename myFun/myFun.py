@@ -61,7 +61,7 @@ from minqlx.database import Redis
 
 
 FILE_NAME = 'sound_names.txt'
-VERSION = 1.1
+VERSION = 1.3
 
 _re_hahaha_yeah = re.compile(r"^haha(?:ha)?,? yeah?\W?$", flags=re.IGNORECASE)
 _re_haha_yeah_haha = re.compile(r"^haha(?:ha)?,? yeah?,? haha\W?$", flags=re.IGNORECASE)
@@ -149,7 +149,7 @@ _re_jeopardy = re.compile(r"^jeopardy\W?$", flags=re.IGNORECASE)
 _re_jerkoff = re.compile(r"^(?:jerk off|jerkoff)\W?$", flags=re.IGNORECASE)
 _re_killo = re.compile(r"^killo\W?$", flags=re.IGNORECASE)
 _re_knocked = re.compile(r"^knocked\W?$", flags=re.IGNORECASE)
-_re_ld3 = re.compile(r"(^die\W?$|ld3| ?die |die$)", flags=re.IGNORECASE)
+_re_ld3 = re.compile(r"^(?:die|ld3)\W?$", flags=re.IGNORECASE)
 _re_liquidswords = re.compile(r"^(?:liquidswords|liquid)\W?$", flags=re.IGNORECASE)
 _re_massacre = re.compile(r"^massacre\W?$", flags=re.IGNORECASE)
 _re_mixer = re.compile(r"^mixer\W?$", flags=re.IGNORECASE)
@@ -181,17 +181,17 @@ _re_thankgod = re.compile(r"^(?:thankgod|thank god)\W?$", flags=re.IGNORECASE)
 _re_traxion = re.compile(r"^traxion\W?$", flags=re.IGNORECASE)
 _re_trixy = re.compile(r"^trixy\W?$", flags=re.IGNORECASE)
 _re_twoon = re.compile(r"^(?:twoon|2pows)\W?$", flags=re.IGNORECASE)
-_re_venny = re.compile(r"^venny\W?$", flags=re.IGNORECASE)
 _re_ty = re.compile(r"^(?:ty|thanks|thank you)\W?$", flags=re.IGNORECASE)
+_re_venny = re.compile(r"^venny\W?$", flags=re.IGNORECASE)
 _re_viewaskewer = re.compile(r"^(?:viewaskewer|view)\W?$", flags=re.IGNORECASE)
 _re_whatsthat = re.compile(r"^what?'s that\W?$", flags=re.IGNORECASE)
 _re_whoareyou = re.compile(r"^who are you\W?$", flags=re.IGNORECASE)
 
 #|sf|bart`us's
 _re_007 = re.compile(r"^007\W?$", flags=re.IGNORECASE)
-_re_adamsfamily = re.compile(r"^adamsfamily\W?$", flags=re.IGNORECASE)
+_re_AScratch = re.compile(r"^(?:A Scratch|Scratch|just a scratch)\W?$", flags=re.IGNORECASE)
+_re_adamsfamily = re.compile(r"^(?:adamsfamily|adams family)\W?$", flags=re.IGNORECASE)
 _re_allahuakbar = re.compile(r"^allahuakbar\W?$", flags=re.IGNORECASE)
-_re_AllSkeetSkeet = re.compile(r"^(?:All Skeet Skeet|Skeet Skeet)\W?$", flags=re.IGNORECASE)
 _re_allstar = re.compile(r"^allstar\W?$", flags=re.IGNORECASE)
 _re_AllTheThings = re.compile(r"^All The Things\W?$", flags=re.IGNORECASE)
 _re_Amazing = re.compile(r"^Amazing\W?$", flags=re.IGNORECASE)
@@ -200,15 +200,13 @@ _re_America = re.compile(r"^America\W?$", flags=re.IGNORECASE)
 _re_Amerika = re.compile(r"^Amerika\W?$", flags=re.IGNORECASE)
 _re_AndNothingElse = re.compile(r"^And Nothing Else\W?$", flags=re.IGNORECASE)
 _re_Animals = re.compile(r"^Animals\W?$", flags=re.IGNORECASE)
-_re_AScratch = re.compile(r"^(?:A Scratch|Scratch|just a scratch)\W?$", flags=re.IGNORECASE)
 _re_asskicking = re.compile(r"^asskicking\W?$", flags=re.IGNORECASE)
 _re_ave = re.compile(r"^ave\W?$", flags=re.IGNORECASE)
 _re_babybaby = re.compile(r"^baby baby\W?$", flags=re.IGNORECASE)
 _re_babyevillaugh = re.compile(r"^baby evil\W?$", flags=re.IGNORECASE)
-_re_babylaughing = re.compile(r"^babylaughing\W?$", flags=re.IGNORECASE)
+_re_babylaughing = re.compile(r"^(?:babylaughing|baby laughing)\W?$", flags=re.IGNORECASE)
 _re_badboys = re.compile(r"^bad boys\W?$", flags=re.IGNORECASE)
 _re_BananaBoatSong = re.compile(r"^Banana Boat\W?$", flags=re.IGNORECASE)
-_re_beback = re.compile(r"^I'?ll be back\W?$", flags=re.IGNORECASE)
 _re_bennyhill = re.compile(r"^benny hill\W?$", flags=re.IGNORECASE)
 _re_benzin = re.compile(r"^benzin\W?$", flags=re.IGNORECASE)
 _re_bluewins = re.compile(r"^blue wins\W?$", flags=re.IGNORECASE)
@@ -233,7 +231,6 @@ _re_ComeWithMeNow = re.compile(r"^Come With Me Now\W?$", flags=re.IGNORECASE)
 _re_Count_down = re.compile(r"^Count down\W?$", flags=re.IGNORECASE)
 _re_cowards = re.compile(r"^cowards\W?$", flags=re.IGNORECASE)
 _re_crazy = re.compile(r"^crazy\W?$", flags=re.IGNORECASE)
-_re_cunt = re.compile(r"^you are a cunt\W?$", flags=re.IGNORECASE)
 _re_damnit = re.compile(r"^damnit\W?$", flags=re.IGNORECASE)
 _re_DangerZone = re.compile(r"^Danger Zone\W?$", flags=re.IGNORECASE)
 _re_deadsoon = re.compile(r"^(?:deadsoon|dead soon)\W?$", flags=re.IGNORECASE)
@@ -251,7 +248,7 @@ _re_electro = re.compile(r"^electro\W?$", flags=re.IGNORECASE)
 _re_elementary = re.compile(r"^elementary\W?$", flags=re.IGNORECASE)
 _re_engel = re.compile(r"^engel\W?$", flags=re.IGNORECASE)
 _re_erstwenn = re.compile(r"^erstwenn\W?$", flags=re.IGNORECASE)
-_re_exitlight = re.compile(r"^exitlight\W?$", flags=re.IGNORECASE)
+_re_exitlight = re.compile(r"^(?:exitlight|exit light)\W?$", flags=re.IGNORECASE)
 _re_faint = re.compile(r"^faint\W?$", flags=re.IGNORECASE)
 _re_fatality = re.compile(r"^fatality\W?$", flags=re.IGNORECASE)
 _re_FeelGood = re.compile(r"^Feel Good\W?$", flags=re.IGNORECASE)
@@ -282,11 +279,12 @@ _re_holy = re.compile(r"^holy\W?$", flags=re.IGNORECASE)
 _re_hoppereiter = re.compile(r"^hoppereiter\W?$", flags=re.IGNORECASE)
 _re_howareyou = re.compile(r"^how are you\W?$", flags=re.IGNORECASE)
 _re_hush = re.compile(r"^hush\W?$", flags=re.IGNORECASE)
-_re_ibet = re.compile(r"^ibet\W?$", flags=re.IGNORECASE)
+_re_ibet = re.compile(r"^(?:ibet|i bet)\W?$", flags=re.IGNORECASE)
 _re_icantbelieve = re.compile(r"^i can'?t believe\W?$", flags=re.IGNORECASE)
 _re_ichtuedieweh = re.compile(r"^ichtuedieweh\W?$", flags=re.IGNORECASE)
 _re_idoparkour = re.compile(r"^i do parkour\W?$", flags=re.IGNORECASE)
 _re_ihateall = re.compile(r"^i hate all\W?$", flags=re.IGNORECASE)
+_re_illbeback = re.compile(r"^I'?ll be back\W?$", flags=re.IGNORECASE)
 _re_imperial = re.compile(r"^imperial\W?$", flags=re.IGNORECASE)
 _re_imsexy = re.compile(r"^im sexy\W?$", flags=re.IGNORECASE)
 _re_imyourfather = re.compile(r"^i'?m your father\W?$", flags=re.IGNORECASE)
@@ -300,7 +298,7 @@ _re_itsnot = re.compile(r"^it'?s not\W?$", flags=re.IGNORECASE)
 _re_jackpot = re.compile(r"^jackpot\W?$", flags=re.IGNORECASE)
 _re_jesus = re.compile(r"^jesus\W?$", flags=re.IGNORECASE)
 _re_jesusOh = re.compile(r"^jesus Oh\W?$", flags=re.IGNORECASE)
-_re_johncena = re.compile(r"^johncena\W?$", flags=re.IGNORECASE)
+_re_johncena = re.compile(r"^(?:johncena|john cena)\W?$", flags=re.IGNORECASE)
 _re_jumpmotherfucker = re.compile(r"^jump motherfucker\W?$", flags=re.IGNORECASE)
 _re_justdoit = re.compile(r"^just do it\W?$", flags=re.IGNORECASE)
 _re_kamehameha = re.compile(r"^kamehameha\W?$", flags=re.IGNORECASE)
@@ -308,7 +306,7 @@ _re_keeponfighting = re.compile(r"^keep on fighting\W?$", flags=re.IGNORECASE)
 _re_keepyourshirton = re.compile(r"^keep your shirt on\W?$", flags=re.IGNORECASE)
 _re_KnockedDown = re.compile(r"^Knocked Down\W?$", flags=re.IGNORECASE)
 _re_kommtdiesonne = re.compile(r"^kommtdiesonne\W?$", flags=re.IGNORECASE)
-_re_kungfu = re.compile(r"^kungfu\W?$", flags=re.IGNORECASE)
+_re_kungfu = re.compile(r"^(?:kungfu|kung fu)\W?$", flags=re.IGNORECASE)
 _re_lately = re.compile(r"^lately\W?$", flags=re.IGNORECASE)
 _re_Legitness = re.compile(r"^Legitness\W?$", flags=re.IGNORECASE)
 _re_letsgetready = re.compile(r"^lets get ready\W?$", flags=re.IGNORECASE)
@@ -317,7 +315,7 @@ _re_lightsout = re.compile(r"^lights out\W?$", flags=re.IGNORECASE)
 _re_lionking = re.compile(r"^lion king\W?$", flags=re.IGNORECASE)
 _re_livetowin = re.compile(r"^live to win\W?$", flags=re.IGNORECASE)
 _re_losingmyreligion = re.compile(r"^losing my religion\W?$", flags=re.IGNORECASE)
-_re_loveme = re.compile(r"^loveme\W?$", flags=re.IGNORECASE)
+_re_loveme = re.compile(r"^(?:loveme|love me)\W?$", flags=re.IGNORECASE)
 _re_low = re.compile(r"^low\W?$", flags=re.IGNORECASE)
 _re_luck = re.compile(r"^luck\W?$", flags=re.IGNORECASE)
 _re_lust = re.compile(r"^lust\W?$", flags=re.IGNORECASE)
@@ -377,6 +375,7 @@ _re_shakesenora = re.compile(r"^shakesenora\W?$", flags=re.IGNORECASE)
 _re_shutthefuckup = re.compile(r"^shut the fuck up\W?$", flags=re.IGNORECASE)
 _re_shutyourfuckingmouth = re.compile(r"^shut your fucking mouth\W?$", flags=re.IGNORECASE)
 _re_silence = re.compile(r"^silence\W?$", flags=re.IGNORECASE)
+_re_SkeetSkeet = re.compile(r"^(?:All Skeet Skeet|Skeet Skeet)\W?$", flags=re.IGNORECASE)
 _re_smoothcriminal = re.compile(r"^smooth criminal\W?$", flags=re.IGNORECASE)
 _re_socobatevira = re.compile(r"^socobatevira\W?$", flags=re.IGNORECASE)
 _re_socobateviraend = re.compile(r"^socobatevira end\W?$", flags=re.IGNORECASE)
@@ -428,6 +427,7 @@ _re_yesmaster = re.compile(r"^yes master\W?$", flags=re.IGNORECASE)
 _re_yhehehe = re.compile(r"^yhehehe\W?$", flags=re.IGNORECASE)
 _re_ymca = re.compile(r"^ymca\W?$", flags=re.IGNORECASE)
 _re_You = re.compile(r"^You\W?$", flags=re.IGNORECASE)
+_re_yacunt = re.compile(r"^you are a cunt\W?$", flags=re.IGNORECASE)
 _re_youfuckedmywife = re.compile(r"^you fucked my wife\W?$", flags=re.IGNORECASE)
 _re_YouRealise = re.compile(r"^You Realise\W?$", flags=re.IGNORECASE)
 
@@ -524,6 +524,9 @@ class myFun(minqlx.Plugin):
         self.add_command("cookies", self.cmd_cookies)
         self.last_sound = None
 
+        #Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
+        self.set_cvar_once("qlx_funUnrestrictAdmin", "0")
+
         #Delay between sounds being played
         self.set_cvar_once("qlx_funSoundDelay", "5")
 
@@ -538,6 +541,8 @@ class myFun(minqlx.Plugin):
 
         #variable to show when a sound has been played
         self.played = False
+        #variable to store the sound to be called
+        self.soundFile = ""
 
     def player_disconnect(self, player, reason):
         try:
@@ -551,942 +556,29 @@ class myFun(minqlx.Plugin):
         if channel != "chat":
             return
 
-        if not self.last_sound:
-            pass
-        elif time.time() - self.last_sound < self.get_cvar("qlx_funSoundDelay", int):
-            return
-
-        if self.check_time(player):
-            return
-
         msg = self.clean_text(msg)
-        msg_lower = msg.lower()
-        if _re_hahaha_yeah.match(msg):
-            self.play_sound("sound/player/lucy/taunt.wav")
-        elif _re_haha_yeah_haha.match(msg):
-            self.play_sound("sound/player/biker/taunt.wav")
-        elif _re_yeah_hahaha.match(msg):
-            self.play_sound("sound/player/razor/taunt.wav")
-        elif _re_duahahaha.match(msg):
-            self.play_sound("sound/player/keel/taunt.wav")
-        elif _re_hahaha.search(msg):
-            self.play_sound("sound/player/santa/taunt.wav")
-        elif _re_glhf.match(msg):
-            self.play_sound("sound/vo/crash_new/39_01.wav")
-        elif _re_f3.match(msg):
-            self.play_sound("sound/vo/crash_new/36_04.wav")
-        elif "holy shit" in msg_lower:
-            self.play_sound("sound/vo_female/holy_shit")
-        elif _re_welcome.match(msg):
-            self.play_sound("sound/vo_evil/welcome")
-        elif _re_go.match(msg):
-            self.play_sound("sound/vo/go")
-        elif _re_beep_boop.match(msg):
-            self.play_sound("sound/player/tankjr/taunt.wav")
-        elif _re_win.match(msg):
-            self.play_sound("sound/vo_female/you_win.wav")
-        elif _re_lose.match(msg):
-            self.play_sound("sound/vo/you_lose.wav")
-        elif "impressive" in msg_lower:
-            self.play_sound("sound/vo_female/impressive1.wav")
-        elif "excellent" in msg_lower:
-            self.play_sound("sound/vo_evil/excellent1.wav")
-        elif _re_denied.match(msg):
-            self.play_sound("sound/vo/denied")
-        elif _re_balls_out.match(msg):
-            self.play_sound("sound/vo_female/balls_out")
-        elif _re_one.match(msg):
-            self.play_sound("sound/vo_female/one")
-        elif _re_two.match(msg):
-            self.play_sound("sound/vo_female/two")
-        elif _re_three.match(msg):
-            self.play_sound("sound/vo_female/three")
-        elif _re_fight.match(msg):
-            self.play_sound("sound/vo_evil/fight")
-        elif _re_gauntlet.match(msg):
-            self.play_sound("sound/vo_evil/gauntlet")
-        elif _re_humiliation.match(msg):
-            self.play_sound("sound/vo_evil/humiliation1")
-        elif _re_perfect.match(msg):
-            self.play_sound("sound/vo_evil/perfect")
-        elif _re_wah.match(msg):
-            self.play_sound("sound/misc/yousuck")
-        elif _re_ah.match(msg):
-            self.play_sound("sound/player/slash/taunt.wav")
-        elif _re_oink.match(msg):
-            self.play_sound("sound/player/sorlag/pain50_1.wav")
-        elif _re_argh.match(msg):
-            self.play_sound("sound/player/doom/taunt.wav")
-        elif _re_hah_haha.match(msg):
-            self.play_sound("sound/player/hunter/taunt.wav")
-        elif _re_woohoo.match(msg):
-            self.play_sound("sound/player/janet/taunt.wav")
-        elif _re_quakelive.match(msg):
-            self.play_sound("sound/vo_female/quake_live")
-        elif _re_chaching.search(msg):
-            self.play_sound("sound/misc/chaching")
-        elif _re_uh_ah.match(msg):
-            self.play_sound("sound/player/mynx/taunt.wav")
-        elif _re_oohwee.match(msg):
-            self.play_sound("sound/player/anarki/taunt.wav")
-        elif _re_erah.match(msg):
-            self.play_sound("sound/player/bitterman/taunt.wav")
-        elif _re_yeahhh.match(msg):
-            self.play_sound("sound/player/major/taunt.wav")
-        elif _re_scream.match(msg):
-            self.play_sound("sound/player/bones/taunt.wav")
-        elif _re_salute.match(msg):
-            self.play_sound("sound/player/sarge/taunt.wav")
-        elif _re_squish.match(msg):
-            self.play_sound("sound/player/orbb/taunt.wav")
-        elif _re_oh_god.match(msg):
-            self.play_sound("sound/player/ranger/taunt.wav")
-        elif _re_snarl.match(msg):
-            self.play_sound("sound/player/sorlag/taunt.wav")
+        if self.find_sound_trigger(msg):
+            if self.check_time(player):
+                if self.get_cvar("qlx_funUnrestrictAdmin", bool) and self.db.get_permission(player.steam_id) == 5:
+                    pass
+                else:
+                    player.tell("^3You played a sound in last {} seconds. Try again after your timeout."
+                                .format(self.get_cvar("qlx_funPlayerSoundRepeat")))
+                    return
 
-        #Viewaskewer
-        elif _re_assholes.match(msg):
-            self.play_sound("soundbank/assholes")
-        elif _re_assshafter.match(msg):
-            self.play_sound("soundbank/assshafterloud")
-        elif _re_babydoll.match(msg):
-            self.play_sound("soundbank/babydoll")
-        elif _re_barelymissed.match(msg):
-            self.play_sound("soundbank/barelymissed")
-        elif _re_belly.search(msg):
-            self.play_sound("soundbank/belly")
-        elif _re_bitch.match(msg):
-            self.play_sound("soundbank/bitch")
-        elif _re_blud.match(msg):
-            self.play_sound("soundbank/dtblud")
-        elif _re_boats.match(msg):
-            self.play_sound("soundbank/boats")
-        elif _re_bobg.match(msg):
-            self.play_sound("soundbank/bobg")
-        elif _re_bogdog.match(msg):
-            self.play_sound("soundbank/bogdog")
-        elif _re_boom.match(msg):
-            self.play_sound("soundbank/boom")
-        elif _re_boom2.match(msg):
-            self.play_sound("soundbank/boom2")
-        elif _re_buk.match(msg):
-            self.play_sound("soundbank/buk")
-        elif _re_bullshit.match(msg):
-            self.play_sound("soundbank/bullshit")
-        elif _re_butthole.match(msg):
-            self.play_sound("soundbank/butthole")
-        elif _re_buttsex.match(msg):
-            self.play_sound("soundbank/buttsex")
-        elif _re_cheeks.match(msg):
-            self.play_sound("soundbank/cheeks")
-        elif _re_cocksucker.match(msg):
-            self.play_sound("soundbank/cocksucker")
-        elif _re_conquer.match(msg):
-            self.play_sound("soundbank/conquer")
-        elif _re_countdown.match(msg):
-            self.play_sound("soundbank/countdown")
-        elif _re_cum.match(msg):
-            self.play_sound("soundbank/cum")
-        elif _re_cumming.match(msg):
-            self.play_sound("soundbank/cumming")
-        elif _re_cunt.match(msg):
-            self.play_sound("soundbank/cunt")
-        elif _re_dirkfunk.match(msg):
-            self.play_sound("soundbank/dirkfunk")
-        elif _re_disappointment.match(msg):
-            self.play_sound("soundbank/disappointment")
-        elif _re_doom.match(msg):
-            self.play_sound("soundbank/doom")
-        elif _re_drumset.match(msg):
-            self.play_sound("soundbank/drumset")
-        elif _re_eat.match(msg):
-            self.play_sound("soundbank/eat")
-        elif _re_eatme.match(msg):
-            self.play_sound("soundbank/eatme")
-        elif _re_fag.match(msg):
-            self.play_sound("soundbank/fag")
-        elif _re_fingerass.match(msg):
-            self.play_sound("soundbank/fingerass")
-        elif _re_flash.match(msg):
-            self.play_sound("soundbank/flash")
-        elif _re_fuckface.match(msg):
-            self.play_sound("soundbank/fuckface")
-        elif _re_fuck_you.match(msg):
-            self.play_sound("soundbank/fuckyou")
-        elif _re_getemm.match(msg):
-            self.play_sound("soundbank/getemm")
-        elif _re_gonads.match(msg):
-            self.play_sound("soundbank/gonads")
-        elif _re_gtfo.match(msg):
-            self.play_sound("soundbank/gtfo")
-        elif _re_HIT.match(msg):
-            self.play_sound("soundbank/doom")
-        elif _re_hugitout.match(msg):
-            self.play_sound("soundbank/hugitout")
-        elif _re_idiot.match(msg):
-            self.play_sound("soundbank/idiot")
-        elif _re_idiot2.match(msg):
-            self.play_sound("soundbank/idiot2")
-        elif _re_itstime.match(msg):
-            self.play_sound("soundbank/itstime")
-        elif _re_jeopardy.match(msg):
-            self.play_sound("soundbank/jeopardy")
-        elif _re_jerkoff.match(msg):
-            self.play_sound("soundbank/jerkoff")
-        elif _re_killo.match(msg):
-            self.play_sound("soundbank/killo")
-        elif _re_knocked.match(msg):
-            self.play_sound("soundbank/knocked")
-        elif _re_ld3.search(msg):
-            self.play_sound("soundbank/ld3")
-        elif _re_liquidswords.match(msg):
-            self.play_sound("soundbank/liquid")
-        elif _re_massacre.match(msg):
-            self.play_sound("soundbank/massacre")
-        elif _re_mixer.match(msg):
-            self.play_sound("soundbank/mixer")
-        elif _re_mjman.match(msg):
-            self.play_sound("soundbank/mjman")
-        elif _re_mmmm.match(msg):
-            self.play_sound("soundbank/mmmm")
-        elif _re_monty.match(msg):
-            self.play_sound("soundbank/monty")
-        elif _re_n8.match(msg):
-            self.play_sound("soundbank/n8")
-        elif _re_nikon.match(msg):
-            self.play_sound("soundbank/nikon")
-        elif _re_nina.match(msg):
-            self.play_sound("soundbank/nina")
-        elif _re_nthreem.match(msg):
-            self.play_sound("sound/vo_female/impressive1.wav")
-        elif _re_olhip.match(msg):
-            self.play_sound("soundbank/hip")
-        elif _re_organic.match(msg):
-            self.play_sound("soundbank/organic")
-        elif _re_paintball.match(msg):
-            self.play_sound("soundbank/paintball")
-        elif _re_pigfucker.match(msg):
-            self.play_sound("soundbank/pigfer")
-        elif _re_popeye.match(msg):
-            self.play_sound("soundbank/popeye")
-        elif _re_rosie.match(msg):
-            self.play_sound("soundbank/rosie")
-        elif _re_seaweed.match(msg):
-            self.play_sound("soundbank/seaweed")
-        elif _re_shit.match(msg):
-            self.play_sound("soundbank/shit")
-        elif _re_sit.search(msg):
-            self.play_sound("soundbank/sit")
-        elif _re_soulianis.search(msg):
-            self.play_sound("soundbank/soulianis")
-        elif _re_spam.match(msg):
-            self.play_sound("soundbank/spam3")
-        elif _re_stalin.match(msg):
-            self.play_sound("soundbank/ussr")
-        elif _re_stfu.match(msg):
-            self.play_sound("soundbank/stfu")
-        elif _re_suckadick.match(msg):
-            self.play_sound("soundbank/suckadick")
-        elif _re_suckit.match(msg):
-            self.play_sound("soundbank/suckit")
-        elif _re_suckmydick.match(msg):
-            self.play_sound("soundbank/suckmydick")
-        elif _re_teapot.match(msg):
-            self.play_sound("soundbank/teapot")
-        elif _re_thankgod.match(msg):
-            self.play_sound("soundbank/thankgod")
-        elif _re_traxion.match(msg):
-            self.play_sound("soundbank/traxion")
-        elif _re_trixy.match(msg):
-            self.play_sound("soundbank/trixy")
-        elif _re_twoon.match(msg):
-            self.play_sound("soundbank/twoon")
-        elif _re_venny.match(msg):
-            self.play_sound("soundbank/venny")
-        elif _re_ty.match(msg):
-            self.play_sound("soundbank/thankyou")
-        elif _re_viewaskewer.match(msg):
-            self.play_sound("soundbank/view")
-        elif _re_whatsthat.match(msg):
-            self.play_sound("soundbank/whatsthat")
-        elif _re_whoareyou.match(msg):
-            self.play_sound("soundbank/whoareyou")
+            if not self.last_sound:
+                pass
+            elif time.time() - self.last_sound < self.get_cvar("qlx_funSoundDelay", int):
+                player.tell("^3A sound has been played in last {} seconds. Try again after the timeout."
+                            .format(self.get_cvar("qlx_funSoundDelay")))
+                return
+            self.play_sound(self.soundFile)
 
-        #|sf|bart`us's
-        elif _re_007.match(msg):
-            self.play_sound("sound/funnysounds/007.wav")
-        elif _re_adamsfamily.match(msg):
-            self.play_sound("sound/funnysounds/adamsfamily.ogg")
-        elif _re_allahuakbar.match(msg):
-            self.play_sound("sound/funnysounds/allahuakbar.ogg")
-        elif _re_AllSkeetSkeet.match(msg):
-            self.play_sound("sound/funnysounds/AllSkeetSkeet.ogg")
-        elif _re_allstar.match(msg):
-            self.play_sound("sound/funnysounds/allstar.ogg")
-        elif _re_AllTheThings.match(msg):
-            self.play_sound("sound/funnysounds/AllTheThings.ogg")
-        elif _re_allthethings.match(msg):
-            self.play_sound("sound/funnysounds/allthethings.ogg")
-        elif _re_Amazing.match(msg):
-            self.play_sound("sound/funnysounds/Amazing.ogg")
-        elif _re_amazing.match(msg):
-            self.play_sound("sound/funnysounds/amazing.ogg")
-        elif _re_Ameno.match(msg):
-            self.play_sound("sound/funnysounds/Ameno.ogg")
-        elif _re_ameno.match(msg):
-            self.play_sound("sound/funnysounds/ameno.ogg")
-        elif _re_America.match(msg):
-            self.play_sound("sound/funnysounds/America.ogg")
-        elif _re_america.match(msg):
-            self.play_sound("sound/funnysounds/america.ogg")
-        elif _re_Amerika.match(msg):
-            self.play_sound("sound/funnysounds/Amerika.ogg")
-        elif _re_amerika.match(msg):
-            self.play_sound("sound/funnysounds/amerika.ogg")
-        elif _re_AndNothingElse.match(msg):
-            self.play_sound("sound/funnysounds/AndNothingElse.ogg")
-        elif _re_andnothingelse.match(msg):
-            self.play_sound("sound/funnysounds/andnothingelse.ogg")
-        elif _re_Animals.match(msg):
-            self.play_sound("sound/funnysounds/Animals.ogg")
-        elif _re_animals.match(msg):
-            self.play_sound("sound/funnysounds/animals.ogg")
-        elif _re_AScratch.match(msg):
-            self.play_sound("sound/funnysounds/AScratch.ogg")
-        elif _re_ascratch.match(msg):
-            self.play_sound("sound/funnysounds/ascratch.ogg")
-        elif _re_asskicking.match(msg):
-            self.play_sound("sound/funnysounds/asskicking.ogg")
-        elif _re_ave.match(msg):
-            self.play_sound("sound/funnysounds/ave.ogg")
-        elif _re_babybaby.match(msg):
-            self.play_sound("sound/funnysounds/babybaby.ogg")
-        elif _re_babybaby.match(msg):
-            self.play_sound("sound/funnysounds/babybaby.ogg")
-        elif _re_babyevillaugh.match(msg):
-            self.play_sound("sound/funnysounds/babyevillaugh.ogg")
-        elif _re_babylaughing.match(msg):
-            self.play_sound("sound/funnysounds/babylaughing.ogg")
-        elif _re_badboys.match(msg):
-            self.play_sound("sound/funnysounds/badboys.ogg")
-        elif _re_BananaBoatSong.match(msg):
-            self.play_sound("sound/funnysounds/BananaBoatSong.ogg")
-        elif _re_beback.match(msg):
-            self.play_sound("sound/funnysounds/beback.ogg")
-        elif _re_bennyhill.match(msg):
-            self.play_sound("sound/funnysounds/bennyhill.ogg")
-        elif _re_benzin.match(msg):
-            self.play_sound("sound/funnysounds/benzin.ogg")
-        elif _re_bluewins.match(msg):
-            self.play_sound("sound/funnysounds/bluewins.ogg")
-        elif _re_bonkers.match(msg):
-            self.play_sound("sound/funnysounds/bonkers.ogg")
-        elif _re_boomheadshot.match(msg):
-            self.play_sound("sound/funnysounds/boomheadshot.ogg")
-        elif _re_booo.match(msg):
-            self.play_sound("sound/funnysounds/booo.ogg")
-        elif _re_boring.match(msg):
-            self.play_sound("sound/funnysounds/boring.ogg")
-        elif _re_boze.match(msg):
-            self.play_sound("sound/funnysounds/boze.ogg")
-        elif _re_brightsideoflife.match(msg):
-            self.play_sound("sound/funnysounds/brightsideoflife.ogg")
-        elif _re_buckdich.match(msg):
-            self.play_sound("sound/funnysounds/buckdich.ogg")
-        elif _re_bullshitter.match(msg):
-            self.play_sound("sound/funnysounds/bullshitter.ogg")
-        elif _re_burnsburns.match(msg):
-            self.play_sound("sound/funnysounds/burnsburns.ogg")
-        elif _re_cameltoe.match(msg):
-            self.play_sound("sound/funnysounds/cameltoe.ogg")
-        elif _re_canttouchthis.match(msg):
-            self.play_sound("sound/funnysounds/canttouchthis.ogg")
-        elif _re_cccp.match(msg):
-            self.play_sound("sound/funnysounds/cccp.ogg")
-        elif _re_champions.match(msg):
-            self.play_sound("sound/funnysounds/champions.ogg")
-        elif _re_chicken.match(msg):
-            self.play_sound("sound/funnysounds/chicken.ogg")
-        elif _re_chocolaterain.match(msg):
-            self.play_sound("sound/funnysounds/chocolaterain.ogg")
-        elif _re_coin.match(msg):
-            self.play_sound("sound/funnysounds/coin.ogg")
-        elif _re_come.match(msg):
-            self.play_sound("sound/funnysounds/come.ogg")
-        elif _re_ComeWithMeNow.match(msg):
-            self.play_sound("sound/funnysounds/ComeWithMeNow.ogg")
-        elif _re_Count_down.match(msg):
-            self.play_sound("sound/funnysounds/Countdown.ogg")
-        elif _re_cowards.match(msg):
-            self.play_sound("sound/funnysounds/cowards.ogg")
-        elif _re_crazy.match(msg):
-            self.play_sound("sound/funnysounds/crazy.ogg")
-        elif _re_cunt.match(msg):
-            self.play_sound("sound/funnysounds/cunt.ogg")
-        elif _re_damnit.match(msg):
-            self.play_sound("sound/funnysounds/damnit.ogg")
-        elif _re_DangerZone.match(msg):
-            self.play_sound("sound/funnysounds/DangerZone.ogg")
-        elif _re_deadsoon.match(msg):
-            self.play_sound("sound/funnysounds/deadsoon.ogg")
-        elif _re_defeated.match(msg):
-            self.play_sound("sound/funnysounds/defeated.ogg")
-        elif _re_devil.match(msg):
-            self.play_sound("sound/funnysounds/devil.ogg")
-        elif _re_doesntloveyou.match(msg):
-            self.play_sound("sound/funnysounds/doesntloveyou.ogg")
-        elif _re_dubist.match(msg):
-            self.play_sound("sound/funnysounds/dubist.ogg")
-        elif _re_duhast.match(msg):
-            self.play_sound("sound/funnysounds/duhast.ogg")
-        elif _re_dumbways.match(msg):
-            self.play_sound("sound/funnysounds/dumbways.ogg")
-        elif _re_EatPussy.match(msg):
-            self.play_sound("sound/funnysounds/EatPussy.ogg")
-        elif _re_education.match(msg):
-            self.play_sound("sound/funnysounds/education.ogg")
-        elif _re_einschrei.match(msg):
-            self.play_sound("sound/funnysounds/einschrei.ogg")
-        elif _re_EinsZwei.match(msg):
-            self.play_sound("sound/funnysounds/EinsZwei.ogg")
-        elif _re_electro.match(msg):
-            self.play_sound("sound/funnysounds/electro.ogg")
-        elif _re_elementary.match(msg):
-            self.play_sound("sound/funnysounds/elementary.ogg")
-        elif _re_engel.match(msg):
-            self.play_sound("sound/funnysounds/engel.ogg")
-        elif _re_erstwenn.match(msg):
-            self.play_sound("sound/funnysounds/erstwenn.ogg")
-        elif _re_exitlight.match(msg):
-            self.play_sound("sound/funnysounds/exitlight.ogg")
-        elif _re_faint.match(msg):
-            self.play_sound("sound/funnysounds/faint.ogg")
-        elif _re_fatality.match(msg):
-            self.play_sound("sound/funnysounds/fatality.ogg")
-        elif _re_FeelGood.match(msg):
-            self.play_sound("sound/funnysounds/FeelGood.ogg")
-        elif _re_fleshwound.match(msg):
-            self.play_sound("sound/funnysounds/fleshwound.ogg")
-        elif _re_foryou.match(msg):
-            self.play_sound("sound/funnysounds/foryou.ogg")
-        elif _re_freestyler.match(msg):
-            self.play_sound("sound/funnysounds/freestyler.ogg")
-        elif _re_fuckfuck.match(msg):
-            self.play_sound("sound/funnysounds/fuckfuck.ogg")
-        elif _re_fuckingburger.match(msg):
-            self.play_sound("sound/funnysounds/fuckingburger.ogg")
-        elif _re_fuckingkids.match(msg):
-            self.play_sound("sound/funnysounds/fuckingkids.ogg")
-        elif _re_gangnam.match(msg):
-            self.play_sound("sound/funnysounds/gangnam.ogg")
-        elif _re_ganjaman.match(msg):
-            self.play_sound("sound/funnysounds/ganjaman.ogg")
-        elif _re_gay.match(msg):
-            self.play_sound("sound/funnysounds/gay.ogg")
-        elif _re_getcrowbar.match(msg):
-            self.play_sound("sound/funnysounds/getcrowbar.ogg")
-        elif _re_getouttheway.match(msg):
-            self.play_sound("sound/funnysounds/getouttheway.ogg")
-        elif _re_ghostbusters.match(msg):
-            self.play_sound("sound/funnysounds/ghostbusters.ogg")
-        elif _re_girllook.match(msg):
-            self.play_sound("sound/funnysounds/girllook.ogg")
-        elif _re_girly.match(msg):
-            self.play_sound("sound/funnysounds/girly.ogg")
-        elif _re_gnrguitar.match(msg):
-            self.play_sound("sound/funnysounds/gnrguitar.ogg")
-        elif _re_goddamnright.match(msg):
-            self.play_sound("sound/funnysounds/goddamnright.ogg")
-        elif _re_goodbyeandrea.match(msg):
-            self.play_sound("sound/funnysounds/goodbyeandrea.ogg")
-        elif _re_goodbyesarah.match(msg):
-            self.play_sound("sound/funnysounds/goodbyesarah.ogg")
-        elif _re_gotcha.match(msg):
-            self.play_sound("sound/funnysounds/gotcha.ogg")
-        elif _re_hakunamatata.match(msg):
-            self.play_sound("sound/funnysounds/hakunamatata.ogg")
-        elif _re_hammertime.match(msg):
-            self.play_sound("sound/funnysounds/hammertime.ogg")
-        elif _re_hello.match(msg):
-            self.play_sound("sound/funnysounds/hello.ogg")
-        elif _re_hellstestern.match(msg):
-            self.play_sound("sound/funnysounds/hellstestern.ogg")
-        elif _re_holy.match(msg):
-            self.play_sound("sound/funnysounds/holy.ogg")
-        elif _re_hoppereiter.match(msg):
-            self.play_sound("sound/funnysounds/hoppereiter.ogg")
-        elif _re_howareyou.match(msg):
-            self.play_sound("sound/funnysounds/howareyou.ogg")
-        elif _re_hush.match(msg):
-            self.play_sound("sound/funnysounds/hush.ogg")
-        elif _re_ibet.match(msg):
-            self.play_sound("sound/funnysounds/ibet.ogg")
-        elif _re_icantbelieve.match(msg):
-            self.play_sound("sound/funnysounds/icantbelieve.ogg")
-        elif _re_ichtuedieweh.match(msg):
-            self.play_sound("sound/funnysounds/ichtuedieweh.ogg")
-        elif _re_idoparkour.match(msg):
-            self.play_sound("sound/funnysounds/idoparkour.ogg")
-        elif _re_ihateall.match(msg):
-            self.play_sound("sound/funnysounds/ihateall.ogg")
-        elif _re_imperial.match(msg):
-            self.play_sound("sound/funnysounds/imperial.ogg")
-        elif _re_imsexy.match(msg):
-            self.play_sound("sound/funnysounds/imsexy.ogg")
-        elif _re_imyourfather.match(msg):
-            self.play_sound("sound/funnysounds/imyourfather.ogg")
-        elif _re_incoming.match(msg):
-            self.play_sound("sound/funnysounds/incoming.ogg")
-        elif _re_indianajones.match(msg):
-            self.play_sound("sound/funnysounds/indianajones.ogg")
-        elif _re_inyourheadzombie.match(msg):
-            self.play_sound("sound/funnysounds/inyourheadzombie.ogg")
-        elif _re_iseeassholes.match(msg):
-            self.play_sound("sound/funnysounds/iseeassholes.ogg")
-        elif _re_iseedeadpeople.match(msg):
-            self.play_sound("sound/funnysounds/iseedeadpeople.ogg")
-        elif _re_itsmylife.match(msg):
-            self.play_sound("sound/funnysounds/itsmylife.ogg")
-        elif _re_itsnot.match(msg):
-            self.play_sound("sound/funnysounds/itsnot.ogg")
-        elif _re_jackpot.match(msg):
-            self.play_sound("sound/funnysounds/jackpot.ogg")
-        elif _re_jesus.match(msg):
-            self.play_sound("sound/funnysounds/jesus.ogg")
-        elif _re_jesusOh.match(msg):
-            self.play_sound("sound/funnysounds/JesusOh.ogg")
-        elif _re_johncena.match(msg):
-            self.play_sound("sound/funnysounds/johncena.ogg")
-        elif _re_jumpmotherfucker.match(msg):
-            self.play_sound("sound/funnysounds/jumpmotherfucker.ogg")
-        elif _re_justdoit.match(msg):
-            self.play_sound("sound/funnysounds/justdoit.ogg")
-        elif _re_kamehameha.match(msg):
-            self.play_sound("sound/funnysounds/kamehameha.ogg")
-        elif _re_keeponfighting.match(msg):
-            self.play_sound("sound/funnysounds/keeponfighting.ogg")
-        elif _re_keepyourshirton.match(msg):
-            self.play_sound("sound/funnysounds/keepyourshirton.ogg")
-        elif _re_KnockedDown.match(msg):
-            self.play_sound("sound/funnysounds/KnockedDown.ogg")
-        elif _re_kommtdiesonne.match(msg):
-            self.play_sound("sound/funnysounds/kommtdiesonne.ogg")
-        elif _re_kungfu.match(msg):
-            self.play_sound("sound/funnysounds/kungfu.ogg")
-        elif _re_lately.match(msg):
-            self.play_sound("sound/funnysounds/lately.ogg")
-        elif _re_Legitness.match(msg):
-            self.play_sound("sound/funnysounds/Legitness.ogg")
-        elif _re_letsgetready.match(msg):
-            self.play_sound("sound/funnysounds/letsgetready.ogg")
-        elif _re_letsputasmile.match(msg):
-            self.play_sound("sound/funnysounds/letsputasmile.ogg")
-        elif _re_lightsout.match(msg):
-            self.play_sound("sound/funnysounds/lightsout.ogg")
-        elif _re_lionking.match(msg):
-            self.play_sound("sound/funnysounds/lionking.ogg")
-        elif _re_livetowin.match(msg):
-            self.play_sound("sound/funnysounds/livetowin.ogg")
-        elif _re_losingmyreligion.match(msg):
-            self.play_sound("sound/funnysounds/losingmyreligion.ogg")
-        elif _re_loveme.match(msg):
-            self.play_sound("sound/funnysounds/loveme.ogg")
-        elif _re_low.match(msg):
-            self.play_sound("sound/funnysounds/low.ogg")
-        elif _re_luck.match(msg):
-            self.play_sound("sound/funnysounds/luck.ogg")
-        elif _re_lust.match(msg):
-            self.play_sound("sound/funnysounds/lust.ogg")
-        elif _re_mahnamahna.match(msg):
-            self.play_sound("sound/funnysounds/mahnamahna.ogg")
-        elif _re_mario.match(msg):
-            self.play_sound("sound/funnysounds/mario.ogg")
-        elif _re_Me.match(msg):
-            self.play_sound("sound/funnysounds/Me.ogg")
-        elif _re_meinland.match(msg):
-            self.play_sound("sound/funnysounds/meinland.ogg")
-        elif _re_message.match(msg):
-            self.play_sound("sound/funnysounds/message.ogg")
-        elif _re_mimimi.match(msg):
-            self.play_sound("sound/funnysounds/mimimi.ogg")
-        elif _re_mission.match(msg):
-            self.play_sound("sound/funnysounds/mission.ogg")
-        elif _re_moan.match(msg):
-            self.play_sound("sound/funnysounds/moan.ogg")
-        elif _re_mortalkombat.match(msg):
-            self.play_sound("sound/funnysounds/mortalkombat.ogg")
-        elif _re_moveass.match(msg):
-            self.play_sound("sound/funnysounds/moveass.ogg")
-        elif _re_muppetopening.match(msg):
-            self.play_sound("sound/funnysounds/muppetopening.ogg")
-        elif _re_mylittlepony.match(msg):
-            self.play_sound("sound/funnysounds/mylittlepony.ogg")
-        elif _re_myname.match(msg):
-            self.play_sound("sound/funnysounds/myname.ogg")
-        elif _re_neverseen.match(msg):
-            self.play_sound("sound/funnysounds/neverseen.ogg")
-        elif _re_nightmare.match(msg):
-            self.play_sound("sound/funnysounds/nightmare.ogg")
-        elif _re_nobodylikesyou.match(msg):
-            self.play_sound("sound/funnysounds/nobodylikesyou.ogg")
-        elif _re_nonie.match(msg):
-            self.play_sound("sound/funnysounds/nonie.ogg")
-        elif _re_nooo.match(msg):
-            self.play_sound("sound/funnysounds/nooo.ogg")
-        elif _re_notimeforloosers.match(msg):
-            self.play_sound("sound/funnysounds/notimeforloosers.ogg")
-        elif _re_numanuma.match(msg):
-            self.play_sound("sound/funnysounds/numanuma.ogg")
-        elif _re_nyancat.match(msg):
-            self.play_sound("sound/funnysounds/nyancat.ogg")
-        elif _re_ofuck.match(msg):
-            self.play_sound("sound/funnysounds/ofuck.ogg")
-        elif _re_ohmygod.match(msg):
-            self.play_sound("sound/funnysounds/ohmygod.ogg")
-        elif _re_OhMyGosh.match(msg):
-            self.play_sound("sound/funnysounds/OhMyGosh.ogg")
-        elif _re_ohnedich.match(msg):
-            self.play_sound("sound/funnysounds/ohnedich.ogg")
-        elif _re_ohno.match(msg):
-            self.play_sound("sound/funnysounds/ohno.ogg")
-        elif _re_ohnoe.match(msg):
-            self.play_sound("sound/funnysounds/ohnoe.ogg")
-        elif _re_pacman.match(msg):
-            self.play_sound("sound/funnysounds/pacman.ogg")
-        elif _re_pickmeup.match(msg):
-            self.play_sound("sound/funnysounds/pickmeup.ogg")
-        elif _re_pikachu.match(msg):
-            self.play_sound("sound/funnysounds/pikachu.ogg")
-        elif _re_pinkiepie.match(msg):
-            self.play_sound("sound/funnysounds/pinkiepie.ogg")
-        elif _re_PinkPanther.match(msg):
-            self.play_sound("sound/funnysounds/PinkPanther.ogg")
-        elif _re_pipe.match(msg):
-            self.play_sound("sound/funnysounds/pipe.ogg")
-        elif _re_pissmeoff.match(msg):
-            self.play_sound("sound/funnysounds/pissmeoff.ogg")
-        elif _re_playagame.match(msg):
-            self.play_sound("sound/funnysounds/playagame.ogg")
-        elif _re_pooping.match(msg):
-            self.play_sound("sound/funnysounds/pooping.ogg")
-        elif _re_powerpuff.match(msg):
-            self.play_sound("sound/funnysounds/powerpuff.ogg")
-        elif _re_radioactive.match(msg):
-            self.play_sound("sound/funnysounds/radioactive.ogg")
-        elif _re_rammsteinriff.match(msg):
-            self.play_sound("sound/funnysounds/rammsteinriff.ogg")
-        elif _re_redwins.match(msg):
-            self.play_sound("sound/funnysounds/redwins.ogg")
-        elif _re_renegade.match(msg):
-            self.play_sound("sound/funnysounds/renegade.ogg")
-        elif _re_retard.match(msg):
-            self.play_sound("sound/funnysounds/retard.ogg")
-        elif _re_rocky.match(msg):
-            self.play_sound("sound/funnysounds/rocky")
-        elif _re_rockyouguitar.match(msg):
-            self.play_sound("sound/funnysounds/rockyouguitar.ogg")
-        elif _re_sail.match(msg):
-            self.play_sound("sound/funnysounds/sail.ogg")
-        elif _re_Salil.match(msg):
-            self.play_sound("sound/funnysounds/Salil.ogg")
-        elif _re_samba.match(msg):
-            self.play_sound("sound/funnysounds/samba.ogg")
-        elif _re_sandstorm.match(msg):
-            self.play_sound("sound/funnysounds/sandstorm.ogg")
-        elif _re_saymyname.match(msg):
-            self.play_sound("sound/funnysounds/saymyname.ogg")
-        elif _re_scatman.match(msg):
-            self.play_sound("sound/funnysounds/scatman.ogg")
-        elif _re_sellyouall.match(msg):
-            self.play_sound("sound/funnysounds/sellyouall.ogg")
-        elif _re_senseofhumor.match(msg):
-            self.play_sound("sound/funnysounds/senseofhumor.ogg")
-        elif _re_shakesenora.match(msg):
-            self.play_sound("sound/funnysounds/shakesenora.ogg")
-        elif _re_shutthefuckup.match(msg):
-            self.play_sound("sound/funnysounds/shutthefuckup.ogg")
-        elif _re_shutyourfuckingmouth.match(msg):
-            self.play_sound("sound/funnysounds/shutyourfuckingmouth.ogg")
-        elif _re_silence.match(msg):
-            self.play_sound("sound/funnysounds/silence.ogg")
-        elif _re_smoothcriminal.match(msg):
-            self.play_sound("sound/funnysounds/smoothcriminal.ogg")
-        elif _re_socobatevira.match(msg):
-            self.play_sound("sound/funnysounds/socobatevira.ogg")
-        elif _re_socobateviraend.match(msg):
-            self.play_sound("sound/funnysounds/socobateviraend.ogg")
-        elif _re_socobatevirafast.match(msg):
-            self.play_sound("sound/funnysounds/socobatevirafast.ogg")
-        elif _re_socobateviraslow.match(msg):
-            self.play_sound("sound/funnysounds/socobateviraslow.ogg")
-        elif _re_sogivemereason.match(msg):
-            self.play_sound("sound/funnysounds/sogivemereason.ogg")
-        elif _re_sostupid.match(msg):
-            self.play_sound("sound/funnysounds/sostupid.ogg")
-        elif _re_SpaceJam.match(msg):
-            self.play_sound("sound/funnysounds/SpaceJam.ogg")
-        elif _re_spaceunicorn.match(msg):
-            self.play_sound("sound/funnysounds/spaceunicorn.ogg")
-        elif _re_spierdalaj.match(msg):
-            self.play_sound("sound/funnysounds/spierdalaj.ogg")
-        elif _re_stampon.match(msg):
-            self.play_sound("sound/funnysounds/stampon.ogg")
-        elif _re_starwars.match(msg):
-            self.play_sound("sound/funnysounds/starwars.ogg")
-        elif _re_stayinalive.match(msg):
-            self.play_sound("sound/funnysounds/stayinalive.ogg")
-        elif _re_stoning.match(msg):
-            self.play_sound("sound/funnysounds/stoning.ogg")
-        elif _re_Stop.match(msg):
-            self.play_sound("sound/funnysounds/Stop.ogg")
-        elif _re_story.match(msg):
-            self.play_sound("sound/funnysounds/story.ogg")
-        elif _re_surprise.match(msg):
-            self.play_sound("sound/funnysounds/surprise.ogg")
-        elif _re_swedishchef.match(msg):
-            self.play_sound("sound/funnysounds/swedishchef.ogg")
-        elif _re_sweetdreams.match(msg):
-            self.play_sound("sound/funnysounds/sweetdreams.ogg")
-        elif _re_takemedown.match(msg):
-            self.play_sound("sound/funnysounds/takemedown.ogg")
-        elif _re_talkscotish.match(msg):
-            self.play_sound("sound/funnysounds/talkscotish.ogg")
-        elif _re_teamwork.match(msg):
-            self.play_sound("sound/funnysounds/teamwork.ogg")
-        elif _re_technology.match(msg):
-            self.play_sound("sound/funnysounds/technology.ogg")
-        elif _re_thisissparta.match(msg):
-            self.play_sound("sound/funnysounds/thisissparta.ogg")
-        elif _re_thunderstruck.match(msg):
-            self.play_sound("sound/funnysounds/thunderstruck.ogg")
-        elif _re_tochurch.match(msg):
-            self.play_sound("sound/funnysounds/tochurch.ogg")
-        elif _re_tsunami.match(msg):
-            self.play_sound("sound/funnysounds/tsunami.ogg")
-        elif _re_tuturu.match(msg):
-            self.play_sound("sound/funnysounds/tuturu.ogg")
-        elif _re_tututu.match(msg):
-            self.play_sound("sound/funnysounds/tututu.ogg")
-        elif _re_unbelievable.match(msg):
-            self.play_sound("sound/funnysounds/unbelievable.ogg")
-        elif _re_undderhaifisch.match(msg):
-            self.play_sound("sound/funnysounds/undderhaifisch.ogg")
-        elif _re_uptowngirl.match(msg):
-            self.play_sound("sound/funnysounds/uptowngirl.ogg")
-        elif _re_valkyries.match(msg):
-            self.play_sound("sound/funnysounds/valkyries.ogg")
-        elif _re_wahwahwah.search(msg):
-            self.play_sound("sound/funnysounds/wahwahwah.ogg")
-        elif _re_wantyou.match(msg):
-            self.play_sound("sound/funnysounds/wantyou.ogg")
-        elif _re_wazzup.match(msg):
-            self.play_sound("sound/funnysounds/wazzup.ogg")
-        elif _re_wehmirohweh.match(msg):
-            self.play_sound("sound/funnysounds/wehmirohweh.ogg")
-        elif _re_whatislove.match(msg):
-            self.play_sound("sound/funnysounds/whatislove.ogg")
-        elif _re_whenangels.match(msg):
-            self.play_sound("sound/funnysounds/whenangels.ogg")
-        elif _re_whereareyou.match(msg):
-            self.play_sound("sound/funnysounds/whereareyou.ogg")
-        elif _re_whistle.match(msg):
-            self.play_sound("sound/funnysounds/whistle.ogg")
-        elif _re_WillBeSinging.match(msg):
-            self.play_sound("sound/funnysounds/WillBeSinging.ogg")
-        elif _re_wimbaway.match(msg):
-            self.play_sound("sound/funnysounds/wimbaway.ogg")
-        elif _re_windows.match(msg):
-            self.play_sound("sound/funnysounds/windows.ogg")
-        elif _re_wouldyoulike.match(msg):
-            self.play_sound("sound/funnysounds/wouldyoulike.ogg")
-        elif _re_wtf.match(msg):
-            self.play_sound("sound/funnysounds/wtf.ogg")
-        elif _re_yeee.match(msg):
-            self.play_sound("sound/funnysounds/yeee.ogg")
-        elif _re_yesmaster.match(msg):
-            self.play_sound("sound/funnysounds/yesmaster.ogg")
-        elif _re_yhehehe.match(msg):
-            self.play_sound("sound/funnysounds/yhehehe.ogg")
-        elif _re_ymca.match(msg):
-            self.play_sound("sound/funnysounds/ymca.ogg")
-        elif _re_You.match(msg):
-            self.play_sound("sound/funnysounds/You.ogg")
-        elif _re_youfuckedmywife.match(msg):
-            self.play_sound("sound/funnysounds/youfuckedmywife.ogg")
-        elif _re_YouRealise.match(msg):
-            self.play_sound("sound/funnysounds/YouRealise.ogg")
-
-        #Duke Nukem
-        elif _re_myride.match(msg):
-            self.play_sound("sound/duke/2ride06.wav")
-        elif _re_abort.match(msg):
-            self.play_sound("sound/duke/abort01.wav")
-        elif _re_ahhh.match(msg):
-            self.play_sound("sound/duke/ahh04.wav")
-        elif _re_muchbetter.match(msg):
-            self.play_sound("sound/duke/ahmuch03.wav")
-        elif _re_aisle4.match(msg):
-            self.play_sound("sound/duke/aisle402.wav")
-        elif _re_amess.match(msg):
-            self.play_sound("sound/duke/amess06.wav")
-        elif _re_annoying.match(msg):
-            self.play_sound("sound/duke/annoy03.wav")
-        elif _re_bitchin.match(msg):
-            self.play_sound("sound/duke/bitchn04.wav")
-        elif _re_blowitout.match(msg):
-            self.play_sound("sound/duke/blowit01.wav")
-        elif _re_boobytrap.match(msg):
-            self.play_sound("sound/duke/booby04.wav")
-        elif _re_bookem.match(msg):
-            self.play_sound("sound/duke/bookem03.wav")
-        elif _re_borntobewild.match(msg):
-            self.play_sound("sound/duke/born01.wav")
-        elif _re_chewgum.match(msg):
-            self.play_sound("sound/duke/chew05.wav")
-        elif _re_comeon.match(msg):
-            self.play_sound("sound/duke/comeon02.wav")
-        elif _re_thecon.match(msg):
-            self.play_sound("sound/duke/con03.wav")
-        elif _re_cool.match(msg):
-            self.play_sound("sound/duke/cool01.wav")
-        elif _re_notcrying.match(msg):
-            self.play_sound("sound/duke/cry01.wav")
-        elif _re_daamn.match(msg):
-            self.play_sound("sound/duke/damn03.wav")
-        elif _re_damit.match(msg):
-            self.play_sound("sound/duke/damnit04.wav")
-        elif _re_dance.match(msg):
-            self.play_sound("sound/duke/dance01.wav")
-        elif _re_diesob.match(msg):
-            self.play_sound("sound/duke/diesob03.wav")
-        elif _re_doomed.match(msg):
-            self.play_sound("sound/duke/doomed16.wav")
-        elif _re_eyye.match(msg):
-            self.play_sound("sound/duke/dscrem38.wav")
-        elif _re_dukenukem.match(msg):
-            self.play_sound("sound/duke/duknuk14.wav")
-        elif _re_noway.match(msg):
-            self.play_sound("sound/duke/eat08.wav")
-        elif _re_eatshit.match(msg):
-            self.play_sound("sound/duke/eatsht01.wav")
-        elif _re_escape.match(msg):
-            self.play_sound("sound/duke/escape01.wav")
-        elif _re_faceass.match(msg):
-            self.play_sound("sound/duke/face01.wav")
-        elif _re_aforce.match(msg):
-            self.play_sound("sound/duke/force01.wav")
-        elif _re_getcrap.match(msg):
-            self.play_sound("sound/duke/getcrap1.wav")
-        elif _re_getsome.match(msg):
-            self.play_sound("sound/duke/getsom1a.wav")
-        elif _re_gameover.match(msg):
-            self.play_sound("sound/duke/gmeovr05.wav")
-        elif _re_gottahurt.match(msg):
-            self.play_sound("sound/duke/gothrt01.wav")
-        elif _re_groovy.match(msg):
-            self.play_sound("sound/duke/groovy02.wav")
-        elif _re_guyssuck.match(msg):
-            self.play_sound("sound/duke/guysuk01.wav")
-        elif _re_hailking.match(msg):
-            self.play_sound("sound/duke/hail01.wav")
-        elif _re_shithappens.match(msg):
-            self.play_sound("sound/duke/happen01.wav")
-        elif _re_holycow.match(msg):
-            self.play_sound("sound/duke/holycw01.wav")
-        elif _re_holyshit.match(msg):
-            self.play_sound("sound/duke/holysh02.wav")
-        elif _re_imgood.match(msg):
-            self.play_sound("sound/duke/imgood12.wav")
-        elif _re_independence.match(msg):
-            self.play_sound("sound/duke/indpnc01.wav")
-        elif _re_inhell.match(msg):
-            self.play_sound("sound/duke/inhell01.wav")
-        elif _re_goingin.match(msg):
-            self.play_sound("sound/duke/introc.wav")
-        elif _re_drjones.match(msg):
-            self.play_sound("sound/duke/jones04.wav")
-        elif _re_kickyourass.match(msg):
-            self.play_sound("sound/duke/kick01-i.wav")
-        elif _re_ktit.match(msg):
-            self.play_sound("sound/duke/ktitx.wav")
-        elif _re_letgod.match(msg):
-            self.play_sound("sound/duke/letgod01.wav")
-        elif _re_letsrock.match(msg):
-            self.play_sound("sound/duke/letsrk03.wav")
-        elif _re_lookingood.match(msg):
-            self.play_sound("sound/duke/lookin01.wav")
-        elif _re_makemyday.match(msg):
-            self.play_sound("sound/duke/makeday1.wav")
-        elif _re_midevil.match(msg):
-            self.play_sound("sound/duke/mdevl01.wav")
-        elif _re_mymeat.match(msg):
-            self.play_sound("sound/duke/meat04-n.wav")
-        elif _re_notime.match(msg):
-            self.play_sound("sound/duke/myself3a.wav")
-        elif _re_neededthat.match(msg):
-            self.play_sound("sound/duke/needed03.wav")
-        elif _re_nobody.match(msg):
-            self.play_sound("sound/duke/nobody01.wav")
-        elif _re_onlyone.match(msg):
-            self.play_sound("sound/duke/onlyon03.wav")
-        elif _re_mykindaparty.match(msg):
-            self.play_sound("sound/duke/party03.wav")
-        elif _re_gonnapay.match(msg):
-            self.play_sound("sound/duke/pay02.wav")
-        elif _re_pissesmeoff.match(msg):
-            self.play_sound("sound/duke/pisses01.wav")
-        elif _re_pissinmeoff.match(msg):
-            self.play_sound("sound/duke/pissin01.wav")
-        elif _re_postal.match(msg):
-            self.play_sound("sound/duke/postal01.wav")
-        elif _re_aintafraid.match(msg):
-            self.play_sound("sound/duke/quake06.wav")
-        elif _re_randr.match(msg):
-            self.play_sound("sound/duke/r&r01.wav")
-        elif _re_readyforaction.match(msg):
-            self.play_sound("sound/duke/ready2a.wav")
-        elif _re_ripheadoff.match(msg):
-            self.play_sound("sound/duke/rip01.wav")
-        elif _re_ripem.match(msg):
-            self.play_sound("sound/duke/ripem08.wav")
-        elif _re_rockin.match(msg):
-            self.play_sound("sound/duke/rockin02.wav")
-        elif _re_shakeit.match(msg):
-            self.play_sound("sound/duke/shake2a.wav")
-        elif _re_slacker.match(msg):
-            self.play_sound("sound/duke/slacker1.wav")
-        elif _re_smackdab.match(msg):
-            self.play_sound("sound/duke/smack02.wav")
-        elif _re_sohelpme.match(msg):
-            self.play_sound("sound/duke/sohelp02.wav")
-        elif _re_suckitdown.match(msg):
-            self.play_sound("sound/duke/sukit01.wav")
-        elif _re_terminated.match(msg):
-            self.play_sound("sound/duke/termin01.wav")
-        elif _re_thissucks.match(msg):
-            self.play_sound("sound/duke/thsuk13a.wav")
-        elif _re_vacation.match(msg):
-            self.play_sound("sound/duke/vacatn01.wav")
-        elif _re_christmas.match(msg):
-            self.play_sound("sound/duke/waitin03.wav")
-        elif _re_wnatssome.match(msg):
-            self.play_sound("sound/duke/wansom4a.wav")
-        elif _re_youandme.match(msg):
-            self.play_sound("sound/duke/whipyu01.wav")
-        elif _re_where.match(msg):
-            self.play_sound("sound/duke/whrsit05.wav")
-        elif _re_yippiekaiyay.match(msg):
-            self.play_sound("sound/duke/yippie01.wav")
-        elif _re_bottleofjack.match(msg):
-            self.play_sound("sound/duke/yohoho01.wav")
-        elif _re_longwalk.match(msg):
-            self.play_sound("sound/duke/yohoho09.wav")
 
         if self.played:
             self.sound_limiting[player.steam_id] = time.time()
 
         self.played = False
-
 
     def play_sound(self, path):
         self.played = True
@@ -1508,6 +600,8 @@ class myFun(minqlx.Plugin):
             channel.reply("I'm out of cookies right now, {}. Sorry!".format(player))
 
     def check_time(self, player):
+        if self.get_cvar("qlx_funUnrestrictAdmin", bool) and self.db.get_permission(player.steam_id) == 5:
+            return False
         try:
             saved_time = self.sound_limiting[player.steam_id]
             if time.time() - saved_time > self.get_cvar("qlx_funPlayerSoundRepeat", int):
@@ -1581,3 +675,1358 @@ class myFun(minqlx.Plugin):
         else:
             append = "\n" + addSound
         return append
+
+    def find_sound_trigger(self, msg):
+        #self.soundFile = ""
+        msg_lower = msg.lower()
+        if _re_hahaha_yeah.match(msg):
+            self.soundFile = "sound/player/lucy/taunt.wav"
+            return True
+        elif _re_haha_yeah_haha.match(msg):
+            self.soundFile = "sound/player/biker/taunt.wav"
+            return True
+        elif _re_yeah_hahaha.match(msg):
+            self.soundFile = "sound/player/razor/taunt.wav"
+            return True
+        elif _re_duahahaha.match(msg):
+            self.soundFile = "sound/player/keel/taunt.wav"
+            return True
+        elif _re_hahaha.search(msg):
+            self.soundFile = "sound/player/santa/taunt.wav"
+            return True
+        elif _re_glhf.match(msg):
+            self.soundFile ="sound/vo/crash_new/39_01.wav"
+            return True
+        elif _re_f3.match(msg):
+            self.soundFile ="sound/vo/crash_new/36_04.wav"
+            return True
+        elif "holy shit" in msg_lower:
+            self.soundFile ="sound/vo_female/holy_shit"
+            return True
+        elif _re_welcome.match(msg):
+            self.soundFile ="sound/vo_evil/welcome"
+            return True
+        elif _re_go.match(msg):
+            self.soundFile ="sound/vo/go"
+            return True
+        elif _re_beep_boop.match(msg):
+            self.soundFile ="sound/player/tankjr/taunt.wav"
+            return True
+        elif _re_win.match(msg):
+            self.soundFile ="sound/vo_female/you_win.wav"
+            return True
+        elif _re_lose.match(msg):
+            self.soundFile ="sound/vo/you_lose.wav"
+            return True
+        elif "impressive" in msg_lower:
+            self.soundFile ="sound/vo_female/impressive1.wav"
+            return True
+        elif "excellent" in msg_lower:
+            self.soundFile ="sound/vo_evil/excellent1.wav"
+            return True
+        elif _re_denied.match(msg):
+            self.soundFile ="sound/vo/denied"
+            return True
+        elif _re_balls_out.match(msg):
+            self.soundFile ="sound/vo_female/balls_out"
+            return True
+        elif _re_one.match(msg):
+            self.soundFile ="sound/vo_female/one"
+            return True
+        elif _re_two.match(msg):
+            self.soundFile ="sound/vo_female/two"
+            return True
+        elif _re_three.match(msg):
+            self.soundFile ="sound/vo_female/three"
+            return True
+        elif _re_fight.match(msg):
+            self.soundFile ="sound/vo_evil/fight"
+            return True
+        elif _re_gauntlet.match(msg):
+            self.soundFile ="sound/vo_evil/gauntlet"
+            return True
+        elif _re_humiliation.match(msg):
+            self.soundFile ="sound/vo_evil/humiliation1"
+            return True
+        elif _re_perfect.match(msg):
+            self.soundFile ="sound/vo_evil/perfect"
+            return True
+        elif _re_wah.match(msg):
+            self.soundFile ="sound/misc/yousuck"
+            return True
+        elif _re_ah.match(msg):
+            self.soundFile ="sound/player/slash/taunt.wav"
+            return True
+        elif _re_oink.match(msg):
+            self.soundFile ="sound/player/sorlag/pain50_1.wav"
+            return True
+        elif _re_argh.match(msg):
+            self.soundFile ="sound/player/doom/taunt.wav"
+            return True
+        elif _re_hah_haha.match(msg):
+            self.soundFile ="sound/player/hunter/taunt.wav"
+            return True
+        elif _re_woohoo.match(msg):
+            self.soundFile ="sound/player/janet/taunt.wav"
+            return True
+        elif _re_quakelive.match(msg):
+            self.soundFile ="sound/vo_female/quake_live"
+            return True
+        elif _re_chaching.search(msg):
+            self.soundFile ="sound/misc/chaching"
+            return True
+        elif _re_uh_ah.match(msg):
+            self.soundFile ="sound/player/mynx/taunt.wav"
+            return True
+        elif _re_oohwee.match(msg):
+            self.soundFile ="sound/player/anarki/taunt.wav"
+            return True
+        elif _re_erah.match(msg):
+            self.soundFile ="sound/player/bitterman/taunt.wav"
+            return True
+        elif _re_yeahhh.match(msg):
+            self.soundFile ="sound/player/major/taunt.wav"
+            return True
+        elif _re_scream.match(msg):
+            self.soundFile ="sound/player/bones/taunt.wav"
+            return True
+        elif _re_salute.match(msg):
+            self.soundFile ="sound/player/sarge/taunt.wav"
+            return True
+        elif _re_squish.match(msg):
+            self.soundFile ="sound/player/orbb/taunt.wav"
+            return True
+        elif _re_oh_god.match(msg):
+            self.soundFile ="sound/player/ranger/taunt.wav"
+            return True
+        elif _re_snarl.match(msg):
+            self.soundFile ="sound/player/sorlag/taunt.wav"
+            return True
+
+        #Viewaskewer
+        elif _re_assholes.match(msg):
+            self.soundFile ="soundbank/assholes.ogg"
+            return True
+        elif _re_assshafter.match(msg):
+            self.soundFile ="soundbank/assshafterloud.ogg"
+            return True
+        elif _re_babydoll.match(msg):
+            self.soundFile ="soundbank/babydoll.ogg"
+            return True
+        elif _re_barelymissed.match(msg):
+            self.soundFile ="soundbank/barelymissed.ogg"
+            return True
+        elif _re_belly.search(msg):
+            self.soundFile ="soundbank/belly.ogg"
+            return True
+        elif _re_bitch.match(msg):
+            self.soundFile ="soundbank/bitch.ogg"
+            return True
+        elif _re_blud.match(msg):
+            self.soundFile ="soundbank/dtblud.ogg"
+            return True
+        elif _re_boats.match(msg):
+            self.soundFile ="soundbank/boats.ogg"
+            return True
+        elif _re_bobg.match(msg):
+            self.soundFile ="soundbank/bobg.ogg"
+            return True
+        elif _re_bogdog.match(msg):
+            self.soundFile ="soundbank/bogdog.ogg"
+            return True
+        elif _re_boom.match(msg):
+            self.soundFile ="soundbank/boom.ogg"
+            return True
+        elif _re_boom2.match(msg):
+            self.soundFile ="soundbank/boom2.ogg"
+            return True
+        elif _re_buk.match(msg):
+            self.soundFile ="soundbank/buk.ogg"
+            return True
+        elif _re_bullshit.match(msg):
+            self.soundFile ="soundbank/bullshit.ogg"
+            return True
+        elif _re_butthole.match(msg):
+            self.soundFile ="soundbank/butthole.ogg"
+            return True
+        elif _re_buttsex.match(msg):
+            self.soundFile ="soundbank/buttsex.ogg"
+            return True
+        elif _re_cheeks.match(msg):
+            self.soundFile ="soundbank/cheeks.ogg"
+            return True
+        elif _re_cocksucker.match(msg):
+            self.soundFile ="soundbank/cocksucker.ogg"
+            return True
+        elif _re_conquer.match(msg):
+            self.soundFile ="soundbank/conquer.ogg"
+            return True
+        elif _re_countdown.match(msg):
+            self.soundFile ="soundbank/countdown.ogg"
+            return True
+        elif _re_cum.match(msg):
+            self.soundFile ="soundbank/cum.ogg"
+            return True
+        elif _re_cumming.match(msg):
+            self.soundFile ="soundbank/cumming.ogg"
+            return True
+        elif _re_cunt.match(msg):
+            self.soundFile ="soundbank/cunt.ogg"
+            return True
+        elif _re_dirkfunk.match(msg):
+            self.soundFile ="soundbank/dirkfunk.ogg"
+            return True
+        elif _re_disappointment.match(msg):
+            self.soundFile ="soundbank/disappointment.ogg"
+            return True
+        elif _re_doom.match(msg):
+            self.soundFile ="soundbank/doom.ogg"
+            return True
+        elif _re_drumset.match(msg):
+            self.soundFile ="soundbank/drumset.ogg"
+            return True
+        elif _re_eat.match(msg):
+            self.soundFile ="soundbank/eat.ogg"
+            return True
+        elif _re_eatme.match(msg):
+            self.soundFile ="soundbank/eatme.ogg"
+            return True
+        elif _re_fag.match(msg):
+            self.soundFile ="soundbank/fag.ogg"
+            return True
+        elif _re_fingerass.match(msg):
+            self.soundFile ="soundbank/fingerass.ogg"
+            return True
+        elif _re_flash.match(msg):
+            self.soundFile ="soundbank/flash.ogg"
+            return True
+        elif _re_fuckface.match(msg):
+            self.soundFile ="soundbank/fuckface.ogg"
+            return True
+        elif _re_fuck_you.match(msg):
+            self.soundFile ="soundbank/fuckyou.ogg"
+            return True
+        elif _re_getemm.match(msg):
+            self.soundFile ="soundbank/getemm.ogg"
+            return True
+        elif _re_gonads.match(msg):
+            self.soundFile ="soundbank/gonads.ogg"
+            return True
+        elif _re_gtfo.match(msg):
+            self.soundFile ="soundbank/gtfo.ogg"
+            return True
+        elif _re_HIT.match(msg):
+            self.soundFile ="soundbank/doom.ogg"
+            return True
+        elif _re_hugitout.match(msg):
+            self.soundFile ="soundbank/hugitout.ogg"
+            return True
+        elif _re_idiot.match(msg):
+            self.soundFile ="soundbank/idiot.ogg"
+            return True
+        elif _re_idiot2.match(msg):
+            self.soundFile ="soundbank/idiot2.ogg"
+            return True
+        elif _re_itstime.match(msg):
+            self.soundFile ="soundbank/itstime.ogg"
+            return True
+        elif _re_jeopardy.match(msg):
+            self.soundFile ="soundbank/jeopardy.ogg"
+            return True
+        elif _re_jerkoff.match(msg):
+            self.soundFile ="soundbank/jerkoff.ogg"
+            return True
+        elif _re_killo.match(msg):
+            self.soundFile ="soundbank/killo.ogg"
+            return True
+        elif _re_knocked.match(msg):
+            self.soundFile ="soundbank/knocked.ogg"
+            return True
+        elif _re_ld3.search(msg):
+            self.soundFile ="soundbank/ld3.ogg"
+            return True
+        elif _re_liquidswords.match(msg):
+            self.soundFile ="soundbank/liquid.ogg"
+            return True
+        elif _re_massacre.match(msg):
+            self.soundFile ="soundbank/massacre.ogg"
+            return True
+        elif _re_mixer.match(msg):
+            self.soundFile ="soundbank/mixer.ogg"
+            return True
+        elif _re_mjman.match(msg):
+            self.soundFile ="soundbank/mjman.ogg"
+            return True
+        elif _re_mmmm.match(msg):
+            self.soundFile ="soundbank/mmmm.ogg"
+            return True
+        elif _re_monty.match(msg):
+            self.soundFile ="soundbank/monty.ogg"
+            return True
+        elif _re_n8.match(msg):
+            self.soundFile ="soundbank/n8.ogg"
+            return True
+        elif _re_nikon.match(msg):
+            self.soundFile ="soundbank/nikon.ogg"
+            return True
+        elif _re_nina.match(msg):
+            self.soundFile ="soundbank/nina.ogg"
+            return True
+        elif _re_nthreem.match(msg):
+            self.soundFile ="sound/vo_female/impressive1.wav"
+            return True
+        elif _re_olhip.match(msg):
+            self.soundFile ="soundbank/hip.ogg"
+            return True
+        elif _re_organic.match(msg):
+            self.soundFile ="soundbank/organic.ogg"
+            return True
+        elif _re_paintball.match(msg):
+            self.soundFile ="soundbank/paintball.ogg"
+            return True
+        elif _re_pigfucker.match(msg):
+            self.soundFile ="soundbank/pigfer.ogg"
+            return True
+        elif _re_popeye.match(msg):
+            self.soundFile ="soundbank/popeye.ogg"
+            return True
+        elif _re_rosie.match(msg):
+            self.soundFile ="soundbank/rosie.ogg"
+            return True
+        elif _re_seaweed.match(msg):
+            self.soundFile ="soundbank/seaweed.ogg"
+            return True
+        elif _re_shit.match(msg):
+            self.soundFile ="soundbank/shit.ogg"
+            return True
+        elif _re_sit.search(msg):
+            self.soundFile ="soundbank/sit.ogg"
+            return True
+        elif _re_soulianis.search(msg):
+            self.soundFile ="soundbank/soulianis.ogg"
+            return True
+        elif _re_spam.match(msg):
+            self.soundFile ="soundbank/spam3.ogg"
+            return True
+        elif _re_stalin.match(msg):
+            self.soundFile ="soundbank/ussr.ogg"
+            return True
+        elif _re_stfu.match(msg):
+            self.soundFile ="soundbank/stfu.ogg"
+            return True
+        elif _re_suckadick.match(msg):
+            self.soundFile ="soundbank/suckadick.ogg"
+            return True
+        elif _re_suckit.match(msg):
+            self.soundFile ="soundbank/suckit.ogg"
+            return True
+        elif _re_suckmydick.match(msg):
+            self.soundFile ="soundbank/suckmydick.ogg"
+            return True
+        elif _re_teapot.match(msg):
+            self.soundFile ="soundbank/teapot.ogg"
+            return True
+        elif _re_thankgod.match(msg):
+            self.soundFile ="soundbank/thankgod.ogg"
+            return True
+        elif _re_traxion.match(msg):
+            self.soundFile ="soundbank/traxion.ogg"
+            return True
+        elif _re_trixy.match(msg):
+            self.soundFile ="soundbank/trixy.ogg"
+            return True
+        elif _re_twoon.match(msg):
+            self.soundFile ="soundbank/twoon.ogg"
+            return True
+        elif _re_ty.match(msg):
+            self.soundFile ="soundbank/thankyou.ogg"
+            return True
+        elif _re_venny.match(msg):
+            self.soundFile ="soundbank/venny.ogg"
+            return True
+        elif _re_viewaskewer.match(msg):
+            self.soundFile ="soundbank/view.ogg"
+            return True
+        elif _re_whatsthat.match(msg):
+            self.soundFile ="soundbank/whatsthat.ogg"
+            return True
+        elif _re_whoareyou.match(msg):
+            self.soundFile ="soundbank/whoareyou.ogg"
+            return True
+
+        #|sf|bart`us's
+        elif _re_007.match(msg):
+            self.soundFile ="sound/funnysounds/007.ogg"
+            return True
+        elif _re_adamsfamily.match(msg):
+            self.soundFile ="sound/funnysounds/adamsfamily.ogg"
+            return True
+        elif _re_allahuakbar.match(msg):
+            self.soundFile ="sound/funnysounds/allahuakbar.ogg"
+            return True
+        elif _re_allstar.match(msg):
+            self.soundFile ="sound/funnysounds/allstar.ogg"
+            return True
+        elif _re_AllTheThings.match(msg):
+            self.soundFile ="sound/funnysounds/AllTheThings.ogg"
+            return True
+        elif _re_Amazing.match(msg):
+            self.soundFile ="sound/funnysounds/Amazing.ogg"
+            return True
+        elif _re_Ameno.match(msg):
+            self.soundFile ="sound/funnysounds/Ameno.ogg"
+            return True
+        elif _re_America.match(msg):
+            self.soundFile ="sound/funnysounds/America.ogg"
+            return True
+        elif _re_Amerika.match(msg):
+            self.soundFile ="sound/funnysounds/Amerika.ogg"
+            return True
+        elif _re_AndNothingElse.match(msg):
+            self.soundFile ="sound/funnysounds/AndNothingElse.ogg"
+            return True
+        elif _re_Animals.match(msg):
+            self.soundFile ="sound/funnysounds/Animals.ogg"
+            return True
+        elif _re_AScratch.match(msg):
+            self.soundFile ="sound/funnysounds/AScratch.ogg"
+            return True
+        elif _re_asskicking.match(msg):
+            self.soundFile ="sound/funnysounds/asskicking.ogg"
+            return True
+        elif _re_ave.match(msg):
+            self.soundFile ="sound/funnysounds/ave.ogg"
+            return True
+        elif _re_babybaby.match(msg):
+            self.soundFile ="sound/funnysounds/babybaby.ogg"
+            return True
+        elif _re_babyevillaugh.match(msg):
+            self.soundFile ="sound/funnysounds/babyevillaugh.ogg"
+            return True
+        elif _re_babylaughing.match(msg):
+            self.soundFile ="sound/funnysounds/babylaughing.ogg"
+            return True
+        elif _re_badboys.match(msg):
+            self.soundFile ="sound/funnysounds/badboys.ogg"
+            return True
+        elif _re_BananaBoatSong.match(msg):
+            self.soundFile ="sound/funnysounds/BananaBoatSong.ogg"
+            return True
+        elif _re_bennyhill.match(msg):
+            self.soundFile ="sound/funnysounds/bennyhill.ogg"
+            return True
+        elif _re_benzin.match(msg):
+            self.soundFile ="sound/funnysounds/benzin.ogg"
+            return True
+        elif _re_bluewins.match(msg):
+            self.soundFile ="sound/funnysounds/bluewins.ogg"
+            return True
+        elif _re_bonkers.match(msg):
+            self.soundFile ="sound/funnysounds/bonkers.ogg"
+            return True
+        elif _re_boomheadshot.match(msg):
+            self.soundFile ="sound/funnysounds/boomheadshot.ogg"
+            return True
+        elif _re_booo.match(msg):
+            self.soundFile ="sound/funnysounds/booo.ogg"
+            return True
+        elif _re_boring.match(msg):
+            self.soundFile ="sound/funnysounds/boring.ogg"
+            return True
+        elif _re_boze.match(msg):
+            self.soundFile ="sound/funnysounds/boze.ogg"
+            return True
+        elif _re_brightsideoflife.match(msg):
+            self.soundFile ="sound/funnysounds/brightsideoflife.ogg"
+            return True
+        elif _re_buckdich.match(msg):
+            self.soundFile ="sound/funnysounds/buckdich.ogg"
+            return True
+        elif _re_bullshitter.match(msg):
+            self.soundFile ="sound/funnysounds/bullshitter.ogg"
+            return True
+        elif _re_burnsburns.match(msg):
+            self.soundFile ="sound/funnysounds/burnsburns.ogg"
+            return True
+        elif _re_cameltoe.match(msg):
+            self.soundFile ="sound/funnysounds/cameltoe.ogg"
+            return True
+        elif _re_canttouchthis.match(msg):
+            self.soundFile ="sound/funnysounds/canttouchthis.ogg"
+            return True
+        elif _re_cccp.match(msg):
+            self.soundFile ="sound/funnysounds/cccp.ogg"
+            return True
+        elif _re_champions.match(msg):
+            self.soundFile ="sound/funnysounds/champions.ogg"
+            return True
+        elif _re_chicken.match(msg):
+            self.soundFile ="sound/funnysounds/chicken.ogg"
+            return True
+        elif _re_chocolaterain.match(msg):
+            self.soundFile ="sound/funnysounds/chocolaterain.ogg"
+            return True
+        elif _re_coin.match(msg):
+            self.soundFile ="sound/funnysounds/coin.ogg"
+            return True
+        elif _re_come.match(msg):
+            self.soundFile ="sound/funnysounds/come.ogg"
+            return True
+        elif _re_ComeWithMeNow.match(msg):
+            self.soundFile ="sound/funnysounds/ComeWithMeNow.ogg"
+            return True
+        elif _re_Count_down.match(msg):
+            self.soundFile ="sound/funnysounds/Countdown.ogg"
+            return True
+        elif _re_cowards.match(msg):
+            self.soundFile ="sound/funnysounds/cowards.ogg"
+            return True
+        elif _re_crazy.match(msg):
+            self.soundFile ="sound/funnysounds/crazy.ogg"
+            return True
+        elif _re_yacunt.match(msg):
+            self.soundFile ="sound/funnysounds/cunt.ogg"
+            return True
+        elif _re_damnit.match(msg):
+            self.soundFile ="sound/funnysounds/damnit.ogg"
+            return True
+        elif _re_DangerZone.match(msg):
+            self.soundFile ="sound/funnysounds/DangerZone.ogg"
+            return True
+        elif _re_deadsoon.match(msg):
+            self.soundFile ="sound/funnysounds/deadsoon.ogg"
+            return True
+        elif _re_defeated.match(msg):
+            self.soundFile ="sound/funnysounds/defeated.ogg"
+            return True
+        elif _re_devil.match(msg):
+            self.soundFile ="sound/funnysounds/devil.ogg"
+            return True
+        elif _re_doesntloveyou.match(msg):
+            self.soundFile ="sound/funnysounds/doesntloveyou.ogg"
+            return True
+        elif _re_dubist.match(msg):
+            self.soundFile ="sound/funnysounds/dubist.ogg"
+            return True
+        elif _re_duhast.match(msg):
+            self.soundFile ="sound/funnysounds/duhast.ogg"
+            return True
+        elif _re_dumbways.match(msg):
+            self.soundFile ="sound/funnysounds/dumbways.ogg"
+            return True
+        elif _re_EatPussy.match(msg):
+            self.soundFile ="sound/funnysounds/EatPussy.ogg"
+            return True
+        elif _re_education.match(msg):
+            self.soundFile ="sound/funnysounds/education.ogg"
+            return True
+        elif _re_einschrei.match(msg):
+            self.soundFile ="sound/funnysounds/einschrei.ogg"
+            return True
+        elif _re_EinsZwei.match(msg):
+            self.soundFile ="sound/funnysounds/EinsZwei.ogg"
+            return True
+        elif _re_electro.match(msg):
+            self.soundFile ="sound/funnysounds/electro.ogg"
+            return True
+        elif _re_elementary.match(msg):
+            self.soundFile ="sound/funnysounds/elementary.ogg"
+            return True
+        elif _re_engel.match(msg):
+            self.soundFile ="sound/funnysounds/engel.ogg"
+            return True
+        elif _re_erstwenn.match(msg):
+            self.soundFile ="sound/funnysounds/erstwenn.ogg"
+            return True
+        elif _re_exitlight.match(msg):
+            self.soundFile ="sound/funnysounds/exitlight.ogg"
+            return True
+        elif _re_faint.match(msg):
+            self.soundFile ="sound/funnysounds/faint.ogg"
+            return True
+        elif _re_fatality.match(msg):
+            self.soundFile ="sound/funnysounds/fatality.ogg"
+            return True
+        elif _re_FeelGood.match(msg):
+            self.soundFile ="sound/funnysounds/FeelGood.ogg"
+            return True
+        elif _re_fleshwound.match(msg):
+            self.soundFile ="sound/funnysounds/fleshwound.ogg"
+            return True
+        elif _re_foryou.match(msg):
+            self.soundFile ="sound/funnysounds/foryou.ogg"
+            return True
+        elif _re_freestyler.match(msg):
+            self.soundFile ="sound/funnysounds/freestyler.ogg"
+            return True
+        elif _re_fuckfuck.match(msg):
+            self.soundFile ="sound/funnysounds/fuckfuck.ogg"
+            return True
+        elif _re_fuckingburger.match(msg):
+            self.soundFile ="sound/funnysounds/fuckingburger.ogg"
+            return True
+        elif _re_fuckingkids.match(msg):
+            self.soundFile ="sound/funnysounds/fuckingkids.ogg"
+            return True
+        elif _re_gangnam.match(msg):
+            self.soundFile ="sound/funnysounds/gangnam.ogg"
+            return True
+        elif _re_ganjaman.match(msg):
+            self.soundFile ="sound/funnysounds/ganjaman.ogg"
+            return True
+        elif _re_gay.match(msg):
+            self.soundFile ="sound/funnysounds/gay.ogg"
+            return True
+        elif _re_getcrowbar.match(msg):
+            self.soundFile ="sound/funnysounds/getcrowbar.ogg"
+            return True
+        elif _re_getouttheway.match(msg):
+            self.soundFile ="sound/funnysounds/getouttheway.ogg"
+            return True
+        elif _re_ghostbusters.match(msg):
+            self.soundFile ="sound/funnysounds/ghostbusters.ogg"
+            return True
+        elif _re_girllook.match(msg):
+            self.soundFile ="sound/funnysounds/girllook.ogg"
+            return True
+        elif _re_girly.match(msg):
+            self.soundFile ="sound/funnysounds/girly.ogg"
+            return True
+        elif _re_gnrguitar.match(msg):
+            self.soundFile ="sound/funnysounds/gnrguitar.ogg"
+            return True
+        elif _re_goddamnright.match(msg):
+            self.soundFile ="sound/funnysounds/goddamnright.ogg"
+            return True
+        elif _re_goodbyeandrea.match(msg):
+            self.soundFile ="sound/funnysounds/goodbyeandrea.ogg"
+            return True
+        elif _re_goodbyesarah.match(msg):
+            self.soundFile ="sound/funnysounds/goodbyesarah.ogg"
+            return True
+        elif _re_gotcha.match(msg):
+            self.soundFile ="sound/funnysounds/gotcha.ogg"
+            return True
+        elif _re_hakunamatata.match(msg):
+            self.soundFile ="sound/funnysounds/hakunamatata.ogg"
+            return True
+        elif _re_hammertime.match(msg):
+            self.soundFile ="sound/funnysounds/hammertime.ogg"
+            return True
+        elif _re_hello.match(msg):
+            self.soundFile ="sound/funnysounds/hello.ogg"
+            return True
+        elif _re_hellstestern.match(msg):
+            self.soundFile ="sound/funnysounds/hellstestern.ogg"
+            return True
+        elif _re_holy.match(msg):
+            self.soundFile ="sound/funnysounds/holy.ogg"
+            return True
+        elif _re_hoppereiter.match(msg):
+            self.soundFile ="sound/funnysounds/hoppereiter.ogg"
+            return True
+        elif _re_howareyou.match(msg):
+            self.soundFile ="sound/funnysounds/howareyou.ogg"
+            return True
+        elif _re_hush.match(msg):
+            self.soundFile ="sound/funnysounds/hush.ogg"
+            return True
+        elif _re_ibet.match(msg):
+            self.soundFile ="sound/funnysounds/ibet.ogg"
+            return True
+        elif _re_icantbelieve.match(msg):
+            self.soundFile ="sound/funnysounds/icantbelieve.ogg"
+            return True
+        elif _re_ichtuedieweh.match(msg):
+            self.soundFile ="sound/funnysounds/ichtuedieweh.ogg"
+            return True
+        elif _re_idoparkour.match(msg):
+            self.soundFile ="sound/funnysounds/idoparkour.ogg"
+            return True
+        elif _re_ihateall.match(msg):
+            self.soundFile ="sound/funnysounds/ihateall.ogg"
+            return True
+        elif _re_illbeback.match(msg):
+            self.soundFile ="sound/funnysounds/beback.ogg"
+            return True
+        elif _re_imperial.match(msg):
+            self.soundFile ="sound/funnysounds/imperial.ogg"
+            return True
+        elif _re_imsexy.match(msg):
+            self.soundFile ="sound/funnysounds/imsexy.ogg"
+            return True
+        elif _re_imyourfather.match(msg):
+            self.soundFile ="sound/funnysounds/imyourfather.ogg"
+            return True
+        elif _re_incoming.match(msg):
+            self.soundFile ="sound/funnysounds/incoming.ogg"
+            return True
+        elif _re_indianajones.match(msg):
+            self.soundFile ="sound/funnysounds/indianajones.ogg"
+            return True
+        elif _re_inyourheadzombie.match(msg):
+            self.soundFile ="sound/funnysounds/inyourheadzombie.ogg"
+            return True
+        elif _re_iseeassholes.match(msg):
+            self.soundFile ="sound/funnysounds/iseeassholes.ogg"
+            return True
+        elif _re_iseedeadpeople.match(msg):
+            self.soundFile ="sound/funnysounds/iseedeadpeople.ogg"
+            return True
+        elif _re_itsmylife.match(msg):
+            self.soundFile ="sound/funnysounds/itsmylife.ogg"
+            return True
+        elif _re_itsnot.match(msg):
+            self.soundFile ="sound/funnysounds/itsnot.ogg"
+            return True
+        elif _re_jackpot.match(msg):
+            self.soundFile ="sound/funnysounds/jackpot.ogg"
+            return True
+        elif _re_jesus.match(msg):
+            self.soundFile ="sound/funnysounds/jesus.ogg"
+            return True
+        elif _re_jesusOh.match(msg):
+            self.soundFile ="sound/funnysounds/JesusOh.ogg"
+            return True
+        elif _re_johncena.match(msg):
+            self.soundFile ="sound/funnysounds/johncena.ogg"
+            return True
+        elif _re_jumpmotherfucker.match(msg):
+            self.soundFile ="sound/funnysounds/jumpmotherfucker.ogg"
+            return True
+        elif _re_justdoit.match(msg):
+            self.soundFile ="sound/funnysounds/justdoit.ogg"
+            return True
+        elif _re_kamehameha.match(msg):
+            self.soundFile ="sound/funnysounds/kamehameha.ogg"
+            return True
+        elif _re_keeponfighting.match(msg):
+            self.soundFile ="sound/funnysounds/keeponfighting.ogg"
+            return True
+        elif _re_keepyourshirton.match(msg):
+            self.soundFile ="sound/funnysounds/keepyourshirton.ogg"
+            return True
+        elif _re_KnockedDown.match(msg):
+            self.soundFile ="sound/funnysounds/KnockedDown.ogg"
+            return True
+        elif _re_kommtdiesonne.match(msg):
+            self.soundFile ="sound/funnysounds/kommtdiesonne.ogg"
+            return True
+        elif _re_kungfu.match(msg):
+            self.soundFile ="sound/funnysounds/kungfu.ogg"
+            return True
+        elif _re_lately.match(msg):
+            self.soundFile ="sound/funnysounds/lately.ogg"
+            return True
+        elif _re_Legitness.match(msg):
+            self.soundFile ="sound/funnysounds/Legitness.ogg"
+            return True
+        elif _re_letsgetready.match(msg):
+            self.soundFile ="sound/funnysounds/letsgetready.ogg"
+            return True
+        elif _re_letsputasmile.match(msg):
+            self.soundFile ="sound/funnysounds/letsputasmile.ogg"
+            return True
+        elif _re_lightsout.match(msg):
+            self.soundFile ="sound/funnysounds/lightsout.ogg"
+            return True
+        elif _re_lionking.match(msg):
+            self.soundFile ="sound/funnysounds/lionking.ogg"
+            return True
+        elif _re_livetowin.match(msg):
+            self.soundFile ="sound/funnysounds/livetowin.ogg"
+            return True
+        elif _re_losingmyreligion.match(msg):
+            self.soundFile ="sound/funnysounds/losingmyreligion.ogg"
+            return True
+        elif _re_loveme.match(msg):
+            self.soundFile ="sound/funnysounds/loveme.ogg"
+            return True
+        elif _re_low.match(msg):
+            self.soundFile ="sound/funnysounds/low.ogg"
+            return True
+        elif _re_luck.match(msg):
+            self.soundFile ="sound/funnysounds/luck.ogg"
+            return True
+        elif _re_lust.match(msg):
+            self.soundFile ="sound/funnysounds/lust.ogg"
+            return True
+        elif _re_mahnamahna.match(msg):
+            self.soundFile ="sound/funnysounds/mahnamahna.ogg"
+            return True
+        elif _re_mario.match(msg):
+            self.soundFile ="sound/funnysounds/mario.ogg"
+            return True
+        elif _re_Me.match(msg):
+            self.soundFile ="sound/funnysounds/Me.ogg"
+            return True
+        elif _re_meinland.match(msg):
+            self.soundFile ="sound/funnysounds/meinland.ogg"
+            return True
+        elif _re_message.match(msg):
+            self.soundFile ="sound/funnysounds/message.ogg"
+            return True
+        elif _re_mimimi.match(msg):
+            self.soundFile ="sound/funnysounds/mimimi.ogg"
+            return True
+        elif _re_mission.match(msg):
+            self.soundFile ="sound/funnysounds/mission.ogg"
+            return True
+        elif _re_moan.match(msg):
+            self.soundFile ="sound/funnysounds/moan.ogg"
+            return True
+        elif _re_mortalkombat.match(msg):
+            self.soundFile ="sound/funnysounds/mortalkombat.ogg"
+            return True
+        elif _re_moveass.match(msg):
+            self.soundFile ="sound/funnysounds/moveass.ogg"
+            return True
+        elif _re_muppetopening.match(msg):
+            self.soundFile ="sound/funnysounds/muppetopening.ogg"
+            return True
+        elif _re_mylittlepony.match(msg):
+            self.soundFile ="sound/funnysounds/mylittlepony.ogg"
+            return True
+        elif _re_myname.match(msg):
+            self.soundFile ="sound/funnysounds/myname.ogg"
+            return True
+        elif _re_neverseen.match(msg):
+            self.soundFile ="sound/funnysounds/neverseen.ogg"
+            return True
+        elif _re_nightmare.match(msg):
+            self.soundFile ="sound/funnysounds/nightmare.ogg"
+            return True
+        elif _re_nobodylikesyou.match(msg):
+            self.soundFile ="sound/funnysounds/nobodylikesyou.ogg"
+            return True
+        elif _re_nonie.match(msg):
+            self.soundFile ="sound/funnysounds/nonie.ogg"
+            return True
+        elif _re_nooo.match(msg):
+            self.soundFile ="sound/funnysounds/nooo.ogg"
+            return True
+        elif _re_notimeforloosers.match(msg):
+            self.soundFile ="sound/funnysounds/notimeforloosers.ogg"
+            return True
+        elif _re_numanuma.match(msg):
+            self.soundFile ="sound/funnysounds/numanuma.ogg"
+            return True
+        elif _re_nyancat.match(msg):
+            self.soundFile ="sound/funnysounds/nyancat.ogg"
+            return True
+        elif _re_ofuck.match(msg):
+            self.soundFile ="sound/funnysounds/ofuck.ogg"
+            return True
+        elif _re_ohmygod.match(msg):
+            self.soundFile ="sound/funnysounds/ohmygod.ogg"
+            return True
+        elif _re_OhMyGosh.match(msg):
+            self.soundFile ="sound/funnysounds/OhMyGosh.ogg"
+            return True
+        elif _re_ohnedich.match(msg):
+            self.soundFile ="sound/funnysounds/ohnedich.ogg"
+            return True
+        elif _re_ohno.match(msg):
+            self.soundFile ="sound/funnysounds/ohno.ogg"
+            return True
+        elif _re_ohnoe.match(msg):
+            self.soundFile ="sound/funnysounds/ohnoe.ogg"
+            return True
+        elif _re_pacman.match(msg):
+            self.soundFile ="sound/funnysounds/pacman.ogg"
+            return True
+        elif _re_pickmeup.match(msg):
+            self.soundFile ="sound/funnysounds/pickmeup.ogg"
+            return True
+        elif _re_pikachu.match(msg):
+            self.soundFile ="sound/funnysounds/pikachu.ogg"
+            return True
+        elif _re_pinkiepie.match(msg):
+            self.soundFile ="sound/funnysounds/pinkiepie.ogg"
+            return True
+        elif _re_PinkPanther.match(msg):
+            self.soundFile ="sound/funnysounds/PinkPanther.ogg"
+            return True
+        elif _re_pipe.match(msg):
+            self.soundFile ="sound/funnysounds/pipe.ogg"
+            return True
+        elif _re_pissmeoff.match(msg):
+            self.soundFile ="sound/funnysounds/pissmeoff.ogg"
+            return True
+        elif _re_playagame.match(msg):
+            self.soundFile ="sound/funnysounds/playagame.ogg"
+            return True
+        elif _re_pooping.match(msg):
+            self.soundFile ="sound/funnysounds/pooping.ogg"
+            return True
+        elif _re_powerpuff.match(msg):
+            self.soundFile ="sound/funnysounds/powerpuff.ogg"
+            return True
+        elif _re_radioactive.match(msg):
+            self.soundFile ="sound/funnysounds/radioactive.ogg"
+            return True
+        elif _re_rammsteinriff.match(msg):
+            self.soundFile ="sound/funnysounds/rammsteinriff.ogg"
+            return True
+        elif _re_redwins.match(msg):
+            self.soundFile ="sound/funnysounds/redwins.ogg"
+            return True
+        elif _re_renegade.match(msg):
+            self.soundFile ="sound/funnysounds/renegade.ogg"
+            return True
+        elif _re_retard.match(msg):
+            self.soundFile ="sound/funnysounds/retard.ogg"
+            return True
+        elif _re_rocky.match(msg):
+            self.soundFile ="sound/funnysounds/rocky"
+            return True
+        elif _re_rockyouguitar.match(msg):
+            self.soundFile ="sound/funnysounds/rockyouguitar.ogg"
+            return True
+        elif _re_SkeetSkeet.match(msg):
+            self.soundFile ="sound/funnysounds/AllSkeetSkeet.ogg"
+            return True
+        elif _re_sail.match(msg):
+            self.soundFile ="sound/funnysounds/sail.ogg"
+            return True
+        elif _re_Salil.match(msg):
+            self.soundFile ="sound/funnysounds/Salil.ogg"
+            return True
+        elif _re_samba.match(msg):
+            self.soundFile ="sound/funnysounds/samba.ogg"
+            return True
+        elif _re_sandstorm.match(msg):
+            self.soundFile ="sound/funnysounds/sandstorm.ogg"
+            return True
+        elif _re_saymyname.match(msg):
+            self.soundFile ="sound/funnysounds/saymyname.ogg"
+            return True
+        elif _re_scatman.match(msg):
+            self.soundFile ="sound/funnysounds/scatman.ogg"
+            return True
+        elif _re_sellyouall.match(msg):
+            self.soundFile ="sound/funnysounds/sellyouall.ogg"
+            return True
+        elif _re_senseofhumor.match(msg):
+            self.soundFile ="sound/funnysounds/senseofhumor.ogg"
+            return True
+        elif _re_shakesenora.match(msg):
+            self.soundFile ="sound/funnysounds/shakesenora.ogg"
+            return True
+        elif _re_shutthefuckup.match(msg):
+            self.soundFile ="sound/funnysounds/shutthefuckup.ogg"
+            return True
+        elif _re_shutyourfuckingmouth.match(msg):
+            self.soundFile ="sound/funnysounds/shutyourfuckingmouth.ogg"
+            return True
+        elif _re_silence.match(msg):
+            self.soundFile ="sound/funnysounds/silence.ogg"
+            return True
+        elif _re_smoothcriminal.match(msg):
+            self.soundFile ="sound/funnysounds/smoothcriminal.ogg"
+            return True
+        elif _re_socobatevira.match(msg):
+            self.soundFile ="sound/funnysounds/socobatevira.ogg"
+            return True
+        elif _re_socobateviraend.match(msg):
+            self.soundFile ="sound/funnysounds/socobateviraend.ogg"
+            return True
+        elif _re_socobatevirafast.match(msg):
+            self.soundFile ="sound/funnysounds/socobatevirafast.ogg"
+            return True
+        elif _re_socobateviraslow.match(msg):
+            self.soundFile ="sound/funnysounds/socobateviraslow.ogg"
+            return True
+        elif _re_sogivemereason.match(msg):
+            self.soundFile ="sound/funnysounds/sogivemereason.ogg"
+            return True
+        elif _re_sostupid.match(msg):
+            self.soundFile ="sound/funnysounds/sostupid.ogg"
+            return True
+        elif _re_SpaceJam.match(msg):
+            self.soundFile ="sound/funnysounds/SpaceJam.ogg"
+            return True
+        elif _re_spaceunicorn.match(msg):
+            self.soundFile ="sound/funnysounds/spaceunicorn.ogg"
+            return True
+        elif _re_spierdalaj.match(msg):
+            self.soundFile ="sound/funnysounds/spierdalaj.ogg"
+            return True
+        elif _re_stampon.match(msg):
+            self.soundFile ="sound/funnysounds/stampon.ogg"
+            return True
+        elif _re_starwars.match(msg):
+            self.soundFile ="sound/funnysounds/starwars.ogg"
+            return True
+        elif _re_stayinalive.match(msg):
+            self.soundFile ="sound/funnysounds/stayinalive.ogg"
+            return True
+        elif _re_stoning.match(msg):
+            self.soundFile ="sound/funnysounds/stoning.ogg"
+            return True
+        elif _re_Stop.match(msg):
+            self.soundFile ="sound/funnysounds/Stop.ogg"
+            return True
+        elif _re_story.match(msg):
+            self.soundFile ="sound/funnysounds/story.ogg"
+            return True
+        elif _re_surprise.match(msg):
+            self.soundFile ="sound/funnysounds/surprise.ogg"
+            return True
+        elif _re_swedishchef.match(msg):
+            self.soundFile ="sound/funnysounds/swedishchef.ogg"
+            return True
+        elif _re_sweetdreams.match(msg):
+            self.soundFile ="sound/funnysounds/sweetdreams.ogg"
+            return True
+        elif _re_takemedown.match(msg):
+            self.soundFile ="sound/funnysounds/takemedown.ogg"
+            return True
+        elif _re_talkscotish.match(msg):
+            self.soundFile ="sound/funnysounds/talkscotish.ogg"
+            return True
+        elif _re_teamwork.match(msg):
+            self.soundFile ="sound/funnysounds/teamwork.ogg"
+            return True
+        elif _re_technology.match(msg):
+            self.soundFile ="sound/funnysounds/technology.ogg"
+            return True
+        elif _re_thisissparta.match(msg):
+            self.soundFile ="sound/funnysounds/thisissparta.ogg"
+            return True
+        elif _re_thunderstruck.match(msg):
+            self.soundFile ="sound/funnysounds/thunderstruck.ogg"
+            return True
+        elif _re_tochurch.match(msg):
+            self.soundFile ="sound/funnysounds/tochurch.ogg"
+            return True
+        elif _re_tsunami.match(msg):
+            self.soundFile ="sound/funnysounds/tsunami.ogg"
+            return True
+        elif _re_tuturu.match(msg):
+            self.soundFile ="sound/funnysounds/tuturu.ogg"
+            return True
+        elif _re_tututu.match(msg):
+            self.soundFile ="sound/funnysounds/tututu.ogg"
+            return True
+        elif _re_unbelievable.match(msg):
+            self.soundFile ="sound/funnysounds/unbelievable.ogg"
+            return True
+        elif _re_undderhaifisch.match(msg):
+            self.soundFile ="sound/funnysounds/undderhaifisch.ogg"
+            return True
+        elif _re_uptowngirl.match(msg):
+            self.soundFile ="sound/funnysounds/uptowngirl.ogg"
+            return True
+        elif _re_valkyries.match(msg):
+            self.soundFile ="sound/funnysounds/valkyries.ogg"
+            return True
+        elif _re_wahwahwah.search(msg):
+            self.soundFile ="sound/funnysounds/wahwahwah.ogg"
+            return True
+        elif _re_wantyou.match(msg):
+            self.soundFile ="sound/funnysounds/wantyou.ogg"
+            return True
+        elif _re_wazzup.match(msg):
+            self.soundFile ="sound/funnysounds/wazzup.ogg"
+            return True
+        elif _re_wehmirohweh.match(msg):
+            self.soundFile ="sound/funnysounds/wehmirohweh.ogg"
+            return True
+        elif _re_whatislove.match(msg):
+            self.soundFile ="sound/funnysounds/whatislove.ogg"
+            return True
+        elif _re_whenangels.match(msg):
+            self.soundFile ="sound/funnysounds/whenangels.ogg"
+            return True
+        elif _re_whereareyou.match(msg):
+            self.soundFile ="sound/funnysounds/whereareyou.ogg"
+            return True
+        elif _re_whistle.match(msg):
+            self.soundFile ="sound/funnysounds/whistle.ogg"
+            return True
+        elif _re_WillBeSinging.match(msg):
+            self.soundFile ="sound/funnysounds/WillBeSinging.ogg"
+            return True
+        elif _re_wimbaway.match(msg):
+            self.soundFile ="sound/funnysounds/wimbaway.ogg"
+            return True
+        elif _re_windows.match(msg):
+            self.soundFile ="sound/funnysounds/windows.ogg"
+            return True
+        elif _re_wouldyoulike.match(msg):
+            self.soundFile ="sound/funnysounds/wouldyoulike.ogg"
+            return True
+        elif _re_wtf.match(msg):
+            self.soundFile ="sound/funnysounds/wtf.ogg"
+            return True
+        elif _re_yeee.match(msg):
+            self.soundFile ="sound/funnysounds/yeee.ogg"
+            return True
+        elif _re_yesmaster.match(msg):
+            self.soundFile ="sound/funnysounds/yesmaster.ogg"
+            return True
+        elif _re_yhehehe.match(msg):
+            self.soundFile ="sound/funnysounds/yhehehe.ogg"
+            return True
+        elif _re_ymca.match(msg):
+            self.soundFile ="sound/funnysounds/ymca.ogg"
+            return True
+        elif _re_You.match(msg):
+            self.soundFile ="sound/funnysounds/You.ogg"
+            return True
+        elif _re_youfuckedmywife.match(msg):
+            self.soundFile ="sound/funnysounds/youfuckedmywife.ogg"
+            return True
+        elif _re_YouRealise.match(msg):
+            self.soundFile ="sound/funnysounds/YouRealise.ogg"
+            return True
+
+        #Duke Nukem
+        elif _re_myride.match(msg):
+            self.soundFile ="sound/duke/2ride06.wav"
+            return True
+        elif _re_abort.match(msg):
+            self.soundFile ="sound/duke/abort01.wav"
+            return True
+        elif _re_ahhh.match(msg):
+            self.soundFile ="sound/duke/ahh04.wav"
+            return True
+        elif _re_muchbetter.match(msg):
+            self.soundFile ="sound/duke/ahmuch03.wav"
+            return True
+        elif _re_aisle4.match(msg):
+            self.soundFile ="sound/duke/aisle402.wav"
+            return True
+        elif _re_amess.match(msg):
+            self.soundFile ="sound/duke/amess06.wav"
+            return True
+        elif _re_annoying.match(msg):
+            self.soundFile ="sound/duke/annoy03.wav"
+            return True
+        elif _re_bitchin.match(msg):
+            self.soundFile ="sound/duke/bitchn04.wav"
+            return True
+        elif _re_blowitout.match(msg):
+            self.soundFile ="sound/duke/blowit01.wav"
+            return True
+        elif _re_boobytrap.match(msg):
+            self.soundFile ="sound/duke/booby04.wav"
+            return True
+        elif _re_bookem.match(msg):
+            self.soundFile ="sound/duke/bookem03.wav"
+            return True
+        elif _re_borntobewild.match(msg):
+            self.soundFile ="sound/duke/born01.wav"
+            return True
+        elif _re_chewgum.match(msg):
+            self.soundFile ="sound/duke/chew05.wav"
+            return True
+        elif _re_comeon.match(msg):
+            self.soundFile ="sound/duke/comeon02.wav"
+            return True
+        elif _re_thecon.match(msg):
+            self.soundFile ="sound/duke/con03.wav"
+            return True
+        elif _re_cool.match(msg):
+            self.soundFile ="sound/duke/cool01.wav"
+            return True
+        elif _re_notcrying.match(msg):
+            self.soundFile ="sound/duke/cry01.wav"
+            return True
+        elif _re_daamn.match(msg):
+            self.soundFile ="sound/duke/damn03.wav"
+            return True
+        elif _re_damit.match(msg):
+            self.soundFile ="sound/duke/damnit04.wav"
+            return True
+        elif _re_dance.match(msg):
+            self.soundFile ="sound/duke/dance01.wav"
+            return True
+        elif _re_diesob.match(msg):
+            self.soundFile ="sound/duke/diesob03.wav"
+            return True
+        elif _re_doomed.match(msg):
+            self.soundFile ="sound/duke/doomed16.wav"
+            return True
+        elif _re_eyye.match(msg):
+            self.soundFile ="sound/duke/dscrem38.wav"
+            return True
+        elif _re_dukenukem.match(msg):
+            self.soundFile ="sound/duke/duknuk14.wav"
+            return True
+        elif _re_noway.match(msg):
+            self.soundFile ="sound/duke/eat08.wav"
+            return True
+        elif _re_eatshit.match(msg):
+            self.soundFile ="sound/duke/eatsht01.wav"
+            return True
+        elif _re_escape.match(msg):
+            self.soundFile ="sound/duke/escape01.wav"
+            return True
+        elif _re_faceass.match(msg):
+            self.soundFile ="sound/duke/face01.wav"
+            return True
+        elif _re_aforce.match(msg):
+            self.soundFile ="sound/duke/force01.wav"
+            return True
+        elif _re_getcrap.match(msg):
+            self.soundFile ="sound/duke/getcrap1.wav"
+            return True
+        elif _re_getsome.match(msg):
+            self.soundFile ="sound/duke/getsom1a.wav"
+            return True
+        elif _re_gameover.match(msg):
+            self.soundFile ="sound/duke/gmeovr05.wav"
+            return True
+        elif _re_gottahurt.match(msg):
+            self.soundFile ="sound/duke/gothrt01.wav"
+            return True
+        elif _re_groovy.match(msg):
+            self.soundFile ="sound/duke/groovy02.wav"
+            return True
+        elif _re_guyssuck.match(msg):
+            self.soundFile ="sound/duke/guysuk01.wav"
+            return True
+        elif _re_hailking.match(msg):
+            self.soundFile ="sound/duke/hail01.wav"
+            return True
+        elif _re_shithappens.match(msg):
+            self.soundFile ="sound/duke/happen01.wav"
+            return True
+        elif _re_holycow.match(msg):
+            self.soundFile ="sound/duke/holycw01.wav"
+            return True
+        elif _re_holyshit.match(msg):
+            self.soundFile ="sound/duke/holysh02.wav"
+            return True
+        elif _re_imgood.match(msg):
+            self.soundFile ="sound/duke/imgood12.wav"
+            return True
+        elif _re_independence.match(msg):
+            self.soundFile ="sound/duke/indpnc01.wav"
+            return True
+        elif _re_inhell.match(msg):
+            self.soundFile ="sound/duke/inhell01.wav"
+            return True
+        elif _re_goingin.match(msg):
+            self.soundFile ="sound/duke/introc.wav"
+            return True
+        elif _re_drjones.match(msg):
+            self.soundFile ="sound/duke/jones04.wav"
+            return True
+        elif _re_kickyourass.match(msg):
+            self.soundFile ="sound/duke/kick01-i.wav"
+            return True
+        elif _re_ktit.match(msg):
+            self.soundFile ="sound/duke/ktitx.wav"
+            return True
+        elif _re_letgod.match(msg):
+            self.soundFile ="sound/duke/letgod01.wav"
+            return True
+        elif _re_letsrock.match(msg):
+            self.soundFile ="sound/duke/letsrk03.wav"
+            return True
+        elif _re_lookingood.match(msg):
+            self.soundFile ="sound/duke/lookin01.wav"
+            return True
+        elif _re_makemyday.match(msg):
+            self.soundFile ="sound/duke/makeday1.wav"
+            return True
+        elif _re_midevil.match(msg):
+            self.soundFile ="sound/duke/mdevl01.wav"
+            return True
+        elif _re_mymeat.match(msg):
+            self.soundFile ="sound/duke/meat04-n.wav"
+            return True
+        elif _re_notime.match(msg):
+            self.soundFile ="sound/duke/myself3a.wav"
+            return True
+        elif _re_neededthat.match(msg):
+            self.soundFile ="sound/duke/needed03.wav"
+            return True
+        elif _re_nobody.match(msg):
+            self.soundFile ="sound/duke/nobody01.wav"
+            return True
+        elif _re_onlyone.match(msg):
+            self.soundFile ="sound/duke/onlyon03.wav"
+            return True
+        elif _re_mykindaparty.match(msg):
+            self.soundFile ="sound/duke/party03.wav"
+            return True
+        elif _re_gonnapay.match(msg):
+            self.soundFile ="sound/duke/pay02.wav"
+            return True
+        elif _re_pissesmeoff.match(msg):
+            self.soundFile ="sound/duke/pisses01.wav"
+            return True
+        elif _re_pissinmeoff.match(msg):
+            self.soundFile ="sound/duke/pissin01.wav"
+            return True
+        elif _re_postal.match(msg):
+            self.soundFile ="sound/duke/postal01.wav"
+            return True
+        elif _re_aintafraid.match(msg):
+            self.soundFile ="sound/duke/quake06.wav"
+            return True
+        elif _re_randr.match(msg):
+            self.soundFile ="sound/duke/r&r01.wav"
+            return True
+        elif _re_readyforaction.match(msg):
+            self.soundFile ="sound/duke/ready2a.wav"
+            return True
+        elif _re_ripheadoff.match(msg):
+            self.soundFile ="sound/duke/rip01.wav"
+            return True
+        elif _re_ripem.match(msg):
+            self.soundFile ="sound/duke/ripem08.wav"
+            return True
+        elif _re_rockin.match(msg):
+            self.soundFile ="sound/duke/rockin02.wav"
+            return True
+        elif _re_shakeit.match(msg):
+            self.soundFile ="sound/duke/shake2a.wav"
+            return True
+        elif _re_slacker.match(msg):
+            self.soundFile ="sound/duke/slacker1.wav"
+            return True
+        elif _re_smackdab.match(msg):
+            self.soundFile ="sound/duke/smack02.wav"
+            return True
+        elif _re_sohelpme.match(msg):
+            self.soundFile ="sound/duke/sohelp02.wav"
+            return True
+        elif _re_suckitdown.match(msg):
+            self.soundFile ="sound/duke/sukit01.wav"
+            return True
+        elif _re_terminated.match(msg):
+            self.soundFile ="sound/duke/termin01.wav"
+            return True
+        elif _re_thissucks.match(msg):
+            self.soundFile ="sound/duke/thsuk13a.wav"
+            return True
+        elif _re_vacation.match(msg):
+            self.soundFile ="sound/duke/vacatn01.wav"
+            return True
+        elif _re_christmas.match(msg):
+            self.soundFile ="sound/duke/waitin03.wav"
+            return True
+        elif _re_wnatssome.match(msg):
+            self.soundFile ="sound/duke/wansom4a.wav"
+            return True
+        elif _re_youandme.match(msg):
+            self.soundFile ="sound/duke/whipyu01.wav"
+            return True
+        elif _re_where.match(msg):
+            self.soundFile ="sound/duke/whrsit05.wav"
+            return True
+        elif _re_yippiekaiyay.match(msg):
+            self.soundFile ="sound/duke/yippie01.wav"
+            return True
+        elif _re_bottleofjack.match(msg):
+            self.soundFile ="sound/duke/yohoho01.wav"
+            return True
+        elif _re_longwalk.match(msg):
+            self.soundFile ="sound/duke/yohoho09.wav"
+            return True
+        return False
