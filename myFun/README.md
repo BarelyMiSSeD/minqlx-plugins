@@ -5,7 +5,7 @@ It plays the sounds included in fun.py and some from three other workshop items.
 
 This will limit sound spamming to the server.<br>
 It only allows one sound to be played at a time and each user is limited in the frequency they can play sounds.<br>
-If a player tries to playa sound when that player's Sound Repeat timeoput is active it will tell the player that their timout is active. If a palyer tries to play a sound but is not in a personal sount timeout but the global sound delay is active it will tell them that as well.
+If a player tries to play a sound when that player's Sound Repeat timeoput is active it will tell the player that their timout is active and not play the sound. If a palyer tries to play a sound but is not in a personal sound timeout but the global sound delay is active it will tell them that as well and not play the sound.
 
 
 To set the time required between sounds add this line to your server.cfg and edit the "5":<br>
