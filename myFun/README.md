@@ -30,7 +30,7 @@ The minqlx 'workshop' plugin needs to be loaded and the required workshop
   (this example shows only these three required workshop items):
 set qlx_workshopReferences "585892371, 620087103, 572453229"
 
-Put the sound_names.txt file into the server's fs_homepath directory for
+Put the <b>sound_names.txt</b> file into the server's fs_homepath directory for
 the !listsounds to work on the server.<br>
 !listsounds can be issued by itself to see all the sounds that can be played on the server
 or it can be issued with one argument to limit the listed sounds to the sound phrases that contain that argument.<br>
