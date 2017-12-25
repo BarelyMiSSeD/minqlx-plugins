@@ -575,7 +575,7 @@ class myFun(minqlx.Plugin):
         elif re.compile(r"^seaweed\W?$").match(msg_lower):
             self.soundFile ="soundbank/seaweed.ogg"
             return True
-        elif re.compile(r"^shit").match(msg_lower):
+        elif re.compile(r"^shit\W?$").match(msg_lower):
             self.soundFile ="soundbank/shit.ogg"
             return True
         elif re.compile(r"(^sit\W?$| sit | sit$)").search(msg):
