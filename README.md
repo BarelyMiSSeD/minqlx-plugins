@@ -655,7 +655,9 @@ The settings are shown with the default settings. Edit them to change the permis
 # Votelimiter.py
 
 I created this script to keep people from callvoting stupid votes and votes that mess up the server but the admin hadn't thought about. This script will keep people from being able to callvote something that has not been added to the Allowed Vote List.<br>
-The testing I have done shows that this script does not appear to stop custom vote types that are managed by other scripts.<br><br>
+This will stop any vote type, if enabled, that is not in the allowed vote list.<br>
+This will also count the amount of votes people make and will limit it to the valuer set with "qlx_votelimiterLimit".
+Quake Live has an included vote limiting feature that works well until the map changes, like in a callvote (map), then the Quake Live vote count resets. This script will keep that count until a game/match ends.<br><br>
 
 By default the following votes are allowed:<br>
 kick<br>
@@ -664,10 +666,19 @@ map<br>
 teamsize<br>
 cointoss<br>
 shuffle<br>
+map_restart<br>
 <b>NOTE</b>: Use !dv \<vote\> to remove any of the default vote types if they aren't wanted. This should only need to be done the first time the script is loaded on a server.
 
 <br><br>
 Commands available with votelimiter.py listed with the default settings
+
+<b>•	Permission level 0</b>
+
+<b>!voteslist</b> (alternatively !listvotes or !votes)
+
+Shows the votes that the script will allow.
+
+Usage: !voteslist
 
 <b>•	Permission level 5</b>
 
@@ -682,12 +693,6 @@ Usage: !addvote \<vote\>
 Removes votes from the allowed vote type list.
 
 Usage: !delvote \<vote\>
-
-<b>!voteslist</b> (alternatively !listvotes or !votes)
-
-Shows the votes that the script will allow.
-
-Usage: !voteslist
 
 <b>!reload_voteslist</b> (alternatively !load_votelist or !rvl)
 
@@ -707,3 +712,7 @@ Usage: !versionvotelimiter
 The settings are shown with the default settings. Edit them to change the permission levels or on/off status.<br>
 
 <b>set qlx_votelimiterAdmin "5"</b> - Sets the minqlx server permisson level needed to use the admin level commands in this script.<br>
+<b>set qlx_votelimiterLimit "5"</b> - Sets the amount of votes each player is allowed to call before the end of a game/match<br>
+                            This count will carry through map changes. The built in limiter for Quake Live resets
+                            on map changes.<br>
+<b>set qlx_votelimiterTypes "1"</b> - Enable/Disable the restricting of vote types ("1" = Enable, "0" = Disable)<br>
