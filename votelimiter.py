@@ -6,47 +6,68 @@
 """
 Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
 qlx_votelimiterAdmin "5" - Sets the minqlx server permisson level needed to add and remove Allowed Votes from the list.
+qlx_votelimiterLimit "5" - Sets the amount of votes each player is allowed to call before the end of a game/match
+                            This count will carry through map changes. The built in limiter for Quake Live resets
+                            on map changes.
+qlx_votelimiterTypes "1" - Enable/Disable the restricting of vote types ("1" = Enable, "0" = Disable)
 """
 
 import minqlx
-import os
 import requests
+import os
 
-VERSION = "v1.00"
+VERSION = "v1.10"
 VOTELIMITER_FILE = "votelimiter.txt"
 
 class votelimiter(minqlx.Plugin):
     def __init__(self):
         # Cvars.
         self.set_cvar_once("qlx_votelimiterAdmin", "5")
+        self.set_cvar_once("qlx_votelimiterLimit", "5")
+        self.set_cvar_once("qlx_votelimiterTypes", "1")
         
         # monitored server occurrences
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
+        self.add_hook("game_end", self.handle_end_game)
         
         # commands
         self.add_command(("addvote", "allowvote", "av"), self.cmd_votelimiterAllow,
-                         int(self.get_cvar("qlx_votelimiterAdmin")))
+                         self.get_cvar("qlx_votelimiterAdmin", int))
         self.add_command(("delvote", "deletevote", "dv"), self.cmd_votelimiterDelete,
-                         int(self.get_cvar("qlx_votelimiterAdmin")))
-        self.add_command(("voteslist", "listvotes", "votes"), self.cmd_votelimiterList,
-                         int(self.get_cvar("qlx_votelimiterAdmin")))
+                         self.get_cvar("qlx_votelimiterAdmin", int))
         self.add_command(("reload_voteslist", "load_votelist", "rvl"), self.load_allowed_votes,
-                         int(self.get_cvar("qlx_votelimiterAdmin")))
+                         self.get_cvar("qlx_votelimiterAdmin", int))
         self.add_command(("versionvotelimiter", "version_votelimiter", "vlv"), self.votelimiter_version,
-                         int(self.get_cvar("qlx_votelimiterAdmin")))
-        self.add_command("sv", self.show_vote_string, int(self.get_cvar("qlx_votelimiterAdmin")))  # Used for testing
+                         self.get_cvar("qlx_votelimiterAdmin", int))
+        self.add_command(("resetvotecount", "rvc"), self.reset_vote_count,
+                         self.get_cvar("qlx_votelimiterAdmin", int))
+        self.add_command(("voteslist", "listvotes", "votes", "allowedvotes"), self.cmd_votelimiterList)
 
         # Opens the allowed votes container
         self.votelimiterAllowed = []
+        # Dictionary for counting amount of votes called by a player per match (will count until a game/match ends)
+        self.votelimiterCount = {}
 
         # Loads the allowed votes list
         self.load_allowed_votes()
         
     def handle_vote_called(self, caller, vote, args):
         vote = vote.lower()
-        if vote not in self.votelimiterAllowed:
+        if self.get_cvar("qlx_votelimiterTypes", bool) and vote not in self.votelimiterAllowed:
             caller.tell("^3That vote type is not allowed on this server.\nSpeak to a server admin if this is in error")
             return minqlx.RET_STOP_ALL
+
+        if caller.steam_id in self.votelimiterCount:
+            if self.votelimiterCount[caller.steam_id] >= self.get_cvar("qlx_votelimiterLimit", int):
+                caller.tell("^3You have called your maximum number of votes.")
+                caller.tell("^3Your vote count will reset at the end of a game/match.")
+                return minqlx.RET_STOP_ALL
+            self.votelimiterCount[caller.steam_id] += 1
+        else:
+            self.votelimiterCount[caller.steam_id] = 1
+
+    def handle_end_game(self, data):
+        self.reset_vote_count()
         
     def load_allowed_votes(self, player=None, msg=None, channel=None):
         try:
@@ -86,6 +107,8 @@ class votelimiter(minqlx.Plugin):
                 tempList.append("cointoss")
                 m.write("shuffle\n")     
                 tempList.append("shuffle")
+                m.write("map_restart\n")
+                tempList.append("map_restart")
                 # End default vote list
                 
                 m.close()
@@ -200,27 +223,13 @@ class votelimiter(minqlx.Plugin):
 
     # List votes in the Allowed Votes file
     def cmd_votelimiterList(self, player, msg, channel):
+        if len(self.votelimiterAllowed):
+            player.tell("^5Allowed Votes List:\n{}".format(", ".join(self.votelimiterAllowed)))
+        else:
+            player.tell("^5No voting is allowed on this server.")
 
-        file = os.path.join(self.get_cvar("fs_homepath"), VOTELIMITER_FILE)
-        try:
-            f = open(file, "r")
-            lines = f.readlines()
-            f.close()
-        except Exception as e:
-            player.tell("^1Error ^3reading the Allowed Votes file: {}".format(e))
-            return minqlx.RET_STOP_EVENT
-
-        displayList = "^5Allowed Votes List:\n"
-
-        for line in lines:
-            if line.startswith("#"): continue
-            words = line.split(" ")
-            vote = words[0].strip('\n')
-            
-            displayList += " ^7Vote: ^3{}\n".format(vote)
-
-        player.tell(displayList[:-1])
-        return minqlx.RET_STOP_EVENT
-
-    def show_vote_string(self, player, msg, channel):
-        player.tell("List: {}:".format(str(self.votelimiterAllowed)))
+    def reset_vote_count(self, player=None, msg=None, channel=None):
+        self.votelimiterCount.clear()
+        if player:
+            player.tell("^3The vote count for all players has been cleared.")
+        return
