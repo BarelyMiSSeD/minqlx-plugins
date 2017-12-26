@@ -668,7 +668,6 @@ cointoss<br>
 shuffle<br>
 map_restart<br>
 <b>NOTE</b>: Use !dv \<vote\> to remove any of the default vote types if they aren't wanted. This should only need to be done the first time the script is loaded on a server.
-
 <br><br>
 Commands available with votelimiter.py listed with the default settings
 
@@ -705,7 +704,6 @@ Usage: !reload_voteslist
 Checks to see if the votelimiter.py is up to date and lists the version running on the server.
 
 Usage: !versionvotelimiter
-
 <br><br>
 <b>CVARs</b>
 <b>The following bot settings used in the votelimiter script can be set with the rest of the minqlx bot settings:</b><br>
