@@ -61,7 +61,7 @@ from minqlx.database import Redis
 
 
 FILE_NAME = 'sound_names.txt'
-VERSION = 1.4
+VERSION = 1.5
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -138,12 +138,13 @@ class myFun(minqlx.Plugin):
 
         msg = self.clean_text(msg)
         if self.find_sound_trigger(msg):
-            if self.check_time(player):
+            delay_time = self.check_time(player)
+            if delay_time:
                 if self.get_cvar("qlx_funUnrestrictAdmin", bool) and self.db.get_permission(player.steam_id) == 5:
                     pass
                 else:
-                    player.tell("^3You played a sound in last {} seconds. Try again after your timeout."
-                                .format(self.get_cvar("qlx_funPlayerSoundRepeat")))
+                    player.tell("^3You played a sound recently. {} seconds timeout remaining."
+                                .format(delay_time))
                     return
 
             if not self.last_sound:
@@ -184,10 +185,11 @@ class myFun(minqlx.Plugin):
             return False
         try:
             saved_time = self.sound_limiting[player.steam_id]
-            if time.time() - saved_time > self.get_cvar("qlx_funPlayerSoundRepeat", int):
+            play_time = time.time() - saved_time
+            if play_time > self.get_cvar("qlx_funPlayerSoundRepeat", int):
                 return False
             else:
-                return True
+                return int(self.get_cvar("qlx_funPlayerSoundRepeat", int) - play_time)
         except KeyError:
             return False
 
@@ -276,7 +278,7 @@ class myFun(minqlx.Plugin):
         elif re.compile(r"^(?:gl ?hf\W?)|(?:hf\W?)|(?:gl hf\W?)").match(msg_lower):
             self.soundFile ="sound/vo/crash_new/39_01.wav"
             return True
-        elif re.compile(r"^(?:(?:press )?f3)|ready(?: up)?\W?").match(msg_lower):
+        elif re.compile(r"^((?:(?:press )?f3)|ready|ready up)$\W?").match(msg_lower):
             self.soundFile ="sound/vo/crash_new/36_04.wav"
             return True
         elif "holy shit" in msg_lower:
@@ -506,7 +508,7 @@ class myFun(minqlx.Plugin):
         elif re.compile(r"^idiot2\W?$").match(msg_lower):
             self.soundFile ="soundbank/idiot2.ogg"
             return True
-        elif re.compile(r"^it?'s time\W?$").match(msg_lower):
+        elif re.compile(r"^it'?s time\W?$").match(msg_lower):
             self.soundFile ="soundbank/itstime.ogg"
             return True
         elif re.compile(r"^jeopardy\W?$").match(msg_lower):
@@ -626,7 +628,7 @@ class myFun(minqlx.Plugin):
         elif re.compile(r"^(?:viewaskewer|view)\W?$").match(msg_lower):
             self.soundFile ="soundbank/view.ogg"
             return True
-        elif re.compile(r"^what?'s that\W?$").match(msg_lower):
+        elif re.compile(r"^what'?s that\W?$").match(msg_lower):
             self.soundFile ="soundbank/whatsthat.ogg"
             return True
         elif re.compile(r"^who are you\W?$").match(msg_lower):
@@ -1144,7 +1146,7 @@ class myFun(minqlx.Plugin):
         elif re.compile(r"^rammsteinriff\W?$").match(msg_lower):
             self.soundFile ="sound/funnysounds/rammsteinriff.ogg"
             return True
-        elif re.compile(r"^redwins\W?$").match(msg_lower):
+        elif re.compile(r"^red wins\W?$").match(msg_lower):
             self.soundFile ="sound/funnysounds/redwins.ogg"
             return True
         elif re.compile(r"^renegade\W?$").match(msg_lower):
@@ -1608,4 +1610,519 @@ class myFun(minqlx.Plugin):
         elif re.compile(r"^long walk\W?$").match(msg_lower):
             self.soundFile ="sound/duke/yohoho09.wav"
             return True
+        #Warp_Sounds
+        elif re.compile(r"^thanks for the advice\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_advice.ogg"
+            return True
+        elif re.compile(r"^appreciate\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_appreciate.ogg"
+            return True
+        elif re.compile(r"^looking forward to it\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_lookingforwardtoit.ogg"
+            return True
+        elif re.compile(r"^make me\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_makeme.ogg"
+            return True
+        elif re.compile(r"^pessimist\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_pessimist.ogg"
+            return True
+        elif re.compile(r"^shoot me now\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_shootmenow.ogg"
+            return True
+        elif re.compile(r"^shoot on sight\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_shootonsight.ogg"
+            return True
+        elif re.compile(r"^won'?t happen again\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ash_wonthappenagain.ogg"
+            return True
+        elif re.compile(r"^attractive\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/attractive.ogg"
+            return True
+        elif re.compile(r"^awesome\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/awesome.ogg"
+            return True
+        elif re.compile(r"^awkward\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/awkward.ogg"
+            return True
+        elif re.compile(r"^bad feeling\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/badfeeling.ogg"
+            return True
+        elif re.compile(r"^bad idea\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/badidea.ogg"
+            return True
+        elif re.compile(r"^ballbag\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ballbag.ogg"
+            return True
+        elif re.compile(r"^believe\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/believe.ogg"
+            return True
+        elif re.compile(r"^big leagues\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/bigleagues.ogg"
+            return True
+        elif re.compile(r"^bj\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/bj.ogg"
+            return True
+        elif re.compile(r"^kill you with my brain\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/brain.ogg"
+            return True
+        elif re.compile(r"^bravery\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/bravery.ogg"
+            return True
+        elif re.compile(r"^broke\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/broke.ogg"
+            return True
+        elif re.compile(r"^space bugs\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/bugs.ogg"
+            return True
+        elif re.compile(r"^bunk\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/bunk.ogg"
+            return True
+        elif re.compile(r"^burp\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/burp.ogg"
+            return True
+        elif re.compile(r"^cover your butt\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/butt.ogg"
+            return True
+        elif re.compile(r"^came out\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/cameout.ogg"
+            return True
+        elif re.compile(r"^anybody care\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/care.ogg"
+            return True
+        elif re.compile(r"^hello2\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/coach_hello.ogg"
+            return True
+        elif re.compile(r"^(?:(cock )?push ups)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/cockpushups.ogg"
+            return True
+        elif re.compile(r"^code\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/code.ogg"
+            return True
+        elif re.compile(r"^cold\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/cold.ogg"
+            return True
+        elif re.compile(r"^college student\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/college.ogg"
+            return True
+        elif re.compile(r"^(?:crush your enemies|conana(palooza)?)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/conana.ogg"
+            return True
+        elif re.compile(r"^confident\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/confident.ogg"
+            return True
+        elif re.compile(r"^cooperation\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/cooperation.ogg"
+            return True
+        elif re.compile(r"^cow dick\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/cowdick.ogg"
+            return True
+        elif re.compile(r"^go crazy\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/crazy.ogg"
+            return True
+        elif re.compile(r"^crowded\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/crowded.ogg"
+            return True
+        elif re.compile(r"^dance off\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/danceoff.ogg"
+            return True
+        elif re.compile(r"^dead\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/dead.ogg"
+            return True
+        elif re.compile(r"^dead guy\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/deadguy.ogg"
+            return True
+        elif re.compile(r"^dick message\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/dickmessage.ogg"
+            return True
+        elif re.compile(r"^dink bag\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/dinkbag.ogg"
+            return True
+        elif re.compile(r"^dirty\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/dirty.ogg"
+            return True
+        elif re.compile(r"^do as you'?re told\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/doasyouretold.ogg"
+            return True
+        elif re.compile(r"^what have we done\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/done.ogg"
+            return True
+        elif re.compile(r"^(?:done( for the)?( day)?)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/done_for_the_day.ogg"
+            return True
+        elif re.compile(r"^done it\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/doneit.ogg"
+            return True
+        elif re.compile(r"^do now\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/donow.ogg"
+            return True
+        elif re.compile(r"^don'?t like vaginas\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/dontlikevaginas.ogg"
+            return True
+        elif re.compile(r"^(?:(eat my )?grenade)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/eatmygrenade.ogg"
+            return True
+        elif re.compile(r"^eat my\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/eatmytits.ogg"
+            return True
+        elif re.compile(r"^electricity\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/electricity.ogg"
+            return True
+        elif re.compile(r"^face\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/face.ogg"
+            return True
+        elif re.compile(r"^face2\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/face2.ogg"
+            return True
+        elif re.compile(r"^not fair\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/fair.ogg"
+            return True
+        elif re.compile(r"^fall\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/fall.ogg"
+            return True
+        elif re.compile(r"^favor\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/favor.ogg"
+            return True
+        elif re.compile(r"^feel\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/feel.ogg"
+            return True
+        elif re.compile(r"^feels\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/feels.ogg"
+            return True
+        elif re.compile(r"^something wrong\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/femaleshepherd_somethingwrong.ogg"
+            return True
+        elif re.compile(r"^suspense\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/femaleshepherd_suspense.ogg"
+            return True
+        elif re.compile(r"^awaiting orders\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/garrus_awaitingorders.ogg"
+            return True
+        elif re.compile(r"^got your back\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/garrus_gotyourback.ogg"
+            return True
+        elif re.compile(r"^keep moving\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/garrus_keepmoving.ogg"
+            return True
+        elif re.compile(r"^nice work\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/garrus_nicework.ogg"
+            return True
+        elif re.compile(r"^(?:(get away )?cat)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/getawaycat.ogg"
+            return True
+        elif re.compile(r"^get off\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/getoff.ogg"
+            return True
+        elif re.compile(r"^wasting my time\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/glados_wasting.ogg"
+            return True
+        elif re.compile(r"^just go crazy\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/go_crazy.ogg"
+            return True
+        elif re.compile(r"^grows\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/grows.ogg"
+            return True
+        elif re.compile(r"^ha ha\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/haha.ogg"
+            return True
+        elif re.compile(r"^heroics\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/heroics.ogg"
+            return True
+        elif re.compile(r"^hop\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/hop.ogg"
+            return True
+        elif re.compile(r"^horrible\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/horrible.ogg"
+            return True
+        elif re.compile(r"^huge vagina\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/hugevagina.ogg"
+            return True
+        elif re.compile(r"^hunting\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/hunting.ogg"
+            return True
+        elif re.compile(r"^i am the law\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/iamthelaw.ogg"
+            return True
+        elif re.compile(r"^(?:i don'?t trust you|leaf(green)?)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/idonttrustyou.ogg"
+            return True
+        elif re.compile(r"^i have a plan\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ihaveaplan.ogg"
+            return True
+        elif re.compile(r"^i like you\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ilikeyou.ogg"
+            return True
+        elif re.compile(r"^intensify\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/intensify.ogg"
+            return True
+        elif re.compile(r"^i will eat\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/iwilleatyour.ogg"
+            return True
+        elif re.compile(r"^jail\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/jail.ogg"
+            return True
+        elif re.compile(r"^kevin bacon\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/kevinbacon.ogg"
+            return True
+        elif re.compile(r"^kill\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/kill.ogg"
+            return True
+        elif re.compile(r"^need to kill\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/krogan_kill.ogg"
+            return True
+        elif re.compile(r"^ladybug\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ladybug.ogg"
+            return True
+        elif re.compile(r"^(?:legend|ere(?:bux)?)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/legend.ogg"
+            return True
+        elif re.compile(r"^human relationships\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/liara_humanrelationships.ogg"
+            return True
+        elif re.compile(r"^incredible\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/liara_incredible.ogg"
+            return True
+        elif re.compile(r"^never happened\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/liara_neverhappened.ogg"
+            return True
+        elif re.compile(r"^like this thing\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/like.ogg"
+            return True
+        elif re.compile(r"^wasn'?t listening\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/listening.ogg"
+            return True
+        elif re.compile(r"^look fine\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/lookfine.ogg"
+            return True
+        elif re.compile(r"^lovely\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/lovely.ogg"
+            return True
+        elif re.compile(r"^your luck\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/luck.ogg"
+            return True
+        elif re.compile(r"^maggot\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/maggot.ogg"
+            return True
+        elif re.compile(r"^like an idiot\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/makes_you_look_like_idiot.ogg"
+            return True
+        elif re.compile(r"^killed with math\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/math.ogg"
+            return True
+        elif re.compile(r"^me me(?: me)?\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/mememe.ogg"
+            return True
+        elif re.compile(r"^metaphor\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/metaphor.ogg"
+            return True
+        elif re.compile(r"^misdirection\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/misdirection.ogg"
+            return True
+        elif re.compile(r"^nobody move\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/move.ogg"
+            return True
+        elif re.compile(r"^my friends\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/my_friends.ogg"
+            return True
+        elif re.compile(r"^my gun'?s bigger\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/mygunsbigger.ogg"
+            return True
+        elif re.compile(r"^(?:never look back|muddy(?:creek)?)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/neverlookback.ogg"
+            return True
+        elif re.compile(r"^nutsack\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/nutsack.ogg"
+            return True
+        elif re.compile(r"^on me\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/onme.ogg"
+            return True
+        elif re.compile(r"^on my mom\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/onmymom.ogg"
+            return True
+        elif re.compile(r"^ow what the\W?").match(msg_lower):
+            self.soundFile ="sound/warp/owwhatthe.ogg"
+            return True
+        elif re.compile(r"^pain in the ass\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/pain.ogg"
+            return True
+        elif re.compile(r"^pan out\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/panout.ogg"
+            return True
+        elif re.compile(r"^petty\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/petty.ogg"
+            return True
+        elif re.compile(r"^pile of shit\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/pile.ogg"
+            return True
+        elif re.compile(r"^(?:respect )?(?:the )?plasma\W?").match(msg_lower):
+            self.soundFile ="sound/warp/plasma.ogg"
+            return True
+        elif re.compile(r"^good point\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/point.ogg"
+            return True
+        elif re.compile(r"^quarter\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/quarter.ogg"
+            return True
+        elif re.compile(r"^rage\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/rage.ogg"
+            return True
+        elif re.compile(r"^real me\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/realme.ogg"
+            return True
+        elif re.compile(r"^no longer require\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/require.ogg"
+            return True
+        elif re.compile(r"^ready for this\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/rochelle_ready.ogg"
+            return True
+        elif re.compile(r"^rock this\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/rockthis.ogg"
+            return True
+        elif re.compile(r"^santa\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/santa.ogg"
+            return True
+        elif re.compile(r"^say my name\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/saymyname.ogg"
+            return True
+        elif re.compile(r"^you can scream\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/scream.ogg"
+            return True
+        elif re.compile(r"^(?:smiley face\W?)|:\)|:-\)$").match(msg_lower):
+            self.soundFile ="sound/warp/smileyface.ogg"
+            return True
+        elif re.compile(r"^snap\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/snap.ogg"
+            return True
+        elif re.compile(r"^sneezed\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/sneezed.ogg"
+            return True
+        elif re.compile(r"^sorry\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/sorry.ogg"
+            return True
+        elif re.compile(r"^human speech\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/speech.ogg"
+            return True
+        elif re.compile(r"^sprechen sie dick\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/sprechensiedick.ogg"
+            return True
+        elif re.compile(r"^start over\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/startover.ogg"
+            return True
+        elif re.compile(r"^stunned our ride\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/stunned.ogg"
+            return True
+        elif re.compile(r"^sure\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/sure.ogg"
+            return True
+        elif re.compile(r"^take a break|wally\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/takeabreaknow.ogg"
+            return True
+        elif re.compile(r"^take down\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/takedown.ogg"
+            return True
+        elif re.compile(r"^the creeps\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/tali_creeps.ogg"
+            return True
+        elif re.compile(r"^used to living\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/tali_usedtoliving.ogg"
+            return True
+        elif re.compile(r"^talk to me\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/talk.ogg"
+            return True
+        elif re.compile(r"^tears\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/tears.ogg"
+            return True
+        elif re.compile(r"^that'?s right\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/thatsright.ogg"
+            return True
+        elif re.compile(r"^think\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/think.ogg"
+            return True
+        elif re.compile(r"^tricked\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/tricked.ogg"
+            return True
+        elif re.compile(r"^trusted\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/trusted.ogg"
+            return True
+        elif re.compile(r"^trust me\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/trustme.ogg"
+            return True
+        elif re.compile(r"^target\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/turret_target.ogg"
+            return True
+        elif re.compile(r"^ugly stick\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/ugly.ogg"
+            return True
+        elif re.compile(r"^unfair\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/unfair.ogg"
+            return True
+        elif re.compile(r"^unicorn\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/unicorn.ogg"
+            return True
+        elif re.compile(r"^(?:v3|vestek)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/v3.ogg"
+            return True
+        elif re.compile(r"^valid\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/valid.ogg"
+            return True
+        elif re.compile(r"^volunteer\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/volunteer.ogg"
+            return True
+        elif re.compile(r"^waiting\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/waiting.ogg"
+            return True
+        elif re.compile(r"^walk\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/walk.ogg"
+            return True
+        elif re.compile(r"^what i want\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/want.ogg"
+            return True
+        elif re.compile(r"^at war\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/war.ogg"
+            return True
+        elif re.compile(r"^wee lamb\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/weelamb.ogg"
+            return True
+        elif re.compile(r"^well\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/well.ogg"
+            return True
+        elif re.compile(r"^we'?re grownups\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/weregrownups.ogg"
+            return True
+        elif re.compile(r"^what happened\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/whathappened.ogg"
+            return True
+        elif re.compile(r"^what now\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/whatnow.ogg"
+            return True
+        elif re.compile(r"^what the\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/whatthe.ogg"
+            return True
+        elif re.compile(r"^(?:with my fist|strat0?)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/withmyfist.ogg"
+            return True
+        elif re.compile(r"^busy\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/wrex_busy.ogg"
+            return True
+        elif re.compile(r"^sometimes crazy\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/wrex_crazy.ogg"
+            return True
+        elif re.compile(r"^i like\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/wrex_like.ogg"
+            return True
+        elif re.compile(r"^orders\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/wrex_orders.ogg"
+            return True
+        elif re.compile(r"^right behind you\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/wrex_rightbehindyou.ogg"
+            return True
+        elif re.compile(r"^what can i do\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/wrex_whatcanido.ogg"
+            return True
+        elif re.compile(r"^(?:your mom|pug(ster)?)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/yourmom.ogg"
+            return True
+        elif re.compile(r"^(?:zooma?|xuma)\W?$").match(msg_lower):
+            self.soundFile ="sound/warp/zooma.ogg"
+            return True
+
         return False
