@@ -25,11 +25,13 @@ Three extra workshop items need to be loaded on the server for it to work correc
 620087103<br>
 #Duke Nukem Sounds<br>
 572453229<br>
+#Warp Sounds<br>
+1250689005<br>
 
 The minqlx 'workshop' plugin needs to be loaded and the required workshop
  items added to the set qlx_workshopReferences line of your server.cfg
   (this example shows only these three required workshop items):
-set qlx_workshopReferences "585892371, 620087103, 572453229"
+set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005"
 
 Put the <b>sound_names.txt</b> file into the server's fs_homepath directory for
 the !listsounds to work on the server.<br>
