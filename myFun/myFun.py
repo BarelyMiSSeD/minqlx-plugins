@@ -24,7 +24,7 @@ To set the time a player has to wait after playing a sound add this like to your
 set qlx_funPlayerSoundRepeat "30"
 
 
-Three extra workshop items need to be loaded on the server for it to work correctly:
+These extra workshop items need to be loaded on the server for it to work correctly:
 #prestige worldwide sounds workshop
 585892371
 #Funny Sounds Pack for Minqlx
