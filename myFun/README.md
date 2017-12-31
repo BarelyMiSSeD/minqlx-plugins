@@ -18,7 +18,7 @@ To remove the individual sound repeat restriction from players with perm level 5
 <b>set qlx_funUnrestrictAdmin "0"</b>
 
 
-Three extra workshop items need to be loaded on the server for it to work correctly:<br>
+These extra workshop items need to be loaded on the server for it to work correctly:<br>
 #prestige worldwide sounds workshop<br>
 585892371<br>
 #Funny Sounds Pack for Minqlx<br>
