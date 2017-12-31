@@ -24,15 +24,13 @@ To set the time a player has to wait after playing a sound add this like to your
 set qlx_funPlayerSoundRepeat "30"
 
 
-These extra workshop items need to be loaded on the server for it to work correctly:
+Three extra workshop items need to be loaded on the server for it to work correctly:
 #prestige worldwide sounds workshop
 585892371
 #Funny Sounds Pack for Minqlx
 620087103
 #Duke Nukem Sounds
 572453229
-#Warp Sounds
-1250689005
 
 The minqlx 'workshop' plugin needs to be loaded and the required workshop
  items added to the set qlx_workshopReferences line
@@ -63,7 +61,7 @@ from minqlx.database import Redis
 
 
 FILE_NAME = 'sound_names.txt'
-VERSION = 1.5
+VERSION = 1.6
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -73,6 +71,7 @@ class myFun(minqlx.Plugin):
         self.add_hook("chat", self.handle_chat)
         self.add_hook("server_command", self.handle_server_command)
         self.add_command("cookies", self.cmd_cookies)
+        self.add_command("playsound", self.cmd_sound, 3)
         self.last_sound = None
 
         #Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
@@ -162,6 +161,27 @@ class myFun(minqlx.Plugin):
             self.sound_limiting[player.steam_id] = time.time()
 
         self.played = False
+
+    def cmd_sound(self, player, msg, channel):
+        if len(msg) < 2:
+            return
+
+        if "console" != channel and not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
+            player.tell("Your sounds are disabled. Use ^6{}sounds^7 to enable them again."
+                .format(self.get_cvar("qlx_commandPrefix")))
+            return
+
+        # Play locally to validate.
+        if "console" != channel and not super().play_sound(msg[1], player):
+            player.tell("Invalid sound.")
+            return
+
+        if "console" == channel:
+            minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
+
+        self.play_sound(msg[1])
+
+        return
 
     def play_sound(self, path):
         self.played = True
