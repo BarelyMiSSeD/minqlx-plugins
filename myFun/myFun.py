@@ -31,6 +31,8 @@ Three extra workshop items need to be loaded on the server for it to work correc
 620087103
 #Duke Nukem Sounds
 572453229
+#Warp Sounds
+1250689005
 
 The minqlx 'workshop' plugin needs to be loaded and the required workshop
  items added to the set qlx_workshopReferences line
