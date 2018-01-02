@@ -12,10 +12,10 @@ The default qlx_funPlayerSoundRepeat setting will require 30 seconds from the st
  that player can call another sound.<br>
 
 To set the time required between any sound add this line to your server.cfg and edit the "5":<br>
-set qlx_funSoundDelay "5"<br>
+<b>set qlx_funSoundDelay "5"</b><br>
 
 To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":<br>
-set qlx_funPlayerSoundRepeat "30"<br>
+<b>set qlx_funPlayerSoundRepeat "30"</b><br>
 
 
 These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:<br>
@@ -51,7 +51,7 @@ Add the values for each sound pack listed below and set that value<br>
            Warp Sounds for Quake Live:  16<br>
                 West Coast Crew Sound:  32<br>
 
-   Duke Nukem Soundpack Disabled Example: set qlx_funEnableSoundPacks "55"<br>
+   <b>Duke Nukem Soundpack Disabled Example</b>: set qlx_funEnableSoundPacks "55"<br>
 
 !listsounds can be issued by itself to see all the sounds that can be played on the server<br>
 or it can be issued with one argument to limit the listed sounds to the sound phrases that contain that argument.<br>
