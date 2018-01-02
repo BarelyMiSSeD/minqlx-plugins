@@ -387,9 +387,6 @@ class myFun(minqlx.Plugin):
                 return
 
             if not category and not search:
-                #sounds.append("^2{0}listsounds ^7<^2search string^7> or\n^2{0}listsounds ^7<^2"
-                #              .format(self.get_cvar("qlx_commandPrefix")) + "^7/^2".join(help_msg) +
-                #                      "^7> <^2search string^7>\nto see specific sound categories.\n")
                 sounds.append("^2{0}listsounds ^7<^2".format(self.get_cvar("qlx_commandPrefix")) + "^7/^2".join(help_msg) +
                               "^7> <^2search^7>\n^3to narrow search results.\n")
 
