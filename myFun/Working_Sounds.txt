@@ -627,3 +627,165 @@ what can i do
 your mom
 zooma
 
+West Coast Crew Sound: (161 Sounds)
+turple
+ay caramba
+ballin
+bigpippin
+big whoop
+did i do that
+DDDid i do that
+your'e doomed
+ez
+introtoo
+jsss
+opinion
+snort
+SNpete
+SNpete2
+bender
+2ez
+reflexes
+rothko
+bite my shiny metal ass
+c3
+cthree
+cann
+clr
+hahahaha
+isabadmutha
+shaft
+bofumballs
+makaveli
+rothkoo
+oshikia
+qqaaq
+qaaq
+muthafucka
+fuckin bitch
+chocosaurus
+los
+get outta here
+nonsense
+counting on you
+damn im good
+really
+hehehe
+lol loser
+die motherfucker
+die mothafuckas
+die already
+give up and die
+im stephan
+no no no no no
+clever girl
+stfu2
+what did you do
+look what you did
+drunk
+gibbles
+rugged
+fox
+dr1nya
+vks
+obliv
+oblivion
+flush
+shenookie
+shenookies cookies
+campingtroll
+happy hour
+baiting
+solis
+tustamena
+atustamena
+hahaha2
+outro
+w3rd
+unstoppable
+monster kill
+dominating
+godlike
+dundun
+dundundun
+dundundundun
+filthy zealot
+lg
+mirai
+youlose
+scrub
+swish
+easy as 123
+kinraze
+mobil
+gimme a break
+pizza pizza
+inspector norse
+kinrazed
+martin
+bumblebee tuna
+ventt
+littlemeezers
+ty2
+gs
+great shot
+thetealduck
+giggs
+hehe
+clear
+rage quit
+im on fire
+so is your face
+jdub
+in the zone
+papabalyo
+boomshakalaka
+facial
+he's on fire
+he's heating up
+wuyoga
+feroz
+biff
+psygib
+in the face
+ability
+stitch
+killswitch
+shufflenufiguess
+elo
+vacuum
+wolf
+saved
+still feel like you're mad
+it's a disastah
+rekt
+troll toll
+gotta pay the troll
+let's get ready to rumble
+f33"] = [re.compile(r"f33\W?
+look what you've done
+doom2
+ooom
+and another one gone
+another one bites the dust
+easy come easy go
+yeah baby
+hehe yeah
+dead last
+skadoosh
+i'm a motherfuckin monster
+it's in the bag
+in the bag
+wow
+woww
+that's all folks
+spank you
+why you little
+you can do it
+did you miss me
+somebody stop me
+slime
+waow
+lovin' it
+yawn
+yawnn
