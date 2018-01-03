@@ -49,9 +49,7 @@ set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 9080310
 The soundpacks are all enabled by default. Which soundpacks are enabled can be set.<br>
 set qlx_funEnableSoundPacks "63"   : Enables all sound packs.<br>
 <b>******  How to set which sound packs are enabled ******</b><br>
-Add the values for each sound pack listed below and set that value<br>
- to the qlx_funEnableSoundPacks in the same location as the rest of<br>
- your minqlx cvar's.<br>
+Add the values for each sound pack listed below and set that value to the qlx_funEnableSoundPacks in the same location as the rest of your minqlx cvar's.<br><br>
  ****Sound Pack Values****<br>
  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Default: 1<br>
  Prestige Worldwide Soundhonks: 2<br>
