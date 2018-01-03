@@ -50,7 +50,7 @@ The soundpacks are all enabled by default. Which soundpacks are enabled can be s
 set qlx_funEnableSoundPacks "63"   : Enables all sound packs.<br>
 <b>******  How to set which sound packs are enabled ******</b><br>
 Add the values for each sound pack listed below and set that value to the qlx_funEnableSoundPacks in the same location as the rest of your minqlx cvar's.<br><br>
-<b>****  Sound Pack Values  ****</b><br>
+<b>***** Sound Pack Values *****</b><br>
  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Default: 1<br>
  Prestige Worldwide Soundhonks: 2<br>
  &nbsp;&nbsp;&nbsp;&nbsp;Funny Sounds Pack for Minqlx: 4<br>
