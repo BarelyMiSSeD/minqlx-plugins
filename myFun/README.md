@@ -42,7 +42,7 @@ set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 9080310
 <b>1)</b> The <b>Default</b> soundpack uses sounds that are already included in the Quake Live install.<br>
 <b>2)</b> The <b>Prestige Worldwide Soundhonks</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=585892371">HERE</a>.<br>
 <b>3)</b> The <b>Funny Sounds Pack for Minqlx</b> can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=620087103">HERE</a>.<br>
-<b>4)</b> The <b>Duke Nukem Sounds</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=572453229">HERE</a>.<br>
+<b>4)</b> The <b>Duke Nukem Voice Sound Pack for minqlx</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=572453229">HERE</a>.<br>
 <b>5)</b> The <b>Warp Sounds for Quake Live</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=1250689005">HERE</a>.<br>
 <b>6)</b> The <b>West Coast Crew Sound</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=908031086">HERE</a>.<br>
 
@@ -54,7 +54,7 @@ Add the values for each sound pack listed below and set that value to the qlx_fu
  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Default: 1<br>
  Prestige Worldwide Soundhonks: 2<br>
  &nbsp;&nbsp;&nbsp;&nbsp;Funny Sounds Pack for Minqlx: 4<br>
- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Duke Nukem Sounds: 8<br>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Duke Nukem Voice Sound Pack for minqlx: 8<br>
  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Warp Sounds for Quake Live:  16<br>
  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;West Coast Crew Sound: 32<br>
 
@@ -76,7 +76,7 @@ Prestige Worldwide Soundhonks<br>
 No Matches<br>
 Funny Sounds Pack for Minqlx<br>
 No Matches<br>
-Duke Nukem Sounds<br>
+Duke Nukem Voice Sound Pack for minqlx<br>
 No Matches<br>
 Warp Sounds for Quake Live<br>
 No Matches<br>
