@@ -53,12 +53,12 @@ Add the values for each sound pack listed below and set that value<br>
  to the qlx_funEnableSoundPacks in the same location as the rest of<br>
  your minqlx cvar's.<br>
  ****Sound Pack Values****<br>
-                              Default:  1<br>
-        Prestige Worldwide Soundhonks:  2<br>
-         Funny Sounds Pack for Minqlx:  4<br>
-                    Duke Nukem Sounds:  8<br>
-           Warp Sounds for Quake Live:  16<br>
-                West Coast Crew Sound:  32<br>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Default:  1<br>
+ Prestige Worldwide Soundhonks:  2<br>
+ &nbsp;&nbsp;&nbsp;Funny Sounds Pack for Minqlx:  4<br>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Duke Nukem Sounds:  8<br>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Warp Sounds for Quake Live:  16<br>
+ &nbsp;West Coast Crew Sound:  32<br>
 
    <b>Duke Nukem Soundpack Disabled EXAMPLE</b>: set qlx_funEnableSoundPacks "55"<br>
 
@@ -85,7 +85,6 @@ No Matches<br>
 West Coast Crew Sound<br>
 No Matches<br>
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
-<b>!listsounds haha</b> would only display sounds in the enabled sound packs that contain 'haha' in the sound.
 
 If <b>!listsounds</b> is issued with a sound pack limiting value it will only search that soundpack for sounds.<br>
 <b>!listsounds #Default</b> would only list the sounds in the Default soundpack, if it is enabled.<br>
