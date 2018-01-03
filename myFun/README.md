@@ -24,7 +24,7 @@ These extra workshop items need to be loaded on the server for it to work correc
 585892371<br>
 #Funny Sounds Pack for Minqlx<br>
 620087103<br>
-#Duke Nukem Sounds<br>
+#Duke Nukem Voice Sound Pack for minqlx<br>
 572453229<br>
 #Warp Sounds for Quake Live<br>
 1250689005<br>
@@ -38,8 +38,17 @@ set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 9080310
   (Only include the sound pack workshop item numbers that you decide to enable on the server)<br>
   (The Default sounds use sounds already available as part of the Quake Live install)<br>
 
-set qlx_funEnableSoundPacks "63"   : Enables all 5 sound packs.<br>
-******  How to set which sound packs are enabled ******<br>
+<b>Soundpacks</b>:<br>
+<b>1)</b> The <b>Default</b> soundpack uses sounds that are already included in the Quake Live install.<br>
+<b>2)</b> The <b>Prestige Worldwide Soundhonks</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=585892371">HERE</a>.<br>
+<b>3)</b> The <b>Funny Sounds Pack for Minqlx</b> can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=620087103">HERE</a>.<br>
+<b>4)</b> The <b>Duke Nukem Sounds</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=572453229">HERE</a>.<br>
+<b>5)</b> The <b>Warp Sounds for Quake Live</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=1250689005">HERE</a>.<br>
+<b>6)</b> The <b>West Coast Crew Sound</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=908031086">HERE</a>.<br>
+
+The soundpacks are all enabled by default. Which soundpacks are enabled can be set.<br>
+set qlx_funEnableSoundPacks "63"   : Enables all sound packs.<br>
+<b>******  How to set which sound packs are enabled ******</b><br>
 Add the values for each sound pack listed below and set that value<br>
  to the qlx_funEnableSoundPacks in the same location as the rest of<br>
  your minqlx cvar's.<br>
@@ -51,7 +60,7 @@ Add the values for each sound pack listed below and set that value<br>
            Warp Sounds for Quake Live:  16<br>
                 West Coast Crew Sound:  32<br>
 
-   <b>Duke Nukem Soundpack Disabled Example</b>: set qlx_funEnableSoundPacks "55"<br>
+   <b>Duke Nukem Soundpack Disabled EXAMPLE</b>: set qlx_funEnableSoundPacks "55"<br>
 
 !listsounds can be issued by itself to see all the sounds that can be played on the server<br>
 or it can be issued with one argument to limit the listed sounds to the sound phrases that contain that argument.<br>
@@ -74,13 +83,20 @@ West Coast Crew Sound<br>
 No Matches<br>
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
 
-If !listsounds is issued with a sound pack limiting value it will only search that soundpack for sounds.<br>
- Another sound limiting argument can also be added to see the matching sounds in that sound pack.<br>
+When a player issues the <b>!listsounds</b> command it wil list all of the sounds available on the server with
+the sounds displayed in a tabbed format to help enable the redability of the sounds without requiring the use of pages or exessie scrolling. Only the soundpacks that are enabled will be shown. Any disabled soundpacks will not be displayed and will not
+be searchable.<br>
 
-Example: '!listsounds #Default yeah' would list all the sounds containing 'yeah' but limit that search to<br>
+If <b>!listsounds</b> is issued with a search term it will search for sounds that contain that term and diplay each enabled soundpack and the sounds found in them.<br>
+<b>!listsounds haha</b> would only display sounds in the enabled sound packs that contain 'haha' in the sound.
+
+If <b>!listsounds</b> is issued with a sound pack limiting value it will only search that soundpack for sounds.<br>
+<b>!listsounds #Default</b> would only list the sounds in the Default soundpack, if it is enabled.<br>
+
+Example: '<b>!listsounds #Default yeah</b>' would list all the sounds containing 'yeah' but limit that search to<br>
  just the Default sounds and produce the following output:<br>
 
 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
 Default<br>
-haha yeah haha    hahaha yeah    yeah hahaha    yeahhh<br>
+haha yeah haha      hahaha yeah      yeah hahaha      yeahhh<br>
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
