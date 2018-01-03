@@ -1,4 +1,4 @@
-<b>Default Sounds</b>: (41 Sounds)
+Default Sounds: (41 Sounds)
 hahaha yeah
 haha yeah haha
 yeah hahaha
@@ -41,7 +41,7 @@ squish
 oh god
 snarl
 
-<b>Prestige Worldwide Soundhonks</b>: (82 Sounds)
+Prestige Worldwide Soundhonks: (82 Sounds)
 assholes
 assshafter
 babydoll
