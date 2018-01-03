@@ -62,10 +62,13 @@ Add the values for each sound pack listed below and set that value<br>
 
    <b>Duke Nukem Soundpack Disabled EXAMPLE</b>: set qlx_funEnableSoundPacks "55"<br>
 
-!listsounds can be issued by itself to see all the sounds that can be played on the server<br>
-or it can be issued with one argument to limit the listed sounds to the sound phrases that contain that argument.<br>
+When a player issues the <b>!listsounds</b> command it wil list all of the sounds available on the server with
+the sounds displayed in a tabbed format to help enable the redability of the sounds without requiring the use of pages or exessie scrolling. Only the soundpacks that are enabled will be shown. Any disabled soundpacks will not be displayed and will not
+be searchable.<br>
 
-Example: '!listsounds yeah' would list all the sound phrases containing 'yeah'<br>
+If <b>!listsounds</b> is issued with a search term it will search for sounds that contain that term and diplay each enabled soundpack and the sounds found in them.<br>
+
+Example: <b>!listsounds yeah</b> would list all the sound phrases containing 'yeah'<br>
  and would print this to the player's console (assuming all sound packs are enabled):<br>
 
 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
@@ -82,12 +85,6 @@ No Matches<br>
 West Coast Crew Sound<br>
 No Matches<br>
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
-
-When a player issues the <b>!listsounds</b> command it wil list all of the sounds available on the server with
-the sounds displayed in a tabbed format to help enable the redability of the sounds without requiring the use of pages or exessie scrolling. Only the soundpacks that are enabled will be shown. Any disabled soundpacks will not be displayed and will not
-be searchable.<br>
-
-If <b>!listsounds</b> is issued with a search term it will search for sounds that contain that term and diplay each enabled soundpack and the sounds found in them.<br>
 <b>!listsounds haha</b> would only display sounds in the enabled sound packs that contain 'haha' in the sound.
 
 If <b>!listsounds</b> is issued with a sound pack limiting value it will only search that soundpack for sounds.<br>
