@@ -143,4 +143,4 @@ Default settings are listed.
 <b>set qlx_funSoundDelay "5"</b> - The delay in seconds between any sound starting to play (If a sound is longer than this delay another sound can be started while the sound is still playing).<br>
 <b>set qlx_funPlayerSoundRepeat "30"</b> - Wait time for a player after calling a sound before that player can call another sound.<br>
 <b>set qlx_funDisableMutedPlayers "1"</b> - Restrict muted players from playing sounds (1 = On, 0 = Off)<br>
-<b>set qlx_funEnableSoundPacks "63"</b> - Sets which soundpacks are enabled. (See above or myFun.py top section for explanation.)<br>
+<b>set qlx_funEnableSoundPacks "63"</b> - Sets which soundpacks are enabled. (See above or myFun.py top section for detailed explanation.)<br>
