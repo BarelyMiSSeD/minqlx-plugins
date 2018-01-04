@@ -94,3 +94,53 @@ SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<b
 Default<br>
 haha yeah haha      hahaha yeah      yeah hahaha      yeahhh<br>
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
+
+# Commands
+<br><br>
+Commands available with myFun.py listed with the set permission levels.
+
+<b>•	Permission level 0</b>
+
+<b>!listsounds</b> (alternatively !getsounds)
+
+Retrieves the sounds available to lay on the server.<br>
+The command can be issued with optional search parameters:<br>
+!listsounds \<#Category\> \<search string\><br>
+The user can include one or both of the optional search parameters to narrow the search results.
+
+Usage: !listsounds \<#Category\> \<search string\>
+
+<b>!cookies</b>
+
+Randomly returns one of a few funny responses.
+
+Usage: !cookies
+
+<b>•	Permission level 3</b>
+
+<b>!playsound</b>
+
+Plays a sound on the server for all the players with sounds enabled.<br>
+This does not use the sound anti-spam function.
+
+Usage: !playsound \<sound_path/file\>
+
+<b>•	Permission level 5</b>
+
+<b>!reloadsounds</b> (alternatively !reenablesounds)
+
+Will reset the enabled sounds to the qlx_funEnableSoundPacks cvar and reload the sounds dictionaries.
+
+Usage: !reloadsounds
+
+<br><br>
+
+# CVARs
+The following bot settings used in the myFun script can be set with the rest of the minqlx bot settings:
+Default settings are listed.
+
+<b>set qlx_funUnrestrictAdmin "0"</b> - Not include players with perm level 5 in the Player Sound Repeat time
+<b>set qlx_funSoundDelay "5"</b> - The delay in seconds between any sound starting to play (If a sound is longer than this delay another sound can be started while the sound is still playing).
+<b>set qlx_funPlayerSoundRepeat "30"</b> - Wait time for a player after calling a sound before that player can call another sound.
+<b>set qlx_funDisableMutedPlayers "1"</b> - Restrict muted players from playing sounds (1 = On, 0 = Off)
+<b>set qlx_funEnableSoundPacks "63"</b> - Sets which soundpacks are enabled. (See above or myFun.py top section for explanation.)
