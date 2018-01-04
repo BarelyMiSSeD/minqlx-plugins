@@ -139,8 +139,8 @@ Usage: !reloadsounds
 The following bot settings used in the myFun script can be set with the rest of the minqlx bot settings:
 Default settings are listed.
 
-<b>set qlx_funUnrestrictAdmin "0"</b> - Not include players with perm level 5 in the Player Sound Repeat time
-<b>set qlx_funSoundDelay "5"</b> - The delay in seconds between any sound starting to play (If a sound is longer than this delay another sound can be started while the sound is still playing).
-<b>set qlx_funPlayerSoundRepeat "30"</b> - Wait time for a player after calling a sound before that player can call another sound.
-<b>set qlx_funDisableMutedPlayers "1"</b> - Restrict muted players from playing sounds (1 = On, 0 = Off)
-<b>set qlx_funEnableSoundPacks "63"</b> - Sets which soundpacks are enabled. (See above or myFun.py top section for explanation.)
+<b>set qlx_funUnrestrictAdmin "0"</b> - Not include players with perm level 5 in the Player Sound Repeat time<br>
+<b>set qlx_funSoundDelay "5"</b> - The delay in seconds between any sound starting to play (If a sound is longer than this delay another sound can be started while the sound is still playing).<br>
+<b>set qlx_funPlayerSoundRepeat "30"</b> - Wait time for a player after calling a sound before that player can call another sound.<br>
+<b>set qlx_funDisableMutedPlayers "1"</b> - Restrict muted players from playing sounds (1 = On, 0 = Off)<br>
+<b>set qlx_funEnableSoundPacks "63"</b> - Sets which soundpacks are enabled. (See above or myFun.py top section for explanation.)<br>
