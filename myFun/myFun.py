@@ -17,9 +17,9 @@ This can limit sound spamming to the server.
 It only allows one sound to be played at a time and each user is limited in the frequency they can play sounds.
 If you desire no restriction then set both of the 2 following cvars to "0".
 The default qlx_funSoundDelay setting will require 5 seconds from the start of any sound
- before another sound can be played by anyone.
+before another sound can be played by anyone.
 The default qlx_funPlayerSoundRepeat setting will require 30 seconds from the start of a player called sound before
- that player can call another sound.
+that player can call another sound.
 
 To set the time required between any sound add this line to your server.cfg and edit the "5":
 set qlx_funSoundDelay "5"
@@ -27,13 +27,13 @@ set qlx_funSoundDelay "5"
 To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
 set qlx_funPlayerSoundRepeat "30"
 
-
-These extra workshop items need to be loaded on the server for it to work correctly if all sond packs are enabled:
+These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:
+(put the workshop item numbers in your workshop.txt file)
 #Prestige Worldwide Soundhonks
 585892371
 #Funny Sounds Pack for Minqlx
 620087103
-#Duke Nukem Sounds
+#Duke Nukem Voice Sound Pack for minqlx
 572453229
 #Warp Sounds for Quake Live
 1250689005
@@ -41,41 +41,55 @@ These extra workshop items need to be loaded on the server for it to work correc
 908031086
 
 The minqlx 'workshop' plugin needs to be loaded and the required workshop
- items added to the set qlx_workshopReferences line
-  (This example shows only these required workshop items):
+items added to the set qlx_workshopReferences line
+(This example shows only these required workshop items):
 set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 908031086"
-  (Only include the sound pack workshop item numbers that you decide to enable on the server)
-  (The Default sounds use sounds already available as part of the Quake Live install)
+(Only include the sound pack workshop item numbers that you decide to enable on the server)
+(The Default sounds use sounds already available as part of the Quake Live install)
 
-set qlx_funEnableSoundPacks "63"   : Enables all 5 sound packs.
-******  How to set which sound packs are enabled ******
-Add the values for each sound pack listed below and set that value
- to the qlx_funEnableSoundPacks in the same location as the rest of
- your minqlx cvar's.
+Soundpacks:
+1) The Default soundpack uses sounds that are already included in the Quake Live install.
+2) The Prestige Worldwide Soundhonks soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=585892371
+3) The Funny Sounds Pack for Minqlx can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=620087103
+4) The Duke Nukem Voice Sound Pack for minqlx soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=572453229
+5) The Warp Sounds for Quake Live soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=1250689005
+6) The West Coast Crew Sound soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=908031086
+
+The soundpacks are all enabled by default. Which soundpacks are enabled can be set.
+set qlx_funEnableSoundPacks "63" : Enables all sound packs.
+****** How to set which sound packs are enabled ******
+Add the values for each sound pack listed below and set that value to the
+ qlx_funEnableSoundPacks in the same location as the rest of your minqlx cvar's.
+
  ****Sound Pack Values****
-                              Default:  1
-        Prestige Worldwide Soundhonks:  2
-         Funny Sounds Pack for Minqlx:  4
-                    Duke Nukem Sounds:  8
-           Warp Sounds for Quake Live:  16
-                West Coast Crew Sound:  32
+                               Default:  1
+         Prestige Worldwide Soundhonks:  2
+          Funny Sounds Pack for Minqlx:  4
+Duke Nukem Voice Sound Pack for minqlx:  8
+            Warp Sounds for Quake Live:  16
+                 West Coast Crew Sound:  32
 
    Duke Nukem Soundpack Disabled Example: set qlx_funEnableSoundPacks "55"
 
-!listsounds can be issued by itself to see all the sounds that can be played on the server
-or it can be issued with one argument to limit the listed sounds to the sound phrases that contain that argument.
+When a player issues the !listsounds command it wil list all of the sounds available on the server with
+ the sounds displayed in a tabbed format to help enable the redability of the sounds without requiring
+  the use of pages or exessie scrolling. Only the soundpacks that are enabled will be shown. Any disabled
+   soundpacks will not be displayed and will not be searchable.
 
-Example: '!listsounds yeah' would list all the sound phrases containing 'yeah'
- and would print this to the player's console (assuming all sound packs are enabled):
+If !listsounds is issued with a search term it will search for sounds that contain that term and display
+ each enabled soundpack and the sounds found in them.
+
+Example: !listsounds yeah would list all the sound phrases containing 'yeah'
+and would print this to the player's console (assuming all sound packs are enabled):
 
 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.
 Default
-haha yeah haha    hahaha yeah    yeah hahaha    yeahhh
+haha yeah haha hahaha yeah yeah hahaha yeahhh
 Prestige Worldwide Soundhonks
 No Matches
 Funny Sounds Pack for Minqlx
 No Matches
-Duke Nukem Sounds
+Duke Nukem Voice Sound Pack for minqlx
 No Matches
 Warp Sounds for Quake Live
 No Matches
@@ -84,14 +98,14 @@ No Matches
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.
 
 If !listsounds is issued with a sound pack limiting value it will only search that soundpack for sounds.
- Another sound limiting argument can also be added to see the matching sounds in that sound pack.
+!listsounds #Default would only list the sounds in the Default soundpack, if it is enabled.
 
 Example: '!listsounds #Default yeah' would list all the sounds containing 'yeah' but limit that search to
- just the Default sounds and produce the following output:
+just the Default sounds and produce the following output:
 
 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.
 Default
-haha yeah haha    hahaha yeah    yeah hahaha    yeahhh
+haha yeah haha hahaha yeah yeah hahaha yeahhh
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.
 
 """
@@ -103,29 +117,13 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 1.7
+VERSION = 1.8
 
 class myFun(minqlx.Plugin):
     database = Redis
 
     def __init__(self):
         super().__init__()
-        self.add_hook("chat", self.handle_chat)
-        self.add_hook("server_command", self.handle_server_command)
-        self.add_hook("player_disconnect", self.player_disconnect)
-        self.add_command("cookies", self.cmd_cookies)
-        self.add_command("playsound", self.cmd_sound, 3)
-        self.add_command(("getsounds", "listsounds", "listsound"), self.cmd_list_sounds)
-        self.add_command("reenablesounds", self.enable_sound_packs, 5)
-
-        #variable to show when a sound has been played
-        self.played = False
-
-        #variable to store the sound to be called
-        self.soundFile = ""
-
-        self.last_sound = None
-        self.Found_Sound = False
 
         #Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
         self.set_cvar_once("qlx_funUnrestrictAdmin", "0")
@@ -139,23 +137,49 @@ class myFun(minqlx.Plugin):
         #Enable/Disable sound pack files
         self.set_cvar_once("qlx_funEnableSoundPacks", "63")
 
-        # Dictionary used to store player sound call times.
+        self.add_hook("chat", self.handle_chat)
+        self.add_hook("server_command", self.handle_server_command)
+        self.add_hook("player_disconnect", self.player_disconnect)
+        self.add_command("cookies", self.cmd_cookies)
+        self.add_command(("getsounds", "listsounds", "listsound"), self.cmd_list_sounds)
+        self.add_command("playsound", self.cmd_sound, 3)
+        self.add_command(("reenablesounds", "reloadsounds"), self.enable_sound_packs, 5)
+
+        #variable to show when a sound has been played
+        self.played = False
+        #variable to store the sound to be called
+        self.soundFile = ""
+        #stores time of last sound play
+        self.last_sound = None
+        #stores state of sound trigger find
+        self.Found_Sound = False
+        #Dictionary used to store player sound call times.
         self.sound_limiting = {}
         #List to store steam ids of muted players
         self.muted_players = []
-
-        #set the desired sound packs to enabled
+        #List to store the enable/disabled status of the soundpacks
         self.Enabled_SoundPacks = [0,0,0,0,0,0]
+        #set the desired sound packs to enabled
         self.enable_sound_packs()
-
+        #List of soundpack names
         self.soundPacks = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
-                           "Duke Nukem Sounds", "Warp Sounds for Quake Live", "West Coast Crew Sound"]
+                           "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live",
+                           "West Coast Crew Sound"]
+        #List of soundpack categories (used to narrow search results in !listsounds)
         self.categories = ["#Default", "#Prestige", "#Funny", "#Duke", "#Warp", "#West"]
+        #List for storing soundpack dictionaries
         self.soundDictionaries = []
+        #List for storing the lists of sounds
+        self.soundLists = []
+        self.sound_list_count = 0
+        self.help_msg = []
+        #populate the list with empty dictionaries
         dicts = 0
         while dicts < len(self.Enabled_SoundPacks):
             self.soundDictionaries.append({})
+            self.soundLists.append([])
             dicts += 1
+        #populate the dictionaries and sound lists with the enabled soundpacks
         self.populate_dicts()
 
     def enable_sound_packs(self, player=None, msg=None, channel=None):
@@ -170,7 +194,20 @@ class myFun(minqlx.Plugin):
             length -= 1
 
         if player:
-            player.tell("Enabled Packs: {}".format(str(self.Enabled_SoundPacks)))
+            sound_packs = []
+            count = 0
+            while count < len(self.Enabled_SoundPacks):
+                if self.Enabled_SoundPacks[count]:
+                    sound_packs.append(self.soundPacks[count])
+                count += 1
+            player.tell("Enabled Sound Packs are: ^3{}".format(", ".join(sound_packs)))
+            dicts = 0
+            while dicts < len(self.Enabled_SoundPacks):
+                self.soundDictionaries[dicts].clear()
+                self.soundLists[dicts] = []
+                dicts += 1
+            self.populate_dicts()
+            player.tell("Completed Sound Pack reload.")
             return minqlx.RET_STOP_ALL
 
     def player_disconnect(self, player, reason):
@@ -237,24 +274,25 @@ class myFun(minqlx.Plugin):
 
     def cmd_sound(self, player, msg, channel):
         if len(msg) < 2:
-            return
+            player.tell("Include a path/sound to play.")
+            return minqlx.RET_STOP_ALL
 
         if "console" != channel and not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
             player.tell("Your sounds are disabled. Use ^6{}sounds^7 to enable them again."
                 .format(self.get_cvar("qlx_commandPrefix")))
-            return
+            return minqlx.RET_STOP_ALL
 
         # Play locally to validate.
         if "console" != channel and not super().play_sound(msg[1], player):
             player.tell("Invalid sound.")
-            return
+            return minqlx.RET_STOP_ALL
 
         if "console" == channel:
             minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
 
         self.play_sound(msg[1])
 
-        return
+        return minqlx.RET_STOP_ALL
 
     def play_sound(self, path):
         self.played = True
@@ -289,22 +327,25 @@ class myFun(minqlx.Plugin):
             return False
 
     @minqlx.thread
-    def cmd_list_sounds(self, player, msg, channel):
-        sounds = ["^4SOUNDS^7: ^3Type these words/phrases in normal chat to play a sound on the server.\n"]
-
-        sound_lists = {}
-        help_msg = []
-        count = 0
+    def populate_sound_lists(self):
+        self.sound_list_count = 0
+        self.help_msg = []
         slot = 0
         while slot < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[slot]:
-                sound_lists[slot] = []
-                help_msg.append(self.categories[slot])
+                self.soundLists[slot] = []
+                self.sound_list_count += 1
+                self.help_msg.append(self.categories[slot])
                 for key in self.soundDictionaries[slot]:
-                    sound_lists[slot].append(key)
+                    self.soundLists[slot].append(key)
+                self.soundLists[slot].sort()
             slot += 1
-            time.sleep(.01)
 
+    @minqlx.thread
+    def cmd_list_sounds(self, player, msg, channel):
+        sounds = ["^4SOUNDS^7: ^3Type these words/phrases in normal chat to play a sound on the server.\n"]
+
+        count = 0
         category = None
         search = None
         if len(msg) == 2:
@@ -320,7 +361,7 @@ class myFun(minqlx.Plugin):
                 search = " ".join(msg[1:])
 
         if category:
-            if any(s.lower() == category for s in help_msg):
+            if any(s.lower() == category for s in self.help_msg):
                 category_num = -1
                 cat_num = 0
                 while cat_num < len(self.categories):
@@ -331,7 +372,7 @@ class myFun(minqlx.Plugin):
                 if -1 < category_num < len(self.Enabled_SoundPacks):
                     sounds_line = ""
                     sounds.append("^4" + self.soundPacks[category_num] + "\n")
-                    for item in sound_lists[category_num]:
+                    for item in self.soundLists[category_num]:
                         if search and search not in item:
                             continue
                         add_sound, status = self.line_up(sounds_line, item)
@@ -351,7 +392,10 @@ class myFun(minqlx.Plugin):
                 if count == 0:
                     sounds.append("^3No Matches\n")
             else:
-                player.tell("^3INVALID ^2Category ^7given. Valid entries are ^2" + "^7, ^2".join(help_msg))
+                if self.sound_list_count == 1:
+                    player.tell("^3INVALID ^2Category ^7given. Valid category is ^2" + "^7, ^2".join(self.help_msg))
+                else:
+                    player.tell("^3INVALID ^2Category ^7given. Valid categories are ^2" + "^7, ^2".join(self.help_msg))
                 return
 
         else:
@@ -361,7 +405,7 @@ class myFun(minqlx.Plugin):
                 if self.Enabled_SoundPacks[slot]:
                     found = 0
                     sounds.append("^4" + self.soundPacks[slot] + "\n")
-                    for item in sound_lists[slot]:
+                    for item in self.soundLists[slot]:
                         if search and search not in item:
                             continue
                         add_sound, status = self.line_up(sounds_line, item)
@@ -386,9 +430,12 @@ class myFun(minqlx.Plugin):
                 player.tell("^4Server^7: No sounds contain the search string ^1{}^7.".format(search))
                 return
 
-            if not category and not search:
-                sounds.append("^2{0}listsounds ^7<^2".format(self.get_cvar("qlx_commandPrefix")) + "^7/^2".join(help_msg) +
-                              "^7> <^2search^7>\n^3to narrow search results.\n")
+            if self.sound_list_count > 1 and not category and not search:
+                sounds.append("^3Narrow search results with:\n^2{0}listsounds ^7<^2".format(self.get_cvar("qlx_commandPrefix")) +
+                              "^7/^2".join(self.help_msg) + "^7> <^2search^7>\n")
+            elif not search:
+                sounds.append("^3Add a search string to further narrow results:\n^2{0}listsounds ^7<^2category^7>"
+                              " <^2search string^7>".format(self.get_cvar("qlx_commandPrefix")))
 
         sounds.append("^2{} ^4SOUNDS^7: ^3Type these words/phrases in normal chat to play a sound on the server.\n"
                       .format(count))
@@ -396,9 +443,8 @@ class myFun(minqlx.Plugin):
         if "console" == channel:
             for line in sounds:
                 minqlx.console_print(line.strip())
-            return
-
-        player.tell("".join(sounds))
+        else:
+            player.tell("".join(sounds))
         return
 
     def line_up(self, sound_line, add_sound):
@@ -1249,3 +1295,6 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[5]["lovin' it"] = [re.compile(r"lovin'? it\W?"), "sound/westcoastcrew/lovinit.ogg"]
             self.soundDictionaries[5]["yawn"] = [re.compile(r"^yawn\W?$"), "sound/westcoastcrew/yawn.ogg"]
             self.soundDictionaries[5]["yawnn"] = [re.compile(r"^yawnn\W?$"), "sound/westcoastcrew/yawnn.ogg"]
+
+        self.populate_sound_lists()
+        return
