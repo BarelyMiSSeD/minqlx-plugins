@@ -117,7 +117,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 1.8
+VERSION = 1.9
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -361,7 +361,18 @@ class myFun(minqlx.Plugin):
                 search = " ".join(msg[1:])
 
         if category:
-            if any(s.lower() == category for s in self.help_msg):
+            if category.lower() == "#help":
+                player.tell("^6{0}listsounds ^3shows all sounds\n^6{0}listsounds #sound-pack ^3 to see just one sound"
+                            " pack\n^6{0}listsounds #sound-pack search-term ^3to see sounds in that sound pack that"
+                            " have the search term\n^6{0}listsounds search-term ^3to search all sound packs for sounds"
+                            " with that search term\n^2EXAMPLES^7:\n^6{0}listsounds #Default ^3 will display all"
+                            " ^4Default Quake Live Sounds\n^6{0}lsitsounds #Default yeah ^3 will search ^4#Default"
+                            " ^3for sounds containing ^4yeah\n^6{0}listsounds yeah ^3 will search all the sound packs"
+                            " for sounds containing ^4yeah\n^3Search terms can be multiple words\n"
+                            "^3Valid sound-pack are ^2{1}"
+                            .format(self.get_cvar("qlx_commandPrefix"), "^7/^2".join(self.help_msg)))
+                return
+            elif any(s.lower() == category for s in self.help_msg):
                 category_num = -1
                 cat_num = 0
                 while cat_num < len(self.categories):
@@ -431,8 +442,8 @@ class myFun(minqlx.Plugin):
                 return
 
             if self.sound_list_count > 1 and not category and not search:
-                sounds.append("^3Narrow search results with:\n^2{0}listsounds ^7<^2".format(self.get_cvar("qlx_commandPrefix")) +
-                              "^7/^2".join(self.help_msg) + "^7> <^2search^7>\n")
+                sounds.append("^3Type ^4{}listsounds #help ^3 to get instructions on narrowing your search results.\n"
+                              .format(self.get_cvar("qlx_commandPrefix")))
             elif not search:
                 sounds.append("^3Add a search string to further narrow results:\n^2{0}listsounds ^7<^2category^7>"
                               " <^2search string^7>".format(self.get_cvar("qlx_commandPrefix")))
