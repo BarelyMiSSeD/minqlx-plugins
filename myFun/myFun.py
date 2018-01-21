@@ -27,12 +27,15 @@ set qlx_funSoundDelay "5"
 To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
 set qlx_funPlayerSoundRepeat "30"
 
-#Play Join Sound when players connect (set to "1" to play sound)
- (***Disable the MOTD sound to use this with set qlx_motdSound "0" ****)
-set qlx_funPlayJoinSound "0"
+#Play Join Sound when players connect (set to "path/file" like below example to play sound)
+ (*** Disable the MOTD sound to use this with set qlx_motdSound "0" ****)
+set qlx_funJoinSound "sound/feedback/welcome_02.wav"
 
 #Play Join Sound even if players have sounds disabled
 set qlx_funJoinSoundForEveryone "0"
+
+#Play Join Sound on every map change (set to "1" to play join sound every map change)
+set qlx_funJoinSoundEveryMap "0"
 
 #Join sound path/file
 set qlx_funJoinSound "sound/feedback/welcome_02.wav"
@@ -127,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 2.1
+VERSION = 2.2
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -146,12 +149,12 @@ class myFun(minqlx.Plugin):
         self.set_cvar_once("qlx_funDisableMutedPlayers", "1")
         #Enable/Disable sound pack files
         self.set_cvar_once("qlx_funEnableSoundPacks", "63")
-        #Play Join Sound when players connect
-        self.set_cvar_once("qlx_funPlayJoinSound", "0")
+        #Join sound path/file ("0" disables sound)
+        self.set_cvar_once("qlx_funJoinSound", "0")
         #Play Join Sound even if players have sounds disabled
         self.set_cvar_once("qlx_funJoinSoundForEveryone", "0")
-        #Join sound path/file
-        self.set_cvar_once("qlx_funJoinSound", "sound/feedback/welcome_02.wav")
+        #Play Join Sound on every map change
+        self.set_cvar_once("qlx_funJoinSoundEveryMap", "0")
 
 
         self.add_hook("chat", self.handle_chat)
@@ -199,6 +202,8 @@ class myFun(minqlx.Plugin):
             dicts += 1
         #populate the dictionaries and sound lists with the enabled soundpacks
         self.populate_dicts()
+        #Welcome sound played list
+        self.playedWelcome = []
 
     def enable_sound_packs(self, player=None, msg=None, channel=None):
         packs = self.get_cvar("qlx_funEnableSoundPacks", int)
@@ -230,13 +235,16 @@ class myFun(minqlx.Plugin):
 
     @minqlx.delay(2)
     def handle_player_loaded(self, player):
-        if self.get_cvar("qlx_motdSound", bool) and not self.get_cvar("qlx_funPlayJoinSound", bool):
+        if self.get_cvar("qlx_motdSound", bool) or self.get_cvar("qlx_funJoinSound") == "0":
             return
 
         welcome_sound = self.get_cvar("qlx_funJoinSound")
-        if welcome_sound and (self.get_cvar("qlx_funJoinSoundForEveryone", bool) or
-                              self.db.get_flag(player, "essentials:sounds_enabled", default=True)):
+        if welcome_sound and player.steam_id not in self.playedWelcome and\
+                (self.get_cvar("qlx_funJoinSoundForEveryone", bool) or
+                 self.db.get_flag(player, "essentials:sounds_enabled", default=True)):
             super().play_sound(welcome_sound, player)
+            if not self.get_cvar("qlx_funJoinSoundEveryMap", bool):
+                self.playedWelcome.append(player.steam_id)
 
     def player_disconnect(self, player, reason):
         try:
@@ -244,7 +252,11 @@ class myFun(minqlx.Plugin):
         except:
             pass
         try:
-            del self.muted_players[player.steam_id]
+            self.muted_players.remove(player.steam_id)
+        except:
+            pass
+        try:
+            self.playedWelcome.remove(player.steam_id)
         except:
             pass
 
