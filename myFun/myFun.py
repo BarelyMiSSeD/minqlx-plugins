@@ -117,7 +117,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 1.9
+VERSION = 2.0
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -983,6 +983,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["cover your butt"] = [re.compile(r"^cover your butt\W?$"), "sound/warp/butt.ogg"]
             self.soundDictionaries[4]["came out"] = [re.compile(r"^came out\W?$"), "sound/warp/cameout.ogg"]
             self.soundDictionaries[4]["anybody care"] = [re.compile(r"^anybody care\W?$"), "sound/warp/care.ogg"]
+            self.soundDictionaries[4]["castrate"] = [re.compile(r"^castrate\W?$"), "sound/warp/castrate.ogg"]
             self.soundDictionaries[4]["hello2"] = [re.compile(r"^hello2\W?$"), "sound/warp/coach_hello.ogg"]
             self.soundDictionaries[4]["cock push ups"] = [re.compile(r"^(?:(cock )?push ups)\W?$"), "sound/warp/cockpushups.ogg"]
             self.soundDictionaries[4]["code"] = [re.compile(r"^code\W?$"), "sound/warp/code.ogg"]
@@ -1018,6 +1019,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["feels"] = [re.compile(r"^feels\W?$"), "sound/warp/feels.ogg"]
             self.soundDictionaries[4]["something wrong"] = [re.compile(r"^something wrong\??\W?$"), "sound/warp/femaleshepherd_somethingwrong.ogg"]
             self.soundDictionaries[4]["suspense"] = [re.compile(r"^suspense\W?$"), "sound/warp/femaleshepherd_suspense.ogg"]
+            self.soundDictionaries[4]["fuku"] = [re.compile(r"^fuku\W?$"), "sound/warp/fuku.ogg"]
             self.soundDictionaries[4]["awaiting orders"] = [re.compile(r"^awaiting orders\W?$"), "sound/warp/garrus_awaitingorders.ogg"]
             self.soundDictionaries[4]["got your back"] = [re.compile(r"^got your back\W?$"), "sound/warp/garrus_gotyourback.ogg"]
             self.soundDictionaries[4]["keep moving"] = [re.compile(r"^keep moving\W?$"), "sound/warp/garrus_keepmoving.ogg"]
@@ -1038,10 +1040,12 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["i have a plan"] = [re.compile(r"^i have a plan\W?$"), "sound/warp/ihaveaplan.ogg"]
             self.soundDictionaries[4]["i like you"] = [re.compile(r"^i like you\W?$"), "sound/warp/ilikeyou.ogg"]
             self.soundDictionaries[4]["intensify"] = [re.compile(r"^intensify\W?"), "sound/warp/intensify.ogg"]
+            self.soundDictionaries[4]["in the ass"] = [re.compile(r"^in ?the ?ass\W?"), "sound/warp/intheass.ogg"]
             self.soundDictionaries[4]["i will eat"] = [re.compile(r"^i will eat( your)?\W?$"), "sound/warp/iwilleatyour.ogg"]
             self.soundDictionaries[4]["jail"] = [re.compile(r"^jail\W?$"), "sound/warp/jail.ogg"]
             self.soundDictionaries[4]["kevin bacon"] = [re.compile(r"^kevin bacon\W?$"), "sound/warp/kevinbacon.ogg"]
             self.soundDictionaries[4]["kill"] = [re.compile(r"^kill\W?$"), "sound/warp/kill.ogg"]
+            self.soundDictionaries[4]["kizuna"] = [re.compile(r"^kizuna\W?$"), "sound/warp/kizuna.ogg"]
             self.soundDictionaries[4]["need to kill"] = [re.compile(r"^need to kill\W?$"), "sound/warp/krogan_kill.ogg"]
             self.soundDictionaries[4]["ladybug"] = [re.compile(r"^ladybug\W?$"), "sound/warp/ladybug.ogg"]
             self.soundDictionaries[4]["legend"] = [re.compile(r"^(?:legend|ere(?:bux)?)\W?$"), "sound/warp/legend.ogg"]
@@ -1050,12 +1054,13 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["never happened"] = [re.compile(r"^never happened\W?$"), "sound/warp/liara_neverhappened.ogg"]
             self.soundDictionaries[4]["like this thing"] = [re.compile(r"^like this thing\W?$"), "sound/warp/like.ogg"]
             self.soundDictionaries[4]["wasn't listening"] = [re.compile(r"^wasn'?t listening\W?$"), "sound/warp/listening.ogg"]
+            self.soundDictionaries[4]["listen up"] = [re.compile(r"^listen( up)?\W?$"), "sound/warp/listenup.ogg"]
             self.soundDictionaries[4]["look fine"] = [re.compile(r"^look fine\W?$"), "sound/warp/lookfine.ogg"]
             self.soundDictionaries[4]["lovely"] = [re.compile(r"^lovely\W?$"), "sound/warp/lovely.ogg"]
             self.soundDictionaries[4]["your luck"] = [re.compile(r"^your luck\W?$"), "sound/warp/luck.ogg"]
             self.soundDictionaries[4]["maggot"] = [re.compile(r"^maggot\W?$"), "sound/warp/maggot.ogg"]
             self.soundDictionaries[4]["like an idiot"] = [re.compile(r"^like an idiot\W?$"), "sound/warp/makes_you_look_like_idiot.ogg"]
-            self.soundDictionaries[4]["killed with math"] = [re.compile(r"^killed with math\W?$"), "sound/warp/math.ogg"]
+            self.soundDictionaries[4]["killed with math"] = [re.compile(r"^(killed )?(with )?math\W?$"), "sound/warp/math.ogg"]
             self.soundDictionaries[4]["me me me"] = [re.compile(r"^me me(?: me)?\W?$"), "sound/warp/mememe.ogg"]
             self.soundDictionaries[4]["metaphor"] = [re.compile(r"^metaphor\W?$"), "sound/warp/metaphor.ogg"]
             self.soundDictionaries[4]["misdirection"] = [re.compile(r"^misdirection\W?$"), "sound/warp/misdirection.ogg"]
@@ -1089,6 +1094,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["human speech"] = [re.compile(r"^(human )?speech\W?$"), "sound/warp/speech.ogg"]
             self.soundDictionaries[4]["sprechen sie dick"] = [re.compile(r"^sprechen sie dick\W?$"), "sound/warp/sprechensiedick.ogg"]
             self.soundDictionaries[4]["start over"] = [re.compile(r"^start over\W?$"), "sound/warp/startover.ogg"]
+            self.soundDictionaries[4]["stfu cunt"] = [re.compile(r"^stfu cunt\W?$"), "sound/warp/stfu.ogg"]
             self.soundDictionaries[4]["stunned our ride"] = [re.compile(r"^stunned our ride\W?$"), "sound/warp/stunned.ogg"]
             self.soundDictionaries[4]["sure"] = [re.compile(r"^sure\W?$"), "sound/warp/sure.ogg"]
             self.soundDictionaries[4]["take a break"] = [re.compile(r"^take a break|wally\W?$"), "sound/warp/takeabreaknow.ogg"]
@@ -1113,10 +1119,12 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["walk"] = [re.compile(r"^walk\W?$"), "sound/warp/walk.ogg"]
             self.soundDictionaries[4]["what i want"] = [re.compile(r"^what i want\W?$"), "sound/warp/want.ogg"]
             self.soundDictionaries[4]["at war"] = [re.compile(r"^at war\W?$"), "sound/warp/war.ogg"]
+            self.soundDictionaries[4]["warp server intro"] = [re.compile(r"^(warp server intro)|(quality)\W?$"), "sound/warp/warpserverintro.ogg"]
             self.soundDictionaries[4]["wee lamb"] = [re.compile(r"^wee lamb\W?$"), "sound/warp/weelamb.ogg"]
             self.soundDictionaries[4]["well"] = [re.compile(r"^well\W?$"), "sound/warp/well.ogg"]
             self.soundDictionaries[4]["we're grownups"] = [re.compile(r"^we'?re grownups\W?$"), "sound/warp/weregrownups.ogg"]
             self.soundDictionaries[4]["what happened"] = [re.compile(r"^what happened\W?$"), "sound/warp/whathappened.ogg"]
+            self.soundDictionaries[4]["what is this"] = [re.compile(r"^what is this\W?$"), "sound/warp/whatisthis.ogg"]
             self.soundDictionaries[4]["what now"] = [re.compile(r"^what now\W?$"), "sound/warp/whatnow.ogg"]
             self.soundDictionaries[4]["what the"] = [re.compile(r"^what the\W?$"), "sound/warp/whatthe.ogg"]
             self.soundDictionaries[4]["with my fist"] = [re.compile(r"^(?:(with )?my fist|strat0?)\W?$"), "sound/warp/withmyfist.ogg"]
