@@ -27,6 +27,16 @@ set qlx_funSoundDelay "5"
 To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
 set qlx_funPlayerSoundRepeat "30"
 
+#Play Join Sound when players connect (set to "1" to play sound)
+ (***Disable the MOTD sound to use this with set qlx_motdSound "0" ****)
+set qlx_funPlayJoinSound "0"
+
+#Play Join Sound even if players have sounds disabled
+set qlx_funJoinSoundForEveryone "0"
+
+#Join sound path/file
+set qlx_funJoinSound "sound/feedback/welcome_02.wav"
+
 These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:
 (put the workshop item numbers in your workshop.txt file)
 #Prestige Worldwide Soundhonks
@@ -117,7 +127,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 2.0
+VERSION = 2.1
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -136,10 +146,18 @@ class myFun(minqlx.Plugin):
         self.set_cvar_once("qlx_funDisableMutedPlayers", "1")
         #Enable/Disable sound pack files
         self.set_cvar_once("qlx_funEnableSoundPacks", "63")
+        #Play Join Sound when players connect
+        self.set_cvar_once("qlx_funPlayJoinSound", "0")
+        #Play Join Sound even if players have sounds disabled
+        self.set_cvar_once("qlx_funJoinSoundForEveryone", "0")
+        #Join sound path/file
+        self.set_cvar_once("qlx_funJoinSound", "sound/feedback/welcome_02.wav")
+
 
         self.add_hook("chat", self.handle_chat)
         self.add_hook("server_command", self.handle_server_command)
         self.add_hook("player_disconnect", self.player_disconnect)
+        self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
         self.add_command("cookies", self.cmd_cookies)
         self.add_command(("getsounds", "listsounds", "listsound"), self.cmd_list_sounds)
         self.add_command("playsound", self.cmd_sound, 3)
@@ -210,6 +228,16 @@ class myFun(minqlx.Plugin):
             player.tell("Completed Sound Pack reload.")
             return minqlx.RET_STOP_ALL
 
+    @minqlx.delay(2)
+    def handle_player_loaded(self, player):
+        if self.get_cvar("qlx_motdSound", bool) and not self.get_cvar("qlx_funPlayJoinSound", bool):
+            return
+
+        welcome_sound = self.get_cvar("qlx_funJoinSound")
+        if welcome_sound and (self.get_cvar("qlx_funJoinSoundForEveryone", bool) or
+                              self.db.get_flag(player, "essentials:sounds_enabled", default=True)):
+            super().play_sound(welcome_sound, player)
+
     def player_disconnect(self, player, reason):
         try:
             del self.sound_limiting[player.steam_id]
@@ -243,7 +271,8 @@ class myFun(minqlx.Plugin):
                 pass
 
     def handle_chat(self, player, msg, channel):
-        if channel != "chat" or player.steam_id in self.muted_players:
+        if channel != "chat" or player.steam_id in self.muted_players or\
+                not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
             return
 
         self.find_sound_trigger(self.clean_text(msg))
@@ -361,7 +390,9 @@ class myFun(minqlx.Plugin):
                 search = " ".join(msg[1:])
 
         if category:
-            if category.lower() == "#help":
+            #category = "#" + category[1:].lower()
+            category = category.lower()
+            if category == "#help":
                 player.tell("^6{0}listsounds ^3shows all sounds\n^6{0}listsounds #sound-pack ^3 to see just one sound"
                             " pack\n^6{0}listsounds #sound-pack search-term ^3to see sounds in that sound pack that"
                             " have the search term\n^6{0}listsounds search-term ^3to search all sound packs for sounds"
@@ -376,7 +407,7 @@ class myFun(minqlx.Plugin):
                 category_num = -1
                 cat_num = 0
                 while cat_num < len(self.categories):
-                    if re.compile(self.categories[cat_num], flags=re.IGNORECASE).match(category):
+                    if re.compile(self.categories[cat_num].lower()).match(category):
                         category_num = cat_num
                     cat_num += 1
 
