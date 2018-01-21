@@ -1317,3 +1317,4 @@ class myFun(minqlx.Plugin):
 
         self.populate_sound_lists()
         return
+
