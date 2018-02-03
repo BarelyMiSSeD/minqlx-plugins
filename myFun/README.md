@@ -110,6 +110,32 @@ The user can include one or both of the optional search parameters to narrow the
 
 Usage: !listsounds \<#Category\> \<search string\>
 
+<b>!off</b> (alternatively !soundoff)
+
+Disables the just played sound for the player issuing the command.<br>
+The command can be issued with optional disable parameters:<br>
+!off \<sound trigger\><br>
+The user can include a sound trigger to disable the sound that is called with that sound trigger.
+Use !listsounds to find the sound trigger desired.<br>
+
+Usage: !off \<sound trigger\>
+
+<b>!on</b> (alternatively !soundon)
+
+Re-enables the just played sound for the player issuing the command.<br>
+The command can be issued with optional disable parameters:<br>
+!on \<sound trigger\><br>
+The user can include a sound trigger to re-enable the sound that is called with that sound trigger.
+Use !listsounds to find the sound trigger desired.<br>
+
+Usage: !on \<sound trigger\>
+
+<b>!offlist</b> (alternatively !soundofflist)
+
+Shows the sounds to the player that that player has disabled.<br>
+
+Usage: !offlist
+
 <b>!cookies</b>
 
 Randomly returns one of a few funny responses.
@@ -132,6 +158,31 @@ Usage: !playsound \<sound_path/file\>
 Will reset the enabled sounds to the qlx_funEnableSoundPacks cvar and reload the sounds dictionaries.
 
 Usage: !reloadsounds
+
+<b>!disablesound</b>
+
+Disables a specific sound on the server.<br>
+!disablesound \<sound trigger\><br>
+The command must include a sound trigger to disable the sound that is called with that sound trigger.
+Use !listsounds to find the sound trigger desired.<br>
+
+Usage: !disablesound \<sound trigger\><br>
+
+<b>!enablesound</b>
+
+Re-enables a specific sound on the server.<br>
+!enablesound \<sound trigger\><br>
+The command must include a sound trigger to re-enable the sound that is called with that sound trigger.
+Use !listsounds to find the sound trigger desired.<br>
+
+Usage: !enablesound \<sound trigger\><br>
+
+<b>!listdisabled</b> (alternatively !listdisabledsounds)
+
+Shows the sounds to the player that are disabled on the server.<br>
+
+Usage: !listdisabled
+
 
 <br><br>
 
