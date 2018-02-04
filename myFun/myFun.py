@@ -130,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 2.3
+VERSION = 2.4
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -298,7 +298,7 @@ class myFun(minqlx.Plugin):
 
         self.find_sound_trigger(self.clean_text(msg))
         if self.Found_Sound:
-            if not self.db.get_flag(player, "myFun:{}".format(self.soundFile), default=True):
+            if self.db.get("minqlx:players:{0}:flags:myFun:{1}".format(player.steam_id, self.soundFile)):
                 return
             delay_time = self.check_time(player)
             if delay_time:
