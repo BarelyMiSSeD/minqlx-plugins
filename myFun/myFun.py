@@ -130,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 2.6
+VERSION = 2.7
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -504,15 +504,18 @@ class myFun(minqlx.Plugin):
         if len(msg) < 2:
             return minqlx.RET_USAGE
         trigger = " ".join(msg[1:]).lower()
-        sound_dict, key, found_path = self.find_sound_info(trigger)
-        if self.db.get("minqlx:myFun:disabled:{}".format(key)):
-            del self.db["minqlx:myFun:disabled:{}".format(trigger)]
-            player.tell("^3The sound will be enabled on next list reload. Use ^1{0}reloadsounds ^3or the ^4{1} ^3sound"
-                        " list will be reloaded next time the server is restarted or myFun.py is reloaded."
-                        .format(self.get_cvar("qlx_commandPrefix"), trigger))
-        else:
-            player.tell("^3The sound ^4{} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
-                        .format(key, self.get_cvar("qlx_commandPrefix")))
+        try:
+            if self.db.exists("minqlx:myFun:disabled:{}".format(trigger)):
+                del self.db["minqlx:myFun:disabled:{}".format(trigger)]
+                player.tell("^3The sound will be enabled on next list reload. Use ^1{0}reloadsounds ^3or the ^4{1} ^3sound"
+                            " list will be reloaded next time the server is restarted or myFun.py is reloaded."
+                            .format(self.get_cvar("qlx_commandPrefix"), trigger))
+            else:
+                player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
+                        .format(trigger, self.get_cvar("qlx_commandPrefix")))
+        except Exception as e:
+            player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
+                        .format(trigger, self.get_cvar("qlx_commandPrefix")))
         return minqlx.RET_STOP_ALL
 
     #list the sounds disabled on the server for the requesting player
