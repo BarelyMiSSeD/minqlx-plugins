@@ -10,7 +10,7 @@ import minqlx
 import requests
 import re
 
-VERSION = "1.04.1"
+VERSION = "1.04.2"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "tdm")
 ELO_GAMETYPES = ("duel", "ft", "tdm", "ca", "ctf", "ffa")
 DEFAULT_ELO = 1200
@@ -34,7 +34,7 @@ class databaseElo(minqlx.Plugin):
         self.add_command("delo", self.dbelo_cmd)
         self.add_command("delos", self.dbelos_cmd)
         self.add_command("dteams", self.dbteams_cmd)
-        self.add_command("da", self.cmd_dbagree)
+        self.add_command("a", self.cmd_dbagree)
         self.add_command("do", self.cmd_dbdo, self.get_cvar("qlx_deloAdmin", int))
         self.add_command("setselo", self.cmd_set_dbelo, self.get_cvar("qlx_deloAdmin", int))
         self.add_command("getallelos", self.cmd_update_all_elos, self.get_cvar("qlx_deloAdmin", int))
@@ -521,7 +521,7 @@ class databaseElo(minqlx.Plugin):
                 if abs(new_difference) < abs(difference) and abs(difference) >= min_suggestion:
                     self.agreeing_players = (players[0], players[1])
                     self.players_agree = [False, False]
-                    self.msg("^6Switch ^1::^7{}^1::^7<-> ^4::^7{}^4:: ^6{}sa ^7to agree."
+                    self.msg("^6Switch ^1::^7{}^1::^7<-> ^4::^7{}^4:: ^6{}a ^7to agree."
                              .format(players[0], players[1], self.get_cvar("qlx_commandPrefix")))
                 else:
                     self.msg("^6Teams look good.")
