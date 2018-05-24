@@ -10,17 +10,17 @@ Read the top of the file to know how to set the required cvars for your server o
 
 <b>Commands</b>
 
-!bdmversion or !bdmv: displayes the script version in chat
-!bdm: displays the reqestors BDM in chat (can be used with ID number as well)
-!bdmhor !bdmhistory: displays the requstors BDM, Quit percentage and previous 5 BDM ratings.
-!bdms: displays the BDMs of the players on the server
-!bteams: analyzes the teams and recommends player swaps to better even the teams based on BDM
-!teams: (if enabled) will work just like !bteams
-!a: how players agree to the switch recommendation from !bteams
-!do: how a server admin forces the switch recommedation made by !bteams
-!bbalance: will balance the teams based on BDM
-!balance: (if enabled) will work just like !bbalance
-!setbdm: set a players BDM
+!bdmversion or !bdmv: displayes the script version in chat<br>
+!bdm: displays the reqestors BDM in chat (can be used with ID number as well)<br>
+!bdmhor !bdmhistory: displays the requstors BDM, Quit percentage and previous 5 BDM ratings.<br>
+!bdms: displays the BDMs of the players on the server<br>
+!bteams: analyzes the teams and recommends player swaps to better even the teams based on BDM<br>
+!teams: (if enabled) will work just like !bteams<br>
+!a: how players agree to the switch recommendation from !bteams<br>
+!do: how a server admin forces the switch recommedation made by !bteams<br>
+!bbalance: will balance the teams based on BDM<br>
+!balance: (if enabled) will work just like !bbalance<br>
+!setbdm: set a players BDM<br>
 
 # Protect.py
 
