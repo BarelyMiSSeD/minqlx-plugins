@@ -1,4 +1,27 @@
 # minqlx-plugins
+# serverBDM.py
+This script collects data on the players on the server and calculates a Basic Damage Metric (BDM) rating. It works for game types Clan Arena, Freeze Tag, Free For All, Capture The Flag, Instagib Capture the Flag, and Team Death Match.
+
+The script will do balancing and switch recommendations.
+*** WARNING: If you use this with other script that use !teams or !balance or that perform the same type of actions you will want to make a choice and disable those features in the script you don't want to primarily use (This includes the balance.py that comes with the minqlx bot)***
+This script, by default, will not do anything automatically that will interfere with the other script that use !teams or !balance. The actions can be turned on when there is sufficient data collection for the players on the server.
+
+Read the top of the file to know how to set the required cvars for your server once the default values are not desired.
+
+<b>Commands</b>
+
+!bdmversion or !bdmv: displayes the script version in chat
+!bdm: displays the reqestors BDM in chat (can be used with ID number as well)
+!bdmhor !bdmhistory: displays the requstors BDM, Quit percentage and previous 5 BDM ratings.
+!bdms: displays the BDMs of the players on the server
+!bteams: analyzes the teams and recommends player swaps to better even the teams based on BDM
+!teams: (if enabled) will work just like !bteams
+!a: how players agree to the switch recommendation from !bteams
+!do: how a server admin forces the switch recommedation made by !bteams
+!bbalance: will balance the teams based on BDM
+!balance: (if enabled) will work just like !bbalance
+!setbdm: set a players BDM
+
 # Protect.py
 
 I created this plugin to allow server admins to put people on a list that would not allow them to be kicked from a server.
