@@ -72,8 +72,9 @@ set qlx_bdmMinimumTeamSize "3"
 
 import minqlx
 import time
+from threading import Lock
 
-VERSION = "1.03.3"
+VERSION = "1.03.7"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -150,8 +151,10 @@ class serverBDM(minqlx.Plugin):
         self.add_command("do", self.cmd_bdmdo, self.get_cvar("qlx_bdmAdmin", int))
         self.add_command("setbdm", self.cmd_set_bdm, self.get_cvar("qlx_bdmAdmin", int))
         self.add_command("bbalance", self.cmd_bdmbalance, self.get_cvar("qlx_bdmAdmin", int))
+        self.add_command("gamestatus", self.cmd_game_status, self.get_cvar("qlx_bdmAdmin", int))
 
         # Script Variables, Lists, and Dictionaries
+        self.lock = Lock()
         self._bdm_gtype = self.game.type_short
         self._played_time = {}
         self._disconnected_players = {}
@@ -182,36 +185,18 @@ class serverBDM(minqlx.Plugin):
             if "what is bdm" in msg.lower():
                 self.msg("^6BDM ^7is ^6B^7asic ^6D^7amage ^6M^7etric. It is a server side skill calculation similar to "
                          "^5ELO^7. Since it is server side your ^6BDM ^7is based only on performance on each "
-                         "individual server.")
+                         "individual server.\nCommands: ^1{0}bdm^7, ^1{0}bdms^7, ^1{0}bdmh"
+                         .format(self.get_cvar("qlx_commandPrefix")))
             return
 
     def handle_stats(self, stats):
         if self.game.state != "in_progress":
             return
         if self._bdm_gtype == "ctf" and stats["TYPE"] == "PLAYER_MEDAL":
-            if stats["DATA"]["STEAM_ID"] not in self._record_events:
-                self._record_events[stats["DATA"]["STEAM_ID"]] = {}
-                self._record_events[stats["DATA"]["STEAM_ID"]]["CAPTURES"] = 0
-                self._record_events[stats["DATA"]["STEAM_ID"]]["DEFENSES"] = 0
-                self._record_events[stats["DATA"]["STEAM_ID"]]["ASSISTS"] = 0
-            if stats["DATA"]["MEDAL"] == "CAPTURE":
-                self._record_events[stats["DATA"]["STEAM_ID"]]["CAPTURES"] += 1
-            if stats["DATA"]["MEDAL"] == "DEFENSE":
-                self._record_events[stats["DATA"]["STEAM_ID"]]["DEFENSES"] += 1
-            if stats["DATA"]["MEDAL"] == "ASSIST":
-                self._record_events[stats["DATA"]["STEAM_ID"]]["ASSISTS"] += 1
+            self.record_ctf_events(stats["DATA"]["STEAM_ID"], stats["DATA"]["MEDAL"])
         elif self._bdm_gtype == "ft":
-            if stats["DATA"]["STEAM_ID"] not in self._record_events:
-                self._record_events[stats["DATA"]["STEAM_ID"]] = {}
-                self._record_events[stats["DATA"]["STEAM_ID"]]["KILLS"] = 0
-                self._record_events[stats["DATA"]["STEAM_ID"]]["TIMES_FROZEN"] = 0
-                self._record_events[stats["DATA"]["STEAM_ID"]]["THAWS"] = 0
-            if stats["TYPE"] == "PLAYER_KILL":
-                self._record_events[stats["DATA"]["KILLER"]["STEAM_ID"]]["KILLS"] += 1
-            if stats["TYPE"] == "PLAYER_DEATH" and not stats["DATA"]["SUICIDE"]:
-                self._record_events[stats["DATA"]["VICTIM"]["STEAM_ID"]]["TIMES_FROZEN"] += 1
-            if stats["TYPE"] == "PLAYER_MEDAL" and stats["DATA"]["MEDAL"] == "ASSIST":
-                self._record_events[stats["DATA"]["STEAM_ID"]]["THAWS"] += 1
+            minqlx.console_print(str(stats))
+            self.record_ft_events(stats)
 
     def handle_player_connect(self, player):
         sid = str(player.steam_id)
@@ -229,136 +214,10 @@ class serverBDM(minqlx.Plugin):
             self.db.set(BDM_KEY.format(sid, game_type, "games_left"), "0")
 
     def handle_player_disconnect(self, player, reason):
-        sid = str(player.steam_id)
-        if sid[0] == "9":
-            return
-        if self.game.state != "in_progress":
-            self._disconnected_players.pop(sid, None)
-            self._played_time.pop(sid, None)
-            self._team_switchers.pop(sid, None)
-            self._spectating_players.pop(sid, None)
-            return
-        stats = player.stats
-        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
-            if self.check_dict_value_greater(self._played_time, sid, "time", 0):
-                if sid in self._team_switchers:
-                    self._disconnected_players[sid] = {}
-                    self._disconnected_players[sid]["score"] = \
-                        stats.score + self._team_switchers[sid]["score"]
-                    self._disconnected_players[sid]["kills"] = \
-                        stats.kills + self._team_switchers[sid]["kills"]
-                    self._disconnected_players[sid]["deaths"] = \
-                        stats.deaths + self._team_switchers[sid]["deaths"]
-                    self._disconnected_players[sid]["damage_dealt"] = \
-                        stats.damage_dealt + self._team_switchers[sid]["damage_dealt"]
-                    self._disconnected_players[sid]["damage_taken"] = \
-                        stats.damage_taken + self._team_switchers[sid]["damage_taken"]
-                    self._disconnected_players[sid]["time"] = \
-                        stats.time + self._team_switchers[sid]["time"]
-                    self._team_switchers.pop(sid, None)
-                else:
-                    self._disconnected_players[sid] = {}
-                    self._disconnected_players[sid]["score"] = stats.score
-                    self._disconnected_players[sid]["kills"] = stats.kills
-                    self._disconnected_players[sid]["deaths"] = stats.deaths
-                    self._disconnected_players[sid]["damage_dealt"] = stats.damage_dealt
-                    self._disconnected_players[sid]["damage_taken"] = stats.damage_taken
-                    self._disconnected_players[sid]["time"] = stats.time
-            else:
-                self._disconnected_players[sid] = {}
-                self._disconnected_players[sid]["score"] = stats.score
-                self._disconnected_players[sid]["kills"] = stats.kills
-                self._disconnected_players[sid]["deaths"] = stats.deaths
-                self._disconnected_players[sid]["damage_dealt"] = stats.damage_dealt
-                self._disconnected_players[sid]["damage_taken"] = stats.damage_taken
-                self._disconnected_players[sid]["time"] = stats.time
-            self._played_time.pop(sid, None)
-            self._team_switchers.pop(sid, None)
-            self._spectating_players.pop(sid, None)
-        else:
-            self._disconnected_players[sid] = {}
-            self._disconnected_players[sid]["score"] = stats.score
-            self._disconnected_players[sid]["kills"] = stats.kills
-            self._disconnected_players[sid]["deaths"] = stats.deaths
-            self._disconnected_players[sid]["damage_dealt"] = stats.damage_dealt
-            self._disconnected_players[sid]["damage_taken"] = stats.damage_taken
-            self._disconnected_players[sid]["time"] = stats.time
-            self._played_time.pop(sid, None)
-            self._team_switchers.pop(sid, None)
-            self._spectating_players.pop(sid, None)
+        self.player_disconnect_record([player, player.stats])
 
     def handle_team_switch(self, player, old_team, new_team):
-        sid = str(player.steam_id)
-        if sid[0] == "9":
-            return
-        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
-            if self.game.state != "in_progress":
-                return
-            if old_team != "spectator" and new_team == "spectator":
-                if self.check_dict_value_greater(self._played_time, sid, "time", 0):
-                    self._spectating_players[sid] = {}
-                    self._spectating_players[sid]["score"] =\
-                        self._played_time[sid]["score"]
-                    self._spectating_players[sid]["kills"] =\
-                        self._played_time[sid]["kills"]
-                    self._spectating_players[sid]["deaths"] =\
-                        self._played_time[sid]["deaths"]
-                    self._spectating_players[sid]["damage_dealt"] =\
-                        self._played_time[sid]["damage_dealt"]
-                    self._spectating_players[sid]["damage_taken"] =\
-                        self._played_time[sid]["damage_taken"]
-                    self._spectating_players[sid]["time"] =\
-                        self._played_time[sid]["time"]
-                self._played_time.pop(sid, None)
-            elif old_team == "spectator" and new_team != "spectator":
-                if self.check_dict_value_greater(self._spectating_players, sid, "time", 0):
-                    self._team_switchers[sid] = {}
-                    self._team_switchers[sid]["score"] =\
-                        self._spectating_players[sid]["score"]
-                    self._team_switchers[sid]["kills"] =\
-                        self._spectating_players[sid]["kills"]
-                    self._team_switchers[sid]["deaths"] =\
-                        self._spectating_players[sid]["deaths"]
-                    self._team_switchers[sid]["damage_dealt"] =\
-                        self._spectating_players[sid]["damage_dealt"]
-                    self._team_switchers[sid]["damage_taken"] =\
-                        self._spectating_players[sid]["damage_taken"]
-                    self._team_switchers[sid]["time"] =\
-                        self._spectating_players[sid]["time"]
-                    self._spectating_players.pop(sid, None)
-                    self._played_time[sid]["team"] = new_team
-                else:
-                    self._played_time[sid] = {}
-                    self._played_time[sid]["team"] = new_team
-                    self._played_time[sid]["score"] = 0
-                    self._played_time[sid]["kills"] = 0
-                    self._played_time[sid]["deaths"] = 0
-                    self._played_time[sid]["damage_dealt"] = 0
-                    self._played_time[sid]["damage_taken"] = 0
-                    self._played_time[sid]["time"] = 0
-            else:
-                if sid in self._team_switchers:
-                    self._team_switchers[sid]["score"] +=\
-                        self._team_switchers[sid]["score"] + self._played_time[sid]["score"]
-                    self._team_switchers[sid]["kills"] +=\
-                        self._team_switchers[sid]["kills"] + self._played_time[sid]["kills"]
-                    self._team_switchers[sid]["deaths"] +=\
-                        self._team_switchers[sid]["deaths"] + self._played_time[sid]["deaths"]
-                    self._team_switchers[sid]["damage_dealt"] +=\
-                        self._team_switchers[sid]["damage_dealt"] + self._played_time[sid]["damage_dealt"]
-                    self._team_switchers[sid]["damage_taken"] +=\
-                        self._team_switchers[sid]["damage_taken"] + self._played_time[sid]["damage_taken"]
-                    self._team_switchers[sid]["time"] +=\
-                        self._team_switchers[sid]["time"] + self._played_time[sid]["time"]
-                else:
-                    self._team_switchers[sid] = {}
-                    self._team_switchers[sid]["score"] = self._played_time[sid]["score"]
-                    self._team_switchers[sid]["kills"] = self._played_time[sid]["kills"]
-                    self._team_switchers[sid]["deaths"] = self._played_time[sid]["deaths"]
-                    self._team_switchers[sid]["damage_dealt"] = self._played_time[sid]["damage_dealt"]
-                    self._team_switchers[sid]["damage_taken"] = self._played_time[sid]["damage_taken"]
-                    self._team_switchers[sid]["time"] = self._played_time[sid]["time"]
-                self._played_time[sid]["team"] = new_team
+        self.team_switch_record(player, new_team, old_team)
 
     def handle_round_countdown(self, number):
         self.in_countdown = True
@@ -380,6 +239,8 @@ class serverBDM(minqlx.Plugin):
         self.rounds_played = int(data["ROUND"])
         if self._bdm_gtype in ROUND_BASED_GAMETYPES:
             self.round_stats_record()
+        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+            minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}".format(self.game.red_score, self.game.blue_score))
 
     def handle_game_start(self, data):
         self.game_start = int(round(time.time() * 1000))
@@ -399,94 +260,7 @@ class serverBDM(minqlx.Plugin):
         if data["ABORTED"]:
             self.reset_data()
             return
-
-        teams = self.teams()
-        game_time = int(round(time.time() * 1000)) - self.game_start
-        match_time = 0
-        self.game_active = False
-        self._save_previous_bdm = {}
-        self._player_stats = {}
-        self._match_stats = {}
-        self._player_stats["DmgASum"] = 0
-        self._player_stats["bdmSum"] = 0
-        match_perc = self.get_cvar("qlx_bdmMinTimePerc", int) / 100.0
-
-        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
-            self.player_count = 0
-            if self._bdm_gtype in ROUND_BASED_GAMETYPES:
-                if self.rounds_played < self.get_cvar("qlx_bdmMinRounds", int):
-                    minqlx.console_print("--- Only {} rounds played but need {} rounds, BDM is not being calculated ---"
-                                         .format(self.rounds_played, self.get_cvar("qlx_bdmMinRounds", int)))
-                    return
-
-            for player in teams["red"] + teams["blue"]:
-                sid = str(player.steam_id)
-                if sid[0] == "9":
-                    continue
-                stats = player.stats
-                self._match_stats[sid] = {}
-                self._match_stats[sid]["score"] = stats.score
-                self._match_stats[sid]["kills"] = stats.kills
-                self._match_stats[sid]["deaths"] = stats.deaths
-                self._match_stats[sid]["damage_dealt"] = stats.damage_dealt
-                self._match_stats[sid]["damage_taken"] = stats.damage_taken
-                self._match_stats[sid]["time"] = stats.time
-                if self._match_stats[sid]["time"] > match_time:
-                    match_time = self._match_stats[sid]["time"]
-            if game_time > match_time:
-                match_time = game_time
-            needed_time = match_time * match_perc
-
-            finished_calc = False
-            if self._bdm_gtype == "ca":
-                finished_calc = self.calc_ca_dmga(needed_time, match_time)
-            elif self._bdm_gtype == "ft":
-                finished_calc = self.calc_ft_dmga(needed_time, match_time)
-            elif self._bdm_gtype == "ctf":
-                finished_calc = self.calc_ctf_dmga(needed_time, match_time)
-            elif self._bdm_gtype == "tdm":
-                finished_calc = self.calc_tdm_dmga(needed_time, match_time)
-
-            if not finished_calc:
-                if self.get_cvar("g_factory").lower() == "ictf":
-                    game_type = "ictf"
-                else:
-                    game_type = self._bdm_gtype
-                minqlx.console_print("^1Error ^7calculating ^2{} ^7DmgA.".format(game_type))
-                return
-
-            if self.player_count < (self.get_cvar("qlx_bdmMinimumTeamSize", int) * 2):
-                minqlx.console_print("--- There are only {} players on each team, {} are needed. "
-                                     "BDM stats not being calculated ---"
-                                     .format(int(round(self.player_count / 2)),
-                                             self.get_cvar("qlx_bdmMinimumTeamSize", int)))
-                return
-
-        else:
-            if self._bdm_gtype == "ffa":
-                for player in teams["free"]:
-                    sid = str(player.steam_id)
-                    if sid[0] == "9":
-                        continue
-                    stats = player.stats
-                    self._match_stats[sid] = {}
-                    self._match_stats[sid]["score"] = stats.score
-                    self._match_stats[sid]["kills"] = stats.kills
-                    self._match_stats[sid]["deaths"] = stats.deaths
-                    self._match_stats[sid]["damage_dealt"] = stats.damage_dealt
-                    self._match_stats[sid]["damage_taken"] = stats.damage_taken
-                    self._match_stats[sid]["time"] = stats.time
-                    if self._match_stats[sid]["time"] > match_time:
-                        match_time = self._match_stats[sid]["time"]
-                if game_time > match_time:
-                    match_time = game_time
-                needed_time = match_time * match_perc
-                finished_calc = self.calc_ffa_dmga(needed_time, match_time)
-                if not finished_calc:
-                    minqlx.console_print("^1Error ^7calculating ^2{} ^7DmgA.".format(self._bdm_gtype))
-                    return
-        # Calculate New BDMs based on DmgA calculations
-        self.calc_new_bdm()
+        self.process_game()
 
     def handle_vote_called(self, caller, vote, args):
         if vote.lower() == "bbalance":
@@ -802,7 +576,8 @@ class serverBDM(minqlx.Plugin):
                     self._agreeing_players = (players[0], players[1])
                     self._players_agree = [False, False]
                     self.msg("^6Switch ^1::^7{}^1::^7<-> ^4::^7{}^4:: ^6{}a ^7to agree."
-                             .format(self.player(int(players[0])), self.player(int(players[1])), self.get_cvar("qlx_commandPrefix")))
+                             .format(self.player(int(players[0])), self.player(int(players[1])),
+                                     self.get_cvar("qlx_commandPrefix")))
                 else:
                     self.msg("^6Teams look good.")
                     self._agreeing_players = None
@@ -872,7 +647,7 @@ class serverBDM(minqlx.Plugin):
             if self.get_cvar("qlx_bdmBalanceUnevenTeams", bool):
                 lowest = self.get_cvar("qlx_bdmMaxRating", int)
                 for player in teams["red"] + teams["blue"]:
-                    bdm = int(self.db.get(BDM_KEY.format(player, game_type, "rating")))
+                    bdm = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "rating")))
                     if bdm < lowest:
                         lowest = bdm
                         exclude = player
@@ -930,9 +705,203 @@ class serverBDM(minqlx.Plugin):
                 exclude.put("blue")
             self.msg("^6{} ^4was not included in the balance.".format(exclude))
 
+    def cmd_game_status(self, player=None, msg=None, channel=None):
+        minqlx.console_print("^6Game Status")
+        teams = self.teams()
+        if len(teams["red"] + teams["blue"] + teams["free"] + teams["spectator"]) == 0:
+            minqlx.console_print("^3No players connected")
+        if self.game.state not in ["in_progress", "countdown"]:
+            minqlx.console_print("^3Match is not in progress")
+        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+            minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}".format(self.game.red_score, self.game.blue_score))
+            minqlx.console_print("^1Red Team^7:")
+            for player in teams["red"]:
+                minqlx.console_print("    {}".format(player))
+            minqlx.console_print("^4Blue Team^7:")
+            for player in teams["blue"]:
+                minqlx.console_print("    {}".format(player))
+        else:
+            for player in teams["free"]:
+                minqlx.console_print("{}^7: {}".format(player, player.score))
+        for player in teams["spectator"]:
+            minqlx.console_print("^6Spectator^7: {}".format(player))
+
     # ==============================================
     #               Script Commands
     # ==============================================
+    @minqlx.thread
+    def record_ctf_events(self, sid, medal):
+        with self.lock:
+            if sid not in self._record_events:
+                self._record_events[sid] = {}
+                self._record_events[sid]["CAPTURES"] = 0
+                self._record_events[sid]["DEFENSES"] = 0
+                self._record_events[sid]["ASSISTS"] = 0
+            if medal == "CAPTURE":
+                self._record_events[sid]["CAPTURES"] += 1
+            elif medal == "DEFENSE":
+                self._record_events[sid]["DEFENSES"] += 1
+            elif medal == "ASSIST":
+                self._record_events[sid]["ASSISTS"] += 1
+
+    @minqlx.thread
+    def record_ft_events(self, stats):
+        with self.lock:
+            sid = None
+            if stats["TYPE"] == "PLAYER_KILL":
+                sid = stats["DATA"]["KILLER"]["STEAM_ID"]
+            elif stats["TYPE"] == "PLAYER_DEATH":
+                sid = stats["DATA"]["VICTIM"]["STEAM_ID"]
+            elif stats["TYPE"] == "PLAYER_MEDAL":
+                sid = stats["DATA"]["STEAM_ID"]
+            if sid:
+                if sid not in self._record_events:
+                    self._record_events[sid] = {}
+                    self._record_events[sid]["KILLS"] = 0
+                    self._record_events[sid]["TIMES_FROZEN"] = 0
+                    self._record_events[sid]["THAWS"] = 0
+                if stats["TYPE"] == "PLAYER_KILL":
+                    self._record_events[sid]["KILLS"] += 1
+                if stats["TYPE"] == "PLAYER_DEATH" and not stats["DATA"]["SUICIDE"]:
+                    self._record_events[sid]["TIMES_FROZEN"] += 1
+                if stats["TYPE"] == "PLAYER_MEDAL" and stats["DATA"]["MEDAL"] == "ASSIST":
+                    self._record_events[sid]["THAWS"] += 1
+
+    @minqlx.thread
+    def player_disconnect_record(self, player):
+        sid = str(player[0].steam_id)
+        if sid[0] == "9":
+            return
+        with self.lock:
+            if self.game.state != "in_progress":
+                self._disconnected_players.pop(sid, None)
+                self._played_time.pop(sid, None)
+                self._team_switchers.pop(sid, None)
+                self._spectating_players.pop(sid, None)
+                return
+            if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+                if self.check_dict_value_greater(self._played_time, sid, "time", 0):
+                    if sid in self._team_switchers:
+                        self._disconnected_players[sid] = {}
+                        self._disconnected_players[sid]["score"] = \
+                            player[1].score + self._team_switchers[sid]["score"]
+                        self._disconnected_players[sid]["kills"] = \
+                            player[1].kills + self._team_switchers[sid]["kills"]
+                        self._disconnected_players[sid]["deaths"] = \
+                            player[1].deaths + self._team_switchers[sid]["deaths"]
+                        self._disconnected_players[sid]["damage_dealt"] = \
+                            player[1].damage_dealt + self._team_switchers[sid]["damage_dealt"]
+                        self._disconnected_players[sid]["damage_taken"] = \
+                            player[1].damage_taken + self._team_switchers[sid]["damage_taken"]
+                        self._disconnected_players[sid]["time"] = \
+                            player[1].time + self._team_switchers[sid]["time"]
+                        self._team_switchers.pop(sid, None)
+                    else:
+                        self._disconnected_players[sid] = {}
+                        self._disconnected_players[sid]["score"] = player[1].score
+                        self._disconnected_players[sid]["kills"] = player[1].kills
+                        self._disconnected_players[sid]["deaths"] = player[1].deaths
+                        self._disconnected_players[sid]["damage_dealt"] = player[1].damage_dealt
+                        self._disconnected_players[sid]["damage_taken"] = player[1].damage_taken
+                        self._disconnected_players[sid]["time"] = player[1].time
+                else:
+                    self._disconnected_players[sid] = {}
+                    self._disconnected_players[sid]["score"] = player[1].score
+                    self._disconnected_players[sid]["kills"] = player[1].kills
+                    self._disconnected_players[sid]["deaths"] = player[1].deaths
+                    self._disconnected_players[sid]["damage_dealt"] = player[1].damage_dealt
+                    self._disconnected_players[sid]["damage_taken"] = player[1].damage_taken
+                    self._disconnected_players[sid]["time"] = player[1].time
+                self._played_time.pop(sid, None)
+                self._team_switchers.pop(sid, None)
+                self._spectating_players.pop(sid, None)
+            else:
+                self._disconnected_players[sid] = {}
+                self._disconnected_players[sid]["score"] = player[1].score
+                self._disconnected_players[sid]["kills"] = player[1].kills
+                self._disconnected_players[sid]["deaths"] = player[1].deaths
+                self._disconnected_players[sid]["damage_dealt"] = player[1].damage_dealt
+                self._disconnected_players[sid]["damage_taken"] = player[1].damage_taken
+                self._disconnected_players[sid]["time"] = player[1].time
+                self._played_time.pop(sid, None)
+                self._team_switchers.pop(sid, None)
+                self._spectating_players.pop(sid, None)
+
+    @minqlx.next_frame
+    def team_switch_record(self, player, new_team, old_team):
+        sid = str(player.steam_id)
+        if sid[0] == "9":
+            return
+        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+            if self.game.state != "in_progress":
+                return
+            with self.lock:
+                if old_team != "spectator" and new_team == "spectator":
+                    if self.check_dict_value_greater(self._played_time, sid, "time", 0):
+                        self._spectating_players[sid] = {}
+                        self._spectating_players[sid]["score"] =\
+                            self._played_time[sid]["score"]
+                        self._spectating_players[sid]["kills"] =\
+                            self._played_time[sid]["kills"]
+                        self._spectating_players[sid]["deaths"] =\
+                            self._played_time[sid]["deaths"]
+                        self._spectating_players[sid]["damage_dealt"] =\
+                            self._played_time[sid]["damage_dealt"]
+                        self._spectating_players[sid]["damage_taken"] =\
+                            self._played_time[sid]["damage_taken"]
+                        self._spectating_players[sid]["time"] =\
+                            self._played_time[sid]["time"]
+                    self._played_time.pop(sid, None)
+                elif old_team == "spectator" and new_team != "spectator":
+                    if self.check_dict_value_greater(self._spectating_players, sid, "time", 0):
+                        self._team_switchers[sid] = {}
+                        self._team_switchers[sid]["score"] =\
+                            self._spectating_players[sid]["score"]
+                        self._team_switchers[sid]["kills"] =\
+                            self._spectating_players[sid]["kills"]
+                        self._team_switchers[sid]["deaths"] =\
+                            self._spectating_players[sid]["deaths"]
+                        self._team_switchers[sid]["damage_dealt"] =\
+                            self._spectating_players[sid]["damage_dealt"]
+                        self._team_switchers[sid]["damage_taken"] =\
+                            self._spectating_players[sid]["damage_taken"]
+                        self._team_switchers[sid]["time"] =\
+                            self._spectating_players[sid]["time"]
+                        self._spectating_players.pop(sid, None)
+                        self._played_time[sid]["team"] = new_team
+                    else:
+                        self._played_time[sid] = {}
+                        self._played_time[sid]["team"] = new_team
+                        self._played_time[sid]["score"] = 0
+                        self._played_time[sid]["kills"] = 0
+                        self._played_time[sid]["deaths"] = 0
+                        self._played_time[sid]["damage_dealt"] = 0
+                        self._played_time[sid]["damage_taken"] = 0
+                        self._played_time[sid]["time"] = 0
+                else:
+                    if sid in self._team_switchers:
+                        self._team_switchers[sid]["score"] +=\
+                            self._team_switchers[sid]["score"] + self._played_time[sid]["score"]
+                        self._team_switchers[sid]["kills"] +=\
+                            self._team_switchers[sid]["kills"] + self._played_time[sid]["kills"]
+                        self._team_switchers[sid]["deaths"] +=\
+                            self._team_switchers[sid]["deaths"] + self._played_time[sid]["deaths"]
+                        self._team_switchers[sid]["damage_dealt"] +=\
+                            self._team_switchers[sid]["damage_dealt"] + self._played_time[sid]["damage_dealt"]
+                        self._team_switchers[sid]["damage_taken"] +=\
+                            self._team_switchers[sid]["damage_taken"] + self._played_time[sid]["damage_taken"]
+                        self._team_switchers[sid]["time"] +=\
+                            self._team_switchers[sid]["time"] + self._played_time[sid]["time"]
+                    else:
+                        self._team_switchers[sid] = {}
+                        self._team_switchers[sid]["score"] = self._played_time[sid]["score"]
+                        self._team_switchers[sid]["kills"] = self._played_time[sid]["kills"]
+                        self._team_switchers[sid]["deaths"] = self._played_time[sid]["deaths"]
+                        self._team_switchers[sid]["damage_dealt"] = self._played_time[sid]["damage_dealt"]
+                        self._team_switchers[sid]["damage_taken"] = self._played_time[sid]["damage_taken"]
+                        self._team_switchers[sid]["time"] = self._played_time[sid]["time"]
+                    self._played_time[sid]["team"] = new_team
+
     def reset_data(self):
         self._played_time.clear()
         self._disconnected_players.clear()
@@ -1022,77 +991,79 @@ class serverBDM(minqlx.Plugin):
     @minqlx.thread
     def round_stats_record(self):
         teams = self.teams()
-        for player in teams["red"]:
-            sid = str(player.steam_id)
-            if sid[0] == "9":
-                continue
-            stats = player.stats
-            self._played_time[sid]["score"] = stats.score
-            self._played_time[sid]["kills"] = stats.kills
-            self._played_time[sid]["deaths"] = stats.deaths
-            self._played_time[sid]["damage_dealt"] = stats.damage_dealt
-            self._played_time[sid]["damage_taken"] = stats.damage_taken
-            self._played_time[sid]["time"] = stats.time
-        for player in teams["blue"]:
-            sid = str(player.steam_id)
-            if sid[0] == "9":
-                continue
-            stats = player.stats
-            self._played_time[sid]["score"] = stats.score
-            self._played_time[sid]["kills"] = stats.kills
-            self._played_time[sid]["deaths"] = stats.deaths
-            self._played_time[sid]["damage_dealt"] = stats.damage_dealt
-            self._played_time[sid]["damage_taken"] = stats.damage_taken
-            self._played_time[sid]["time"] = stats.time
+        with self.lock:
+            for player in teams["red"]:
+                sid = str(player.steam_id)
+                if sid[0] == "9":
+                    continue
+                stats = player.stats
+                self._played_time[sid]["score"] = stats.score
+                self._played_time[sid]["kills"] = stats.kills
+                self._played_time[sid]["deaths"] = stats.deaths
+                self._played_time[sid]["damage_dealt"] = stats.damage_dealt
+                self._played_time[sid]["damage_taken"] = stats.damage_taken
+                self._played_time[sid]["time"] = stats.time
+            for player in teams["blue"]:
+                sid = str(player.steam_id)
+                if sid[0] == "9":
+                    continue
+                stats = player.stats
+                self._played_time[sid]["score"] = stats.score
+                self._played_time[sid]["kills"] = stats.kills
+                self._played_time[sid]["deaths"] = stats.deaths
+                self._played_time[sid]["damage_dealt"] = stats.damage_dealt
+                self._played_time[sid]["damage_taken"] = stats.damage_taken
+                self._played_time[sid]["time"] = stats.time
 
     @minqlx.delay(2)
     def players_in_teams(self):
-        self._played_time.clear()
-        self._disconnected_players.clear()
-        self._team_switchers.clear()
-        self._spectating_players.clear()
-        self._record_events.clear()
-        if self._bdm_gtype in BDM_GAMETYPES:
-            teams = self.teams()
-            if self._bdm_gtype in TEAM_BASED_GAMETYPES:
-                for player in teams["red"]:
-                    sid = str(player.steam_id)
-                    if sid[0] == "9":
-                        continue
-                    self._played_time[sid] = {}
-                    self._played_time[sid]["team"] = "red"
-                    self._played_time[sid]["score"] = 0
-                    self._played_time[sid]["kills"] = 0
-                    self._played_time[sid]["deaths"] = 0
-                    self._played_time[sid]["damage_dealt"] = 0
-                    self._played_time[sid]["damage_taken"] = 0
-                    self._played_time[sid]["time"] = 0
-                for player in teams["blue"]:
-                    sid = str(player.steam_id)
-                    if sid[0] == "9":
-                        continue
-                    self._played_time[sid] = {}
-                    self._played_time[sid]["team"] = "blue"
-                    self._played_time[sid]["score"] = 0
-                    self._played_time[sid]["kills"] = 0
-                    self._played_time[sid]["deaths"] = 0
-                    self._played_time[sid]["damage_dealt"] = 0
-                    self._played_time[sid]["damage_taken"] = 0
-                    self._played_time[sid]["time"] = 0
+        with self.lock:
+            self._played_time.clear()
+            self._disconnected_players.clear()
+            self._team_switchers.clear()
+            self._spectating_players.clear()
+            self._record_events.clear()
+            if self._bdm_gtype in BDM_GAMETYPES:
+                teams = self.teams()
+                if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+                    for player in teams["red"]:
+                        sid = str(player.steam_id)
+                        if sid[0] == "9":
+                            continue
+                        self._played_time[sid] = {}
+                        self._played_time[sid]["team"] = "red"
+                        self._played_time[sid]["score"] = 0
+                        self._played_time[sid]["kills"] = 0
+                        self._played_time[sid]["deaths"] = 0
+                        self._played_time[sid]["damage_dealt"] = 0
+                        self._played_time[sid]["damage_taken"] = 0
+                        self._played_time[sid]["time"] = 0
+                    for player in teams["blue"]:
+                        sid = str(player.steam_id)
+                        if sid[0] == "9":
+                            continue
+                        self._played_time[sid] = {}
+                        self._played_time[sid]["team"] = "blue"
+                        self._played_time[sid]["score"] = 0
+                        self._played_time[sid]["kills"] = 0
+                        self._played_time[sid]["deaths"] = 0
+                        self._played_time[sid]["damage_dealt"] = 0
+                        self._played_time[sid]["damage_taken"] = 0
+                        self._played_time[sid]["time"] = 0
 
-            else:
-                for player in teams["free"]:
-                    sid = str(player.steam_id)
-                    if sid[0] == "9":
-                        continue
-                    self._played_time[sid] = {}
-                    self._played_time[sid]["team"] = "free"
-                    self._played_time[sid]["score"] = 0
-                    self._played_time[sid]["kills"] = 0
-                    self._played_time[sid]["deaths"] = 0
-                    self._played_time[sid]["damage_dealt"] = 0
-                    self._played_time[sid]["damage_taken"] = 0
-                    self._played_time[sid]["time"] = 0
+                else:
+                    for player in teams["free"]:
+                        sid = str(player.steam_id)
+                        if sid[0] == "9":
+                            continue
+                        self._played_time[sid] = {}
+                        self._played_time[sid]["team"] = "free"
+                        self._played_time[sid]["score"] = 0
+                        self._played_time[sid]["kills"] = 0
+                        self._played_time[sid]["deaths"] = 0
+                        self._played_time[sid]["damage_dealt"] = 0
+                        self._played_time[sid]["damage_taken"] = 0
+                        self._played_time[sid]["time"] = 0
 
     def create_db(self):
         players = self.players()
@@ -1117,6 +1088,98 @@ class serverBDM(minqlx.Plugin):
             return dic[sid][key] > check_against
         except KeyError:
             return False
+
+    @minqlx.thread
+    def process_game(self):
+        with self.lock:
+            teams = self.teams()
+            game_time = int(round(time.time() * 1000)) - self.game_start
+            match_time = 0
+            self.game_active = False
+            self._save_previous_bdm = {}
+            self._player_stats = {}
+            self._match_stats = {}
+            self._player_stats["DmgASum"] = 0
+            self._player_stats["bdmSum"] = 0
+            match_perc = self.get_cvar("qlx_bdmMinTimePerc", int) / 100.0
+
+            if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+                self.player_count = 0
+                if self._bdm_gtype in ROUND_BASED_GAMETYPES:
+                    if self.rounds_played < self.get_cvar("qlx_bdmMinRounds", int):
+                        minqlx.console_print("--- Only {} rounds played but need {} rounds,"
+                                             " BDM is not being calculated ---"
+                                             .format(self.rounds_played, self.get_cvar("qlx_bdmMinRounds", int)))
+                        return
+
+                for player in teams["red"] + teams["blue"]:
+                    sid = str(player.steam_id)
+                    if sid[0] == "9":
+                        continue
+                    stats = player.stats
+                    self._match_stats[sid] = {}
+                    self._match_stats[sid]["score"] = stats.score
+                    self._match_stats[sid]["kills"] = stats.kills
+                    self._match_stats[sid]["deaths"] = stats.deaths
+                    self._match_stats[sid]["damage_dealt"] = stats.damage_dealt
+                    self._match_stats[sid]["damage_taken"] = stats.damage_taken
+                    self._match_stats[sid]["time"] = stats.time
+                    if self._match_stats[sid]["time"] > match_time:
+                        match_time = self._match_stats[sid]["time"]
+                if game_time > match_time:
+                    match_time = game_time
+                needed_time = match_time * match_perc
+
+                finished_calc = False
+                if self._bdm_gtype == "ca":
+                    finished_calc = self.calc_ca_dmga(needed_time, match_time)
+                elif self._bdm_gtype == "ft":
+                    finished_calc = self.calc_ft_dmga(needed_time, match_time)
+                elif self._bdm_gtype == "ctf":
+                    finished_calc = self.calc_ctf_dmga(needed_time, match_time)
+                elif self._bdm_gtype == "tdm":
+                    finished_calc = self.calc_tdm_dmga(needed_time, match_time)
+
+                if not finished_calc:
+                    if self.get_cvar("g_factory").lower() == "ictf":
+                        game_type = "ictf"
+                    else:
+                        game_type = self._bdm_gtype
+                    minqlx.console_print("^1Error ^7calculating ^2{} ^7DmgA.".format(game_type))
+                    return
+
+                if self.player_count < (self.get_cvar("qlx_bdmMinimumTeamSize", int) * 2):
+                    minqlx.console_print("--- There are only {} players on each team, {} are needed. "
+                                         "BDM stats not being calculated ---"
+                                         .format(int(round(self.player_count / 2)),
+                                                 self.get_cvar("qlx_bdmMinimumTeamSize", int)))
+                    return
+
+            else:
+                if self._bdm_gtype == "ffa":
+                    for player in teams["free"]:
+                        sid = str(player.steam_id)
+                        if sid[0] == "9":
+                            continue
+                        stats = player.stats
+                        self._match_stats[sid] = {}
+                        self._match_stats[sid]["score"] = stats.score
+                        self._match_stats[sid]["kills"] = stats.kills
+                        self._match_stats[sid]["deaths"] = stats.deaths
+                        self._match_stats[sid]["damage_dealt"] = stats.damage_dealt
+                        self._match_stats[sid]["damage_taken"] = stats.damage_taken
+                        self._match_stats[sid]["time"] = stats.time
+                        if self._match_stats[sid]["time"] > match_time:
+                            match_time = self._match_stats[sid]["time"]
+                    if game_time > match_time:
+                        match_time = game_time
+                    needed_time = match_time * match_perc
+                    finished_calc = self.calc_ffa_dmga(needed_time, match_time)
+                    if not finished_calc:
+                        minqlx.console_print("^1Error ^7calculating ^2{} ^7DmgA.".format(self._bdm_gtype))
+                        return
+            # Calculate New BDMs based on DmgA calculations
+            self.calc_new_bdm()
 
     def calc_ffa_dmga(self, needed_time, match_time):
         per_kill_pts = self.get_cvar("qlx_bdmFfaKillPts", int)
@@ -1300,6 +1363,9 @@ class serverBDM(minqlx.Plugin):
                 self._player_stats["bdmSum"] += int(self.db.get(BDM_KEY.format(sid, game_type, "rating")))
 
         for sid in self._match_stats:
+            minqlx.console_print("{}: CAPTURES: {}".format(self.player(int(sid)), self._record_events[sid]["CAPTURES"]))
+            minqlx.console_print("{}: ASSISTS: {}".format(self.player(int(sid)), self._record_events[sid]["ASSISTS"]))
+            minqlx.console_print("{}: DEFENSES: {}".format(self.player(int(sid)), self._record_events[sid]["DEFENSES"]))
             if sid in self._team_switchers:
                 play_time = self._match_stats[sid]["time"] + self._team_switchers[sid]["time"]
                 if play_time >= needed_time:
