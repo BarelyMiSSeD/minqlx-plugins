@@ -74,7 +74,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.03.7"
+VERSION = "1.03.8"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -706,7 +706,7 @@ class serverBDM(minqlx.Plugin):
             self.msg("^6{} ^4was not included in the balance.".format(exclude))
 
     def cmd_game_status(self, player=None, msg=None, channel=None):
-        minqlx.console_print("^6Game Status")
+        minqlx.console_print("^6Game Status: ^4Map ^1- ^7{}".format(self.get_cvar("mapname")))
         teams = self.teams()
         if len(teams["red"] + teams["blue"] + teams["free"] + teams["spectator"]) == 0:
             minqlx.console_print("^3No players connected")
@@ -714,17 +714,17 @@ class serverBDM(minqlx.Plugin):
             minqlx.console_print("^3Match is not in progress")
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
             minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}".format(self.game.red_score, self.game.blue_score))
-            minqlx.console_print("^1Red Team^7:")
+            minqlx.console_print("^1Red Team^7: (ID Ping Score Name)")
             for player in teams["red"]:
-                minqlx.console_print("    {}".format(player))
-            minqlx.console_print("^4Blue Team^7:")
+                minqlx.console_print("    {} {} {} {}".format(player.id, player.stats.ping, player.stats.score, player))
+            minqlx.console_print("^4Blue Team^7: (ID Ping Score Name)")
             for player in teams["blue"]:
-                minqlx.console_print("    {}".format(player))
+                minqlx.console_print("    {} {} {} {}".format(player.id, player.stats.ping, player.stats.score, player))
         else:
             for player in teams["free"]:
-                minqlx.console_print("{}^7: {}".format(player, player.score))
+                minqlx.console_print("{}^7: {} ^6Ping^7: {}".format(player, player.stats.score, player.stats.ping))
         for player in teams["spectator"]:
-            minqlx.console_print("^6Spectator^7: {}".format(player))
+            minqlx.console_print("^6Spectator^7: {} {}".format(player.id, player))
 
     # ==============================================
     #               Script Commands
