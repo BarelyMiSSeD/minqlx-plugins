@@ -20,30 +20,30 @@ kicked. This will only kick the player, not do any kind of ban, so the player ca
 This feature will not kick people with permission levels at or above the qlx_queueAdmin level, or people 
 who are in the queue.
 
-//set the minqlx permission level needed to admin this script
-set qlx_queueAdmin", "3"
-//The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will
-// put the higher BDM player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting
-set qlx_queuePlaceByTeamScores "1"
-//Set the score difference used if qlx_queuePlaceByTeamScores is on
-set qlx_queueTeamScoresDiff "3"
-//Display the Queue message at the start of each round
-set qlx_queueQueueMsg "1"
-//Display the Spectate message at the start of each round
-set qlx_queueSpecMsg "1"
-//the minimum amount of players before the teams will be kept player number balanced
-set qlx_queueMinPlayers "2"
-//the maximum amount of players after which the teams will not be kept player number balanced
-set qlx_queueMaxPlayers "30"
-//use time played as a choosing factor to decide which player to spectate
-set qlx_queueSpecByTime "1"
-//use score played as a choosing factor to decide which player to spectate
-set qlx_queueSpecByScore "1"
-//set to either "score" or "time" to set which to use as the primary deciding factor in choosing a player to spectate
-set qlx_queueSpecByPrimary "score"
-//set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will
-// kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")
-set qlx_queueMaxSpecTime "9999"
+//set the minqlx permission level needed to admin this script<br>
+set qlx_queueAdmin", "3"<br>
+//The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will<br>
+// put the higher BDM player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting<br>
+set qlx_queuePlaceByTeamScores "1"<br>
+//Set the score difference used if qlx_queuePlaceByTeamScores is on<br>
+set qlx_queueTeamScoresDiff "3"<br>
+//Display the Queue message at the start of each round<br>
+set qlx_queueQueueMsg "1"<br>
+//Display the Spectate message at the start of each round<br>
+set qlx_queueSpecMsg "1"<br>
+//the minimum amount of players before the teams will be kept player number balanced<br>
+set qlx_queueMinPlayers "2"<br>
+//the maximum amount of players after which the teams will not be kept player number balanced<br>
+set qlx_queueMaxPlayers "30"<br>
+//use time played as a choosing factor to decide which player to spectate<br>
+set qlx_queueSpecByTime "1"<br>
+//use score played as a choosing factor to decide which player to spectate<br>
+set qlx_queueSpecByScore "1"<br>
+//set to either "score" or "time" to set which to use as the primary deciding factor in choosing a player to spectate<br>
+set qlx_queueSpecByPrimary "score"<br>
+//set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will<br>
+// kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")<br>
+set qlx_queueMaxSpecTime "9999"<br>
 
 <b>Commands:</b><br>
 !q or !queue: displays the players currently in the queue<br>
