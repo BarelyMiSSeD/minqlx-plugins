@@ -11,16 +11,25 @@
 # This is a queueing plugin for the minqlx admin bot.
 # This plugin requires the server to be using the serverBDM.py plugin
 
-# This plugin is intended to help keep the game as enjoyable as possible, without
-# the hassles of people making teams uneven, or someone joining later than others,
+# This is a queueing plugin for the minqlx admin bot.
+# This plugin requires the server to be using the serverBDM.py plugin
+#
+# This plugin is intended to help keep the game as enjoyable as possible,
+# without the hassles of people making teams uneven, or someone joining later than others,
 # but happening to hit the join button first and cutting in line when a play spot opens.
 #
 # The plugin will also attempt to keep team games even, when adding 2 players at once,
 # by putting players into the most appropriate team, based on team scores or player BDMs.
 #
-# There is also the option to have the players in spectate for too long (set with qlx_queueMaxSpecTime) to be
-# kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
-# This feature will not kick people with permission levels at or above the qlx_queueAdmin level.
+# This plugin will spectate people when teams are uneven. It will, by default settings,
+# first look at player score then player play time to determine who, on the team with more players,
+# gets put to spectate. When a player gets put to spectate they will automatically get put into the
+# queue in the beginning of the line.
+#
+# There is also the option to have the players in spectate for too long (set with qlx_queueMaxSpecTime)
+# to be kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
+# This feature will not kick people with permission levels at or above the qlx_queueAdmin level,
+# or people who are in the queue.
 
 """
 //set the minqlx permission level needed to admin this script
