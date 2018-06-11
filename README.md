@@ -1,4 +1,57 @@
 # minqlx-plugins
+# specqueue.py
+<b>This script works with serverBDM.py</b><br>
+This is a queueing plugin for the minqlx admin bot.
+This plugin requires the server to be using the serverBDM.py plugin
+
+This plugin is intended to help keep the game as enjoyable as possible, without
+the hassles of people making teams uneven, or someone joining later than others,
+but happening to hit the join button first and cutting in line when a play spot opens.
+
+The plugin will also attempt to keep team games even, when adding 2 players at once,
+by putting players into the most appropriate team, based on team scores or player BDMs.
+
+This plugin will spectate people when teams are uneven. It will, by default settings, first look at player score
+then player play time to determine who, on the team with more players, gets put to spectate. When a player
+gets put to spectate they will automatically get put into the queue in the begining of the line.
+
+There is also the option to have the players in spectate for too long (set with qlx_queueMaxSpecTime) to be
+kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
+This feature will not kick people with permission levels at or above the qlx_queueAdmin level, or people 
+who are in the queue.
+
+//set the minqlx permission level needed to admin this script
+set qlx_queueAdmin", "3"
+//The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will
+// put the higher BDM player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting
+set qlx_queuePlaceByTeamScores "1"
+//Set the score difference used if qlx_queuePlaceByTeamScores is on
+set qlx_queueTeamScoresDiff "3"
+//Display the Queue message at the start of each round
+set qlx_queueQueueMsg "1"
+//Display the Spectate message at the start of each round
+set qlx_queueSpecMsg "1"
+//the minimum amount of players before the teams will be kept player number balanced
+set qlx_queueMinPlayers "2"
+//the maximum amount of players after which the teams will not be kept player number balanced
+set qlx_queueMaxPlayers "30"
+//use time played as a choosing factor to decide which player to spectate
+set qlx_queueSpecByTime "1"
+//use score played as a choosing factor to decide which player to spectate
+set qlx_queueSpecByScore "1"
+//set to either "score" or "time" to set which to use as the primary deciding factor in choosing a player to spectate
+set qlx_queueSpecByPrimary "score"
+//set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will
+// kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")
+set qlx_queueMaxSpecTime "9999"
+
+<b>Commands:</b><br>
+!q or !queue: displays the players currently in the queue<br>
+!s or !specs: Displays the players currently set to spectate only<br>
+!addqueue or !addq: puts a player into the next available queue slot<br>
+!qversion or !qv: displays the queue version number<br>
+
+
 # queue.py
 <b>This script works with serverBDM.py</b><br>
 This plugin is intended to help keep the game as enjoyable as possible, without<br>
