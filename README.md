@@ -13,7 +13,7 @@ by putting players into the most appropriate team, based on team scores or playe
 
 This plugin will spectate people when teams are uneven. It will, by default settings, first look at player score
 then player play time to determine who, on the team with more players, gets put to spectate. When a player
-gets put to spectate they will automatically get put into the queue in the begining of the line.
+gets put to spectate they will automatically get put into the queue in the beginning of the line.
 
 There is also the option to have the players in spectate for too long (set with qlx_queueMaxSpecTime) to be
 kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
