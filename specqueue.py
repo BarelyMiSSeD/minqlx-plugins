@@ -63,7 +63,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.03.11"
+VERSION = "2.03.12"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -901,6 +901,10 @@ class specqueue(minqlx.Plugin):
             else:
                 self._players = [t_players[0]]
         return
+
+    def return_spec_player(self, team):
+        self.get_player_for_spec(team)
+        return [self._players[0]]
 
     @minqlx.thread
     def get_uneven_players(self, team, amount):

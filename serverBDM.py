@@ -74,7 +74,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.03.8"
+VERSION = "1.03.11"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -263,6 +263,7 @@ class serverBDM(minqlx.Plugin):
         self.process_game()
 
     def handle_vote_called(self, caller, vote, args):
+        minqlx.console_print("{} ^7called vote: ^6{} {}".format(caller, vote, args))
         if vote.lower() == "bbalance":
             self.callvote("qlx !bbalance", "Balance Teams based on database stored BDMs?")
             minqlx.client_command(caller.id, "vote yes")
@@ -278,7 +279,7 @@ class serverBDM(minqlx.Plugin):
             if self._bdm_gtype not in TEAM_BASED_GAMETYPES:
                 return
 
-            @minqlx.delay(3.5)
+            @minqlx.delay(2.5)
             def b():
                 self.msg("^3Shuffle ^7vote called, ^2Balancing ^1Teams ^7based on ^6BDM ^7stats.")
                 self.cmd_bdmbalance()
@@ -610,7 +611,10 @@ class serverBDM(minqlx.Plugin):
                 # Otherwise, switch right away.
                 self.execute_switch()
             else:
-                if not self._players_agree[0]:
+                if not all(self._players_agree):
+                    self.msg("^3Player ^6{} ^7and ^6{} ^7still need to ^2agree ^7to the switch."
+                             .format(player1, player2))
+                elif not self._players_agree[0]:
                     self.msg("^3Player ^6{} ^7still needs to ^2agree ^7to the switch.".format(player1))
                 else:
                     self.msg("^3Player ^6{} ^7still needs to ^2agree ^7to the switch.".format(player2))
@@ -645,12 +649,20 @@ class serverBDM(minqlx.Plugin):
             game_type = self._bdm_gtype
         if len(teams["red"] + teams["blue"]) % 2 != 0:
             if self.get_cvar("qlx_bdmBalanceUnevenTeams", bool):
-                lowest = self.get_cvar("qlx_bdmMaxRating", int)
-                for player in teams["red"] + teams["blue"]:
-                    bdm = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "rating")))
-                    if bdm < lowest:
-                        lowest = bdm
-                        exclude = player
+                if "specqueue" in minqlx.Plugin._loaded_plugins:
+                    exclude = minqlx.Plugin._loaded_plugins["specqueue"]\
+                        .return_spec_player((teams["red"] + teams["blue"]))[0]
+                else:
+                    lowest = self.get_cvar("qlx_bdmMaxRating", int)
+                    for player in teams["red"] + teams["blue"]:
+                        if self.db.exists(BDM_KEY.format(player.steam_id, game_type, "rating")):
+                            bdm = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "rating")))
+                        else:
+                            bdm = self.get_cvar("qlx_bdmDefaultBDM", int)
+                        if bdm < lowest:
+                            lowest = bdm
+                            exclude = player
+                minqlx.console_print("^1Exclude " + str([exclude]))
                 if exclude:
                     if exclude in teams["red"]:
                         teams["red"].remove(exclude)
@@ -705,8 +717,10 @@ class serverBDM(minqlx.Plugin):
                 exclude.put("blue")
             self.msg("^6{} ^4was not included in the balance.".format(exclude))
 
+    @minqlx.thread
     def cmd_game_status(self, player=None, msg=None, channel=None):
-        minqlx.console_print("^6Game Status: ^4Map ^1- ^7{}".format(self.get_cvar("mapname")))
+        minqlx.console_print("^6Game Status: ^4Map ^1- ^7{} ^5Game Mode ^1- ^7{}"
+                             .format(self.get_cvar("mapname"), self._bdm_gtype.upper()))
         teams = self.teams()
         if len(teams["red"] + teams["blue"] + teams["free"] + teams["spectator"]) == 0:
             minqlx.console_print("^3No players connected")
@@ -729,7 +743,7 @@ class serverBDM(minqlx.Plugin):
     # ==============================================
     #               Script Commands
     # ==============================================
-    @minqlx.thread
+    #@minqlx.thread
     def record_ctf_events(self, sid, medal):
         with self.lock:
             if sid not in self._record_events:
@@ -744,7 +758,7 @@ class serverBDM(minqlx.Plugin):
             elif medal == "ASSIST":
                 self._record_events[sid]["ASSISTS"] += 1
 
-    @minqlx.thread
+    #@minqlx.thread
     def record_ft_events(self, stats):
         with self.lock:
             sid = None
@@ -767,7 +781,7 @@ class serverBDM(minqlx.Plugin):
                 if stats["TYPE"] == "PLAYER_MEDAL" and stats["DATA"]["MEDAL"] == "ASSIST":
                     self._record_events[sid]["THAWS"] += 1
 
-    @minqlx.thread
+    #@minqlx.thread
     def player_disconnect_record(self, player):
         sid = str(player[0].steam_id)
         if sid[0] == "9":
@@ -949,8 +963,9 @@ class serverBDM(minqlx.Plugin):
             game_type = self._bdm_gtype
         if team:
             for p in team:
-                rating = int(self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating")))
-                if not rating:
+                if self.db.exists(BDM_KEY.format(p.steam_id, game_type, "rating")):
+                    rating = int(self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating")))
+                else:
                     rating = default_bdm
                 avg += int(rating)
             avg /= len(team)
