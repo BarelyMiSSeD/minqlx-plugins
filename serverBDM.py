@@ -5,8 +5,10 @@
 
 # created by BarelyMiSSeD on 5-5-2018
 #
-
-
+"""
+# **** If you want to enable the !teams and !balance commands ise the balance.py from
+# https://github.com/BarelyMiSSeD/minqlx-plugins/blob/master/balance.py or the commands will conflict.
+"""
 """
 **** CVARs ****
 // Minqlx Bot Permission level needed to perform admin functions
@@ -72,9 +74,9 @@ set qlx_bdmMinimumTeamSize "3"
 
 import minqlx
 import time
-from threading import Lock
+from threading import RLock
 
-VERSION = "1.03.11"
+VERSION = "1.03.13"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -154,7 +156,7 @@ class serverBDM(minqlx.Plugin):
         self.add_command("gamestatus", self.cmd_game_status, self.get_cvar("qlx_bdmAdmin", int))
 
         # Script Variables, Lists, and Dictionaries
-        self.lock = Lock()
+        self.rlock = RLock()
         self._bdm_gtype = self.game.type_short
         self._played_time = {}
         self._disconnected_players = {}
@@ -206,12 +208,9 @@ class serverBDM(minqlx.Plugin):
             game_type = "ictf"
         else:
             game_type = self._bdm_gtype
-        if not self.db.exists(BDM_KEY.format(sid, game_type, "rating")):
-            self.db.set(BDM_KEY.format(sid, game_type, "rating"), self.get_cvar("qlx_bdmDefaultBDM"))
-        if not self.db.exists(BDM_KEY.format(sid, game_type, "games_completed")):
-            self.db.set(BDM_KEY.format(sid, game_type, "games_completed"), "0")
-        if not self.db.exists(BDM_KEY.format(sid, game_type, "games_left")):
-            self.db.set(BDM_KEY.format(sid, game_type, "games_left"), "0")
+        self.set_bdm_field(player, game_type, "rating", self.get_cvar("qlx_bdmDefaultBDM"), False)
+        self.set_bdm_field(player, game_type, "games_completed", "0", False)
+        self.set_bdm_field(player, game_type, "games_left", "0", False)
 
     def handle_player_disconnect(self, player, reason):
         self.player_disconnect_record([player, player.stats])
@@ -325,7 +324,7 @@ class serverBDM(minqlx.Plugin):
             game_type = "ictf"
         else:
             game_type = self._bdm_gtype
-        self.db.set(BDM_KEY.format(sid, game_type, "rating"), str(rating))
+        self.set_bdm_field(player, game_type, "rating", rating)
         player.tell("^4Rating^7: The player {} ^7has been set to a ^4bdm ^7rating of ^1{}^7 for game type {}."
                     .format(target_player, rating, game_type))
         player.tell("^7The rating will be adjusted from this point as games are recorded.")
@@ -346,11 +345,11 @@ class serverBDM(minqlx.Plugin):
                 except ValueError:
                     player.tell("^3Use a valid player ID.")
                     return minqlx.RET_STOP_ALL
-            rating = self.db.get(BDM_KEY.format(player.steam_id, game_type, "rating"))
 
-            if rating:
-                completed = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "games_completed")))
-                left = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "games_left")))
+            if self.check_entry_exists(player, game_type, "rating"):
+                rating = self.get_bdm_field(player, game_type, "rating")
+                completed = self.get_bdm_field(player, game_type, "games_completed")
+                left = self.get_bdm_field(player, game_type, "games_left")
                 games_here = left + completed
                 channel.reply("^7The ^3{} ^6bdm ^7for {} ^7is ^2{} ^7(games here: ^6{}^7)"
                               .format(game_type.upper(), player, rating, games_here))
@@ -374,11 +373,11 @@ class serverBDM(minqlx.Plugin):
                 except ValueError:
                     player.tell("^3Use a valid player ID.")
                     return minqlx.RET_STOP_ALL
-            rating = self.db.get(BDM_KEY.format(player.steam_id, game_type, "rating"))
 
-            if rating:
-                completed = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "games_completed")))
-                left = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "games_left")))
+            if self.check_entry_exists(player, game_type, "rating"):
+                rating = self.get_bdm_field(player, game_type, "rating")
+                completed = self.get_bdm_field(player, game_type, "games_completed")
+                left = self.get_bdm_field(player, game_type, "games_left")
                 games_here = left + completed
                 if games_here > 0:
                     quit_perc = float(left) / float(games_here) * 100
@@ -388,9 +387,8 @@ class serverBDM(minqlx.Plugin):
                               .format(game_type.upper(), player, rating, games_here, quit_perc))
                 history_msg = []
                 for x in range(1, 6, 1):
-                    if self.db.exists(BDM_KEY.format(player.steam_id, game_type, "rating{}".format(x))):
-                        history_rating = self.db.get(BDM_KEY.format(player.steam_id, game_type, "rating{}"
-                                                                    .format(x)))
+                    if self.check_entry_exists(player, game_type, "rating{}".format(x)):
+                        history_rating = self.get_bdm_field(player, game_type, "rating{}".format(x))
                         history_msg.append("^{}{}".format(x, history_rating))
                 if len(history_msg) > 0:
                     channel.reply("^6BDM History for {}: {}".format(player, ", ".join(history_msg)))
@@ -408,21 +406,12 @@ class serverBDM(minqlx.Plugin):
             else:
                 game_type = self._bdm_gtype
             teams = self.teams()
-            default_bdm = self.get_cvar("qlx_bdmDefaultBDM", int)
             clients = len(teams["red"])
             if clients:
                 t_dict = {}
                 r_msg = []
                 for p in teams["red"]:
-                    try:
-                        rating = int(self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating")))
-                    except ValueError:
-                        bad_rating = self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating"))
-                        split_rating = bad_rating.split(".")
-                        rating = int(split_rating[0])
-                    if not rating:
-                        rating = default_bdm
-                    t_dict[str(p)] = rating
+                    t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 r_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in r_dict:
                     r_msg.append("^7{}^7:^1{}^7".format(v, k))
@@ -433,15 +422,7 @@ class serverBDM(minqlx.Plugin):
                 t_dict = {}
                 b_msg = []
                 for p in teams["blue"]:
-                    try:
-                        rating = int(self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating")))
-                    except ValueError:
-                        bad_rating = self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating"))
-                        split_rating = bad_rating.split(".")
-                        rating = int(split_rating[0])
-                    if not rating:
-                        rating = default_bdm
-                    t_dict[str(p)] = rating
+                    t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 b_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in b_dict:
                     b_msg.append("^7{}^7:^4{}^7".format(v, k))
@@ -452,15 +433,7 @@ class serverBDM(minqlx.Plugin):
                 t_dict = {}
                 f_msg = []
                 for p in teams["free"]:
-                    try:
-                        rating = int(self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating")))
-                    except ValueError:
-                        bad_rating = self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating"))
-                        split_rating = bad_rating.split(".")
-                        rating = int(split_rating[0])
-                    if not rating:
-                        rating = default_bdm
-                    t_dict[str(p)] = rating
+                    t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 f_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in f_dict:
                     f_msg.append("^7{}^7:^2{}^7".format(v, k))
@@ -471,15 +444,7 @@ class serverBDM(minqlx.Plugin):
                 t_dict = {}
                 s_msg = []
                 for p in teams["spectator"]:
-                    try:
-                        rating = int(self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating")))
-                    except ValueError:
-                        bad_rating = self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating"))
-                        split_rating = bad_rating.split(".")
-                        rating = int(split_rating[0])
-                    if not rating:
-                        rating = default_bdm
-                    t_dict[str(p)] = rating
+                    t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 s_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in s_dict:
                     s_msg.append("^7{}^7:^3{}^7".format(v, k))
@@ -513,7 +478,6 @@ class serverBDM(minqlx.Plugin):
             blue_team_bdm = {}
             red_bdm = 0
             blue_bdm = 0
-            default_bdm = self.get_cvar("qlx_bdmDefaultBDM", int)
             if red_clients == 0 and blue_clients == 0:
                 self.msg("^3The teams are empty of players.")
                 return
@@ -522,17 +486,13 @@ class serverBDM(minqlx.Plugin):
                 return
 
             for client in teams["red"]:
-                rating = int(self.db.get(BDM_KEY.format(client.steam_id, game_type, "rating")))
-                if not rating:
-                    rating = default_bdm
+                rating = self.get_bdm_field(client, game_type, "rating")
                 red_bdm += int(rating)
                 red_team_bdm[str(client.steam_id)] = int(rating)
             red_bdm /= red_clients
 
             for client in teams["blue"]:
-                rating = int(self.db.get(BDM_KEY.format(client.steam_id, game_type, "rating")))
-                if not rating:
-                    rating = default_bdm
+                rating = self.get_bdm_field(client, game_type, "rating")
                 blue_bdm += int(rating)
                 blue_team_bdm[str(client.steam_id)] = int(rating)
             blue_bdm /= blue_clients
@@ -655,10 +615,7 @@ class serverBDM(minqlx.Plugin):
                 else:
                     lowest = self.get_cvar("qlx_bdmMaxRating", int)
                     for player in teams["red"] + teams["blue"]:
-                        if self.db.exists(BDM_KEY.format(player.steam_id, game_type, "rating")):
-                            bdm = int(self.db.get(BDM_KEY.format(player.steam_id, game_type, "rating")))
-                        else:
-                            bdm = self.get_cvar("qlx_bdmDefaultBDM", int)
+                        bdm = self.get_bdm_field(player, game_type, "rating")
                         if bdm < lowest:
                             lowest = bdm
                             exclude = player
@@ -743,9 +700,33 @@ class serverBDM(minqlx.Plugin):
     # ==============================================
     #               Script Commands
     # ==============================================
+    def check_entry_exists(self, player, game_type, field):
+        return self.db.exists(BDM_KEY.format(player.steam_id, game_type, field))
+
+    def get_bdm_field(self, player, game_type, field):
+        if self.db.exists(BDM_KEY.format(player.steam_id, game_type, field)):
+            value = self.db.get(BDM_KEY.format(player.steam_id, game_type, field))
+        else:
+            if field == "rating":
+                value = self.get_cvar("qlx_bdmDefaultBDM", int)
+            else:
+                value = 0
+        try:
+            data = int(value)
+        except ValueError:
+            split_rating = value.split(".")
+            data = int(split_rating[0])
+        return data
+
+    def set_bdm_field(self, player, game_type, field, data, overwrite=True):
+        if overwrite:
+            self.db.set(BDM_KEY.format(player.steam_id, game_type, field), str(data))
+        else:
+            self.db.setnx(BDM_KEY.format(player.steam_id, game_type, field), str(data))
+
     #@minqlx.thread
     def record_ctf_events(self, sid, medal):
-        with self.lock:
+        with self.rlock:
             if sid not in self._record_events:
                 self._record_events[sid] = {}
                 self._record_events[sid]["CAPTURES"] = 0
@@ -760,7 +741,7 @@ class serverBDM(minqlx.Plugin):
 
     #@minqlx.thread
     def record_ft_events(self, stats):
-        with self.lock:
+        with self.rlock:
             sid = None
             if stats["TYPE"] == "PLAYER_KILL":
                 sid = stats["DATA"]["KILLER"]["STEAM_ID"]
@@ -786,7 +767,7 @@ class serverBDM(minqlx.Plugin):
         sid = str(player[0].steam_id)
         if sid[0] == "9":
             return
-        with self.lock:
+        with self.rlock:
             if self.game.state != "in_progress":
                 self._disconnected_players.pop(sid, None)
                 self._played_time.pop(sid, None)
@@ -849,7 +830,7 @@ class serverBDM(minqlx.Plugin):
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
             if self.game.state != "in_progress":
                 return
-            with self.lock:
+            with self.rlock:
                 if old_team != "spectator" and new_team == "spectator":
                     if self.check_dict_value_greater(self._played_time, sid, "time", 0):
                         self._spectating_players[sid] = {}
@@ -956,17 +937,13 @@ class serverBDM(minqlx.Plugin):
     def team_average(self, team):
         """Calculates the average rating of a team."""
         avg = 0
-        default_bdm = self.get_cvar("qlx_bdmDefaultBDM", int)
         if self.get_cvar("g_factory").lower() == "ictf":
             game_type = "ictf"
         else:
             game_type = self._bdm_gtype
         if team:
             for p in team:
-                if self.db.exists(BDM_KEY.format(p.steam_id, game_type, "rating")):
-                    rating = int(self.db.get(BDM_KEY.format(p.steam_id, game_type, "rating")))
-                else:
-                    rating = default_bdm
+                rating = self.get_bdm_field(p, game_type, "rating")
                 avg += int(rating)
             avg /= len(team)
         return round(avg)
@@ -1006,7 +983,7 @@ class serverBDM(minqlx.Plugin):
     @minqlx.thread
     def round_stats_record(self):
         teams = self.teams()
-        with self.lock:
+        with self.rlock:
             for player in teams["red"]:
                 sid = str(player.steam_id)
                 if sid[0] == "9":
@@ -1032,7 +1009,7 @@ class serverBDM(minqlx.Plugin):
 
     @minqlx.delay(2)
     def players_in_teams(self):
-        with self.lock:
+        with self.rlock:
             self._played_time.clear()
             self._disconnected_players.clear()
             self._team_switchers.clear()
@@ -1090,12 +1067,9 @@ class serverBDM(minqlx.Plugin):
             sid = str(player.steam_id)
             if sid[0] == "9":
                 continue
-            if not self.db.exists(BDM_KEY.format(sid, game_type, "rating")):
-                self.db.set(BDM_KEY.format(sid, game_type, "rating"), self.get_cvar("qlx_bdmDefaultBDM"))
-            if not self.db.exists(BDM_KEY.format(sid, game_type, "games_completed")):
-                self.db.set(BDM_KEY.format(sid, game_type, "games_completed"), "0")
-            if not self.db.exists(BDM_KEY.format(sid, game_type, "games_left")):
-                self.db.set(BDM_KEY.format(sid, game_type, "games_left"), "0")
+            self.set_bdm_field(player, game_type, "rating", self.get_cvar("qlx_bdmDefaultBDM"), False)
+            self.set_bdm_field(player, game_type, "games_completed", "0", False)
+            self.set_bdm_field(player, game_type, "games_left", "0", False)
 
     # noinspection PyMethodMayBeStatic
     def check_dict_value_greater(self, dic, sid, key, check_against):
@@ -1106,7 +1080,7 @@ class serverBDM(minqlx.Plugin):
 
     @minqlx.thread
     def process_game(self):
-        with self.lock:
+        with self.rlock:
             teams = self.teams()
             game_time = int(round(time.time() * 1000)) - self.game_start
             match_time = 0
@@ -1477,22 +1451,22 @@ class serverBDM(minqlx.Plugin):
             game_type = "ictf"
         else:
             game_type = self._bdm_gtype
-        for player in self._player_stats:
-            if player == "bdmSum" or player == "DmgASum":
+        for p_sid in self._player_stats:
+            if p_sid == "bdmSum" or p_sid == "DmgASum":
                 continue
-            if self._player_stats[player]["left_game"] == 0:
-                self.db.incr(BDM_KEY.format(player, game_type, "games_completed"))
+            if self._player_stats[p_sid]["left_game"] == 0:
+                self.db.incr(BDM_KEY.format(p_sid, game_type, "games_completed"))
             else:
-                self.db.incr(BDM_KEY.format(player, game_type, "games_left"))
-            games = int(self.db.get(BDM_KEY.format(player, game_type, "games_completed"))) + \
-                int(self.db.get(BDM_KEY.format(player, game_type, "games_left")))
-            rating = int(self.db.get(BDM_KEY.format(player, game_type, "rating")))
+                self.db.incr(BDM_KEY.format(p_sid, game_type, "games_left"))
+            games = int(self.db.get(BDM_KEY.format(p_sid, game_type, "games_completed"))) + \
+                int(self.db.get(BDM_KEY.format(p_sid, game_type, "games_left")))
+            rating = int(self.db.get(BDM_KEY.format(p_sid, game_type, "rating")))
             if games > 40:
                 games_played = 40
             else:
                 games_played = games
             try:
-                change = (((self._player_stats[player]["DmgA"] *
+                change = (((self._player_stats[p_sid]["DmgA"] *
                             self._player_stats["bdmSum"] / self._player_stats["DmgASum"]) - rating) / games_played)
             except KeyError:
                 change = 0
@@ -1503,10 +1477,10 @@ class serverBDM(minqlx.Plugin):
             elif max_rating <= new_rating:
                 new_rating = max_rating
             if new_rating != rating:
-                self._save_previous_bdm[player] = rating
-                self.db.set(BDM_KEY.format(player, game_type, "rating"), str(new_rating))
+                self._save_previous_bdm[p_sid] = rating
+                self.db.set(BDM_KEY.format(p_sid, game_type, "rating"), str(new_rating))
             if print_change:
-                name = self.db.lindex("minqlx:players:{}".format(player), 0)
+                name = self.db.lindex("minqlx:players:{}".format(p_sid), 0)
                 minqlx.console_print("^6Player^7: {} ^7BDM Change: Old = ^6{}^7, New = ^2{}"
                                      .format(name, rating, new_rating))
         if len(self._save_previous_bdm) > 0:
