@@ -39,7 +39,7 @@ set qlx_queueAdmin", "3"
 set qlx_queuePlaceByTeamScores "1"
 //Set the score difference used if qlx_queuePlaceByTeamScores is on
 set qlx_queueTeamScoresDiff "3"
-//Display the Queue message at the start of each round
+//Display the Queue message at the start of each round (0=off, 1=on, 2=display every 5th round)
 set qlx_queueQueueMsg "1"
 //Display the Spectate message at the start of each round
 set qlx_queueSpecMsg "1"
@@ -60,10 +60,10 @@ set qlx_queueMaxSpecTime "9999"
 
 import minqlx
 import time
-from threading import Lock
+from threading import RLock
 from random import randint
 
-VERSION = "2.03.12"
+VERSION = "2.03.14"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -76,20 +76,20 @@ class JoinTime:
     def __init__(self):
         self.join_times = {}
         self.count = 0
-        self.lock = Lock()
+        self.rlock = RLock()
 
     def __contains__(self, player):
         return player in self.join_times
 
     def add_to_jt(self, player):
-        with self.lock:
+        with self.rlock:
             if player not in self.join_times:
                 self.join_times[player] = time.time()
                 self.count += 1
 
     def remove_from_jt(self, player):
         if self.count > 0:
-            with self.lock:
+            with self.rlock:
                 if player in self.join_times:
                     del self.join_times[player]
                     self.count -= 1
@@ -104,7 +104,7 @@ class JoinTime:
         return self.count
 
     def get_jt(self):
-        with self.lock:
+        with self.rlock:
             return self.join_times.copy()
 
 
@@ -112,20 +112,20 @@ class Spectators:
     def __init__(self):
         self.spectators = {}
         self.count = 0
-        self.lock = Lock()
+        self.rlock = RLock()
 
     def __contains__(self, player):
         return player in self.spectators
 
     def add_to_spec(self, player):
-        with self.lock:
+        with self.rlock:
             if player not in self.spectators:
                 self.spectators[player] = time.time()
                 self.count += 1
 
     def remove_from_spec(self, player):
         if self.count > 0:
-            with self.lock:
+            with self.rlock:
                 if player in self.spectators:
                     del self.spectators[player]
                     self.count -= 1
@@ -134,7 +134,7 @@ class Spectators:
         return self.count
 
     def get_spectators(self):
-        with self.lock:
+        with self.rlock:
             return self.spectators.copy()
 
 
@@ -144,7 +144,7 @@ class PlayerQueue:
         self.queue_player = []
         self.queue_time = {}
         self.count = 0
-        self.lock = Lock()
+        self.rlock = RLock()
 
     def __contains__(self, player):
         return player in self.queue or player in self.queue_player
@@ -153,7 +153,7 @@ class PlayerQueue:
         return [self.queue[index], self.queue_player[index]]
 
     def add_to_queue(self, sid, player):
-        with self.lock:
+        with self.rlock:
             added = 0
             if sid not in self.queue:
                 self.queue.append(sid)
@@ -164,7 +164,7 @@ class PlayerQueue:
             return added
 
     def add_to_queue_pos(self, sid, player, pos):
-        with self.lock:
+        with self.rlock:
             added = 0
             if sid not in self.queue:
                 self.queue.insert(pos, sid)
@@ -182,7 +182,7 @@ class PlayerQueue:
 
     def get_from_queue(self, pos=None):
         if self.count > 0:
-            with self.lock:
+            with self.rlock:
                 self.count -= 1
                 if pos:
                     if pos == -1:
@@ -199,7 +199,7 @@ class PlayerQueue:
 
     def get_two_from_queue(self):
         if self.count > 1:
-            with self.lock:
+            with self.rlock:
                 self.count -= 2
                 sid1 = self.queue.pop(0)
                 player1 = self.queue_player.pop(0)
@@ -211,7 +211,7 @@ class PlayerQueue:
 
     def remove_from_queue(self, sid, player):
         if self.count > 0:
-            with self.lock:
+            with self.rlock:
                 if sid in self.queue:
                     self.count -= 1
                     self.queue.remove(sid)
@@ -233,11 +233,11 @@ class PlayerQueue:
             return -1
 
     def get_queue(self):
-        with self.lock:
+        with self.rlock:
             return self.queue.copy()
 
     def get_queue_names(self):
-        with self.lock:
+        with self.rlock:
             return self.queue_player.copy()
 
     def size(self):
@@ -292,7 +292,7 @@ class specqueue(minqlx.Plugin):
         self.add_command("latch", self.ignore_imbalance_latch, 3)
 
         # Script Variables, Lists, and Dictionaries
-        self.lock = Lock()
+        self.rlock = RLock()
         self._queue = PlayerQueue()
         self._spec = Spectators()
         self._join = JoinTime()
@@ -306,6 +306,7 @@ class specqueue(minqlx.Plugin):
         self.death_count = 0
         self.q_gameinfo = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
         self.checking_space = False
+        self._round = 0
 
         # Initialize Commands
         self.add_spectators()
@@ -423,6 +424,7 @@ class specqueue(minqlx.Plugin):
             return
 
     def handle_round_countdown(self, round_num):
+        self._round = round_num
         self._ignore = False
         self._ignore_msg_already_said = False
         self.check_for_opening(0.2)
@@ -522,8 +524,11 @@ class specqueue(minqlx.Plugin):
     def queue_message(self, delay):
         n = self._queue.get_queue_names()
         time.sleep(delay)
+        queue_show = self.get_cvar("qlx_queueQueueMsg", int)
         count = 1
         for p in n:
+            if queue_show == 2 and self._round % 5 != 0:
+                continue
             try:
                 p.center_print("^7You are in ^4Queue ^7position ^1{}".format(count))
             except:
@@ -551,13 +556,15 @@ class specqueue(minqlx.Plugin):
     @minqlx.thread
     def spec_message(self, delay=0.0):
         time.sleep(delay)
-
+        spec_show = self.get_cvar("qlx_queueSpecMsg", int)
         spectators = self.teams()["spectator"]
         if self._spec.size() > 0 and len(spectators) > 0:
             s = self._spec.get_spectators()
             for p, t in s.items():
                 spec = self.player(int(p))
                 if spec in spectators:
+                    if spec_show == 2 and self._round % 5 != 0:
+                        continue
                     time_in_spec = round((time.time() - t))
                     if time_in_spec / 60 > 1:
                         spec_time = "^7{}^4m^7:{}^4s^7".format(int(time_in_spec / 60), time_in_spec % 60)
@@ -567,7 +574,7 @@ class specqueue(minqlx.Plugin):
                     if 0 < max_spec_time < 9999 and\
                             self.db.get_permission(int(p)) < self.get_cvar("qlx_queueAdmin", int):
                         spec.center_print("^6Spectate Mode for {}\n^7Join the game to ^1play ^7or enter the ^4Queue.\n"
-                                          "You have ^1{} ^7minutes you can remain in spectate."
+                                          "You can remain in spectate for ^1{} ^7minutes."
                                           .format(spec_time, max_spec_time))
                     else:
                         spec.center_print("^6Spectate Mode for {}\n^7Join the game to ^1play ^7or enter the ^4Queue"
@@ -627,7 +634,7 @@ class specqueue(minqlx.Plugin):
             self.checking_space = False
 
     def place_in_team(self, amount, team):
-        with self.lock:
+        with self.rlock:
             if not self.end_screen:
                 count = 0
                 teams = self.teams()
@@ -647,7 +654,7 @@ class specqueue(minqlx.Plugin):
             return
 
     def place_in_both(self):
-        with self.lock:
+        with self.rlock:
             if not self.end_screen and self._queue.size() > 1:
                 teams = self.teams()
                 spectators = teams["spectator"]
