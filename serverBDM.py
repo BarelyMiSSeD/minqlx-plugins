@@ -197,7 +197,6 @@ class serverBDM(minqlx.Plugin):
         if self._bdm_gtype == "ctf" and stats["TYPE"] == "PLAYER_MEDAL":
             self.record_ctf_events(stats["DATA"]["STEAM_ID"], stats["DATA"]["MEDAL"])
         elif self._bdm_gtype == "ft":
-            minqlx.console_print(str(stats))
             self.record_ft_events(stats)
 
     def handle_player_connect(self, player):
@@ -619,7 +618,6 @@ class serverBDM(minqlx.Plugin):
                         if bdm < lowest:
                             lowest = bdm
                             exclude = player
-                minqlx.console_print("^1Exclude " + str([exclude]))
                 if exclude:
                     if exclude in teams["red"]:
                         teams["red"].remove(exclude)
