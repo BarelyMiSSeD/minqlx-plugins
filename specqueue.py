@@ -34,6 +34,9 @@
 """
 //set the minqlx permission level needed to admin this script
 set qlx_queueAdmin", "3"
+//enable to use BDM in placement into teams when 2 players are put in together
+//disable to use as generic queue system (0=off, 1=on)
+set qlx_queueUseBDMPlacement "1"
 //The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will
 // put the higher BDM player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting
 set qlx_queuePlaceByTeamScores "1"
@@ -60,10 +63,10 @@ set qlx_queueMaxSpecTime "9999"
 
 import minqlx
 import time
-from threading import RLock
+from threading import Lock
 from random import randint
 
-VERSION = "2.03.14"
+VERSION = "2.03.15"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -76,20 +79,20 @@ class JoinTime:
     def __init__(self):
         self.join_times = {}
         self.count = 0
-        self.rlock = RLock()
+        self.lock = Lock()
 
     def __contains__(self, player):
         return player in self.join_times
 
     def add_to_jt(self, player):
-        with self.rlock:
+        with self.lock:
             if player not in self.join_times:
                 self.join_times[player] = time.time()
                 self.count += 1
 
     def remove_from_jt(self, player):
         if self.count > 0:
-            with self.rlock:
+            with self.lock:
                 if player in self.join_times:
                     del self.join_times[player]
                     self.count -= 1
@@ -104,7 +107,7 @@ class JoinTime:
         return self.count
 
     def get_jt(self):
-        with self.rlock:
+        with self.lock:
             return self.join_times.copy()
 
 
@@ -112,20 +115,20 @@ class Spectators:
     def __init__(self):
         self.spectators = {}
         self.count = 0
-        self.rlock = RLock()
+        self.lock = Lock()
 
     def __contains__(self, player):
         return player in self.spectators
 
     def add_to_spec(self, player):
-        with self.rlock:
+        with self.lock:
             if player not in self.spectators:
                 self.spectators[player] = time.time()
                 self.count += 1
 
     def remove_from_spec(self, player):
         if self.count > 0:
-            with self.rlock:
+            with self.lock:
                 if player in self.spectators:
                     del self.spectators[player]
                     self.count -= 1
@@ -134,7 +137,7 @@ class Spectators:
         return self.count
 
     def get_spectators(self):
-        with self.rlock:
+        with self.lock:
             return self.spectators.copy()
 
 
@@ -144,7 +147,7 @@ class PlayerQueue:
         self.queue_player = []
         self.queue_time = {}
         self.count = 0
-        self.rlock = RLock()
+        self.lock = Lock()
 
     def __contains__(self, player):
         return player in self.queue or player in self.queue_player
@@ -153,7 +156,7 @@ class PlayerQueue:
         return [self.queue[index], self.queue_player[index]]
 
     def add_to_queue(self, sid, player):
-        with self.rlock:
+        with self.lock:
             added = 0
             if sid not in self.queue:
                 self.queue.append(sid)
@@ -164,7 +167,7 @@ class PlayerQueue:
             return added
 
     def add_to_queue_pos(self, sid, player, pos):
-        with self.rlock:
+        with self.lock:
             added = 0
             if sid not in self.queue:
                 self.queue.insert(pos, sid)
@@ -182,7 +185,7 @@ class PlayerQueue:
 
     def get_from_queue(self, pos=None):
         if self.count > 0:
-            with self.rlock:
+            with self.lock:
                 self.count -= 1
                 if pos:
                     if pos == -1:
@@ -199,7 +202,7 @@ class PlayerQueue:
 
     def get_two_from_queue(self):
         if self.count > 1:
-            with self.rlock:
+            with self.lock:
                 self.count -= 2
                 sid1 = self.queue.pop(0)
                 player1 = self.queue_player.pop(0)
@@ -211,7 +214,7 @@ class PlayerQueue:
 
     def remove_from_queue(self, sid, player):
         if self.count > 0:
-            with self.rlock:
+            with self.lock:
                 if sid in self.queue:
                     self.count -= 1
                     self.queue.remove(sid)
@@ -233,11 +236,11 @@ class PlayerQueue:
             return -1
 
     def get_queue(self):
-        with self.rlock:
+        with self.lock:
             return self.queue.copy()
 
     def get_queue_names(self):
-        with self.rlock:
+        with self.lock:
             return self.queue_player.copy()
 
     def size(self):
@@ -254,6 +257,7 @@ class specqueue(minqlx.Plugin):
     def __init__(self):
         # queue cvars
         self.set_cvar_once("qlx_queueAdmin", "3")
+        self.set_cvar_once("qlx_queueUseBDMPlacement", "1")
         self.set_cvar_once("qlx_queuePlaceByTeamScores", "1")
         self.set_cvar_once("qlx_queueTeamScoresDiff", "3")
         self.set_cvar_once("qlx_queueQueueMsg", "1")
@@ -292,7 +296,7 @@ class specqueue(minqlx.Plugin):
         self.add_command("latch", self.ignore_imbalance_latch, 3)
 
         # Script Variables, Lists, and Dictionaries
-        self.rlock = RLock()
+        self.lock = Lock()
         self._queue = PlayerQueue()
         self._spec = Spectators()
         self._join = JoinTime()
@@ -634,7 +638,7 @@ class specqueue(minqlx.Plugin):
             self.checking_space = False
 
     def place_in_team(self, amount, team):
-        with self.rlock:
+        with self.lock:
             if not self.end_screen:
                 count = 0
                 teams = self.teams()
@@ -654,7 +658,7 @@ class specqueue(minqlx.Plugin):
             return
 
     def place_in_both(self):
-        with self.rlock:
+        with self.lock:
             if not self.end_screen and self._queue.size() > 1:
                 teams = self.teams()
                 spectators = teams["spectator"]
@@ -664,8 +668,7 @@ class specqueue(minqlx.Plugin):
                 red_score = int(self.game.red_score)
                 blue_score = int(self.game.blue_score)
                 score_diff = abs(red_score - blue_score) >= self.get_cvar("qlx_queueTeamScoresDiff", int)
-                by_team = self.get_cvar("qlx_queuePlaceByTeamScores", bool)
-                if self.q_gameinfo[0] in BDM_GAMETYPES:
+                if self.q_gameinfo[0] in BDM_GAMETYPES and self.get_cvar("qlx_queueUseBDMPlacement", bool):
                     red_bdm = self.team_average(teams["red"])
                     blue_bdm = self.team_average(teams["blue"])
                     p1_bdm = self.get_rating(p1_sid)
@@ -674,7 +677,7 @@ class specqueue(minqlx.Plugin):
                     # If the team's score difference is over "qlx_queuesTeamScoresAmount" and
                     #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher bdm
                     #  player going to the lower scoring team regardless of average team BDMs
-                    if by_team and score_diff:
+                    if self.get_cvar("qlx_queuePlaceByTeamScores", bool) and score_diff:
                         if p1_bdm > p2_bdm:
                             placement = ["blue", "red"] if red_score > blue_score else ["red", "blue"]
                         else:
