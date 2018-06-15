@@ -22,6 +22,9 @@ who are in the queue.
 
 //set the minqlx permission level needed to admin this script<br>
 set qlx_queueAdmin", "3"<br>
+//enable to use BDM in placement into teams when 2 players are put in together<br>
+//disable to use as generic queue system (0=off, 1=on)<br>
+set qlx_queueUseBDMPlacement "1"<br>
 //The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will<br>
 // put the higher BDM player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting<br>
 set qlx_queuePlaceByTeamScores "1"<br>
