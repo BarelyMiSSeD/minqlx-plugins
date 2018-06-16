@@ -74,9 +74,9 @@ set qlx_bdmMinimumTeamSize "3"
 
 import minqlx
 import time
-from threading import RLock
+from threading import Lock
 
-VERSION = "1.03.13"
+VERSION = "1.03.14"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -156,7 +156,7 @@ class serverBDM(minqlx.Plugin):
         self.add_command("gamestatus", self.cmd_game_status, self.get_cvar("qlx_bdmAdmin", int))
 
         # Script Variables, Lists, and Dictionaries
-        self.rlock = RLock()
+        self.lock = Lock()
         self._bdm_gtype = self.game.type_short
         self._played_time = {}
         self._disconnected_players = {}
@@ -323,7 +323,7 @@ class serverBDM(minqlx.Plugin):
             game_type = "ictf"
         else:
             game_type = self._bdm_gtype
-        self.set_bdm_field(player, game_type, "rating", rating)
+        self.set_bdm_field(target_player, game_type, "rating", rating)
         player.tell("^4Rating^7: The player {} ^7has been set to a ^4bdm ^7rating of ^1{}^7 for game type {}."
                     .format(target_player, rating, game_type))
         player.tell("^7The rating will be adjusted from this point as games are recorded.")
@@ -724,7 +724,7 @@ class serverBDM(minqlx.Plugin):
 
     #@minqlx.thread
     def record_ctf_events(self, sid, medal):
-        with self.rlock:
+        with self.lock:
             if sid not in self._record_events:
                 self._record_events[sid] = {}
                 self._record_events[sid]["CAPTURES"] = 0
@@ -739,7 +739,7 @@ class serverBDM(minqlx.Plugin):
 
     #@minqlx.thread
     def record_ft_events(self, stats):
-        with self.rlock:
+        with self.lock:
             sid = None
             if stats["TYPE"] == "PLAYER_KILL":
                 sid = stats["DATA"]["KILLER"]["STEAM_ID"]
@@ -765,7 +765,7 @@ class serverBDM(minqlx.Plugin):
         sid = str(player[0].steam_id)
         if sid[0] == "9":
             return
-        with self.rlock:
+        with self.lock:
             if self.game.state != "in_progress":
                 self._disconnected_players.pop(sid, None)
                 self._played_time.pop(sid, None)
@@ -828,7 +828,7 @@ class serverBDM(minqlx.Plugin):
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
             if self.game.state != "in_progress":
                 return
-            with self.rlock:
+            with self.lock:
                 if old_team != "spectator" and new_team == "spectator":
                     if self.check_dict_value_greater(self._played_time, sid, "time", 0):
                         self._spectating_players[sid] = {}
@@ -981,7 +981,7 @@ class serverBDM(minqlx.Plugin):
     @minqlx.thread
     def round_stats_record(self):
         teams = self.teams()
-        with self.rlock:
+        with self.lock:
             for player in teams["red"]:
                 sid = str(player.steam_id)
                 if sid[0] == "9":
@@ -1007,7 +1007,7 @@ class serverBDM(minqlx.Plugin):
 
     @minqlx.delay(2)
     def players_in_teams(self):
-        with self.rlock:
+        with self.lock:
             self._played_time.clear()
             self._disconnected_players.clear()
             self._team_switchers.clear()
@@ -1078,7 +1078,7 @@ class serverBDM(minqlx.Plugin):
 
     @minqlx.thread
     def process_game(self):
-        with self.rlock:
+        with self.lock:
             teams = self.teams()
             game_time = int(round(time.time() * 1000)) - self.game_start
             match_time = 0
