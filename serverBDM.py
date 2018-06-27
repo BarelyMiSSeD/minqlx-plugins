@@ -76,7 +76,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.03.14"
+VERSION = "1.03.15"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -683,12 +683,20 @@ class serverBDM(minqlx.Plugin):
             minqlx.console_print("^3Match is not in progress")
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
             minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}".format(self.game.red_score, self.game.blue_score))
-            minqlx.console_print("^1Red Team^7: (ID Ping Score Name)")
+            minqlx.console_print("^1Red^7: ^7(^1ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)")
             for player in teams["red"]:
-                minqlx.console_print("    {} {} {} {}".format(player.id, player.stats.ping, player.stats.score, player))
-            minqlx.console_print("^4Blue Team^7: (ID Ping Score Name)")
+                minqlx.console_print("    ^1{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                     .format(player.id, player.stats.ping, player.stats.score, player,
+                                             "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
+                                             player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                             player.stats.damage_taken))
+            minqlx.console_print("^4Blue^7: ^7(^4ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)")
             for player in teams["blue"]:
-                minqlx.console_print("    {} {} {} {}".format(player.id, player.stats.ping, player.stats.score, player))
+                minqlx.console_print("    ^4{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                     .format(player.id, player.stats.ping, player.stats.score, player,
+                                             "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
+                                             player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                             player.stats.damage_taken))
         else:
             for player in teams["free"]:
                 minqlx.console_print("{}^7: {} ^6Ping^7: {}".format(player, player.stats.score, player.stats.ping))
