@@ -76,7 +76,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.03.15"
+VERSION = "1.03.16"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -570,10 +570,7 @@ class serverBDM(minqlx.Plugin):
                 # Otherwise, switch right away.
                 self.execute_switch()
             else:
-                if not all(self._players_agree):
-                    self.msg("^3Player ^6{} ^7and ^6{} ^7still need to ^2agree ^7to the switch."
-                             .format(player1, player2))
-                elif not self._players_agree[0]:
+                if not self._players_agree[0]:
                     self.msg("^3Player ^6{} ^7still needs to ^2agree ^7to the switch.".format(player1))
                 else:
                     self.msg("^3Player ^6{} ^7still needs to ^2agree ^7to the switch.".format(player2))
