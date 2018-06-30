@@ -66,7 +66,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.03.15"
+VERSION = "2.03.16"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -741,8 +741,10 @@ class specqueue(minqlx.Plugin):
         return int(round(avg))
 
     @minqlx.next_frame
-    def team_placement(self, player, team):
+    def team_placement(self, player, team, add_queue=False):
         player.put(team)
+        if add_queue:
+            self.add_to_queue_pos(player, 0)
 
     @minqlx.thread
     def add_join_times(self):
@@ -868,9 +870,8 @@ class specqueue(minqlx.Plugin):
                     self.team_placement(player, where)
                 self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7.".format("^7, ".join(players), where))
             if spec_player:
-                self.team_placement(spec_player, "spectator")
+                self.team_placement(spec_player, "spectator", True)
                 self.msg("^3Uneven Teams Detected^7: {} ^7was moved to ^3spectate^7.".format(spec_player))
-                self.add_to_queue_pos(spec_player, 0)
 
     @minqlx.thread
     def get_player_for_spec(self, team):

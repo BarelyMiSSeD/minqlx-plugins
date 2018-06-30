@@ -76,7 +76,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.03.16"
+VERSION = "1.03.17"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -168,6 +168,7 @@ class serverBDM(minqlx.Plugin):
         self._record_events = {}
         self._agreeing_players = None
         self._players_agree = [False, False]
+        self._suggested_switch = 0
         self.in_countdown = False
         self.game_active = False
         self.rounds_played = 0
@@ -216,6 +217,8 @@ class serverBDM(minqlx.Plugin):
 
     def handle_team_switch(self, player, old_team, new_team):
         self.team_switch_record(player, new_team, old_team)
+        if self._suggested_switch == 1:
+            self._suggested_switch = -1
 
     def handle_round_countdown(self, number):
         self.in_countdown = True
@@ -533,8 +536,11 @@ class serverBDM(minqlx.Plugin):
                             players = (r, b)
 
                 if abs(new_difference) < abs(difference) and abs(difference) >= min_suggestion:
-                    self._agreeing_players = (players[0], players[1])
-                    self._players_agree = [False, False]
+                    if not self._agreeing_players or self._agreeing_players[0] != players[0] or\
+                            self._agreeing_players[1] != players[1]:
+                        self._agreeing_players = (players[0], players[1])
+                        self._players_agree = [False, False]
+                    self._suggested_switch = 1
                     self.msg("^6Switch ^1::^7{}^1::^7<-> ^4::^7{}^4:: ^6{}a ^7to agree."
                              .format(self.player(int(players[0])), self.player(int(players[1])),
                                      self.get_cvar("qlx_commandPrefix")))
@@ -542,14 +548,23 @@ class serverBDM(minqlx.Plugin):
                     self.msg("^6Teams look good.")
                     self._agreeing_players = None
                     self._players_agree = [False, False]
+                    self._suggested_switch = 0
             else:
                 self.msg("^6Teams look good.")
                 self._agreeing_players = None
                 self._players_agree = [False, False]
+                self._suggested_switch = 0
         else:
             self.msg("^7This game type is not a supported Team-Based BDM game type.")
+            self._suggested_switch = 0
 
     def cmd_bdmagree(self, player, msg, channel):
+        if self._suggested_switch == -1:
+            self.msg("^6Team makeups have changed. Run ^1{0}{1} ^6again."
+                     .format(self.get_cvar("qlx_commandPrefix"),
+                             "teams" if self.get_cvar("qlx_bdmRespondToTeamsCommand", bool) else "bteams"))
+            self.clear_suggestion()
+            return
         """After the bot suggests a switch, players in question can use this to agree to the switch."""
         if self._agreeing_players and not all(self._players_agree):
             player1 = self.player(int(self._agreeing_players[0]))
@@ -570,7 +585,10 @@ class serverBDM(minqlx.Plugin):
                 # Otherwise, switch right away.
                 self.execute_switch()
             else:
-                if not self._players_agree[0]:
+                if not self._players_agree[0] and not self._players_agree[1]:
+                    self.msg("^3Player ^6{} ^7and ^6{} ^7still need to ^2agree ^7to the switch."
+                             .format(player1, player2))
+                elif not self._players_agree[0]:
                     self.msg("^3Player ^6{} ^7still needs to ^2agree ^7to the switch.".format(player1))
                 else:
                     self.msg("^3Player ^6{} ^7still needs to ^2agree ^7to the switch.".format(player2))
@@ -581,8 +599,18 @@ class serverBDM(minqlx.Plugin):
 
     def cmd_bdmdo(self, player, msg, channel):
         """Forces a suggested switch to be done."""
-        if self._agreeing_players:
+        minqlx.console_print("Status: {} {}".format(self._suggested_switch, self._agreeing_players))
+        if self._agreeing_players and self._suggested_switch == 1:
             self.execute_switch()
+        elif len(msg) > 1:
+            if self._agreeing_players and self._suggested_switch == -1 and msg[1] == "force":
+                self.execute_switch()
+            else:
+                player.tell("^6Use ^1{}do force ^6to execute the switch even though team makeup has changed."
+                            .format(self.get_cvar("qlx_commandPrefix")))
+        elif self._agreeing_players and self._suggested_switch == -1:
+            player.tell("^6Use ^1{}do force ^6to execute the switch even though team makeup has changed."
+                        .format(self.get_cvar("qlx_commandPrefix")))
 
     @minqlx.delay(1)
     def cmd_bdmbalance(self, player=None, msg=None, channel=None):
@@ -951,6 +979,10 @@ class serverBDM(minqlx.Plugin):
             avg /= len(team)
         return round(avg)
 
+    def clear_suggestion(self):
+        self._agreeing_players = None
+        self._players_agree = [False, False]
+
     def execute_switch(self):
         if not self.get_cvar("qlx_bdmEnableSwitch", bool):
             self.msg("^4This script is still collecting data.")
@@ -968,6 +1000,7 @@ class serverBDM(minqlx.Plugin):
                 self.switch(player1, player2)
         self._agreeing_players = None
         self._players_agree = [False, False]
+        self._suggested_switch = 0
 
     @minqlx.thread
     def save_previous(self):
