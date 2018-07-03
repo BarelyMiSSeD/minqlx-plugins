@@ -9,27 +9,25 @@
 # along with minqlx. If not, see <http://www.gnu.org/licenses/>.
 
 # This is a queueing plugin for the minqlx admin bot.
-# This plugin requires the server to be using the serverBDM.py plugin
-
-# This is a queueing plugin for the minqlx admin bot.
-# This plugin requires the server to be using the serverBDM.py plugin
+# This plugin requires the server to be using the serverBDM.py plugin if when placing 2 players into a team
+#  you desire the plugin to attempt to keep the teams as balanced as possible.
 #
 # This plugin is intended to help keep the game as enjoyable as possible,
-# without the hassles of people making teams uneven, or someone joining later than others,
-# but happening to hit the join button first and cutting in line when a play spot opens.
+#  without the hassles of people making teams uneven, or someone joining later than others,
+#  but happening to hit the join button first and cutting in line when a play spot opens.
 #
 # The plugin will also attempt to keep team games even, when adding 2 players at once,
-# by putting players into the most appropriate team, based on team scores or player BDMs.
+#  by putting players into the most appropriate team, based on team scores or player BDMs.
 #
 # This plugin will spectate people when teams are uneven. It will, by default settings,
-# first look at player score then player play time to determine who, on the team with more players,
-# gets put to spectate. When a player gets put to spectate they will automatically get put into the
-# queue in the beginning of the line.
+#  first look at player score then player play time to determine who, on the team with more players,
+#  gets put to spectate. When a player gets put to spectate they will automatically get put into the
+#  queue in the beginning of the line.
 #
 # There is also the option to have the players in spectate for too long (set with qlx_queueMaxSpecTime)
-# to be kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
+#  to be kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
 # This feature will not kick people with permission levels at or above the qlx_queueAdmin level,
-# or people who are in the queue.
+#  or people who are in the queue.
 
 """
 //set the minqlx permission level needed to admin this script
@@ -66,7 +64,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.03.16"
+VERSION = "2.04.1"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -280,7 +278,7 @@ class specqueue(minqlx.Plugin):
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("team_switch", self.handle_team_switch)
         self.add_hook("team_switch_attempt", self.handle_team_switch_attempt)
-        self.add_hook("set_configstring", self.handle_set_configstring)
+        self.add_hook("set_configstring", self.handle_set_config_string)
         self.add_hook("client_command", self.handle_client_command)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("console_print", self.handle_console_print)
@@ -308,7 +306,7 @@ class specqueue(minqlx.Plugin):
         self.displaying_spec = False
         self.in_countdown = False
         self.death_count = 0
-        self.q_gameinfo = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
+        self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
         self.checking_space = False
         self._round = 0
 
@@ -350,37 +348,36 @@ class specqueue(minqlx.Plugin):
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
         if new_team != "spectator" and old_team == "spectator":
-            if self.q_gameinfo[0] in TEAM_BASED_GAMETYPES:
-                teams = self.teams()
-                if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players()\
-                        or self.game.state in ["in_progress", "countdown"] or\
-                        self._queue.size() > 0 or self.red_locked or self.blue_locked:
-                    if player.steam_id not in self._join:
-                        self.add_to_join(player)
-                    self.add_to_queue(player)
-                    self.remove_from_spec(player)
-                    self.check_for_opening(0.2)
-                    return minqlx.RET_STOP_ALL
-            elif self.q_gameinfo[0] in NONTEAM_BASED_GAMETYPES:
-                if len(self.teams()["free"]) >= self.get_max_players()\
-                        or self.game.state in ["in_progress", "countdown"] or self._queue.size() > 0:
-                    if player.steam_id not in self._join:
-                        self.add_to_join(player)
-                    self.add_to_queue(player)
-                    self.remove_from_spec(player)
-                    self.check_for_opening(0.2)
-                    return minqlx.RET_STOP_ALL
+            teams = self.teams()
+            type_action = 0
+            at_max_players = False
+            if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                type_action = 1
+                if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players():
+                    at_max_players = True
+            elif self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
+                type_action = 2
+                if len(self.teams()["free"]) >= self.get_max_players():
+                    at_max_players = True
+            if type_action != 0 and self._queue.size() > 0 or self.red_locked or self.blue_locked or\
+                    self.game.state in ["in_progress", "countdown"] or at_max_players:
+                if player.steam_id not in self._join:
+                    self.add_to_join(player)
+                self.add_to_queue(player)
+                self.remove_from_spec(player)
+                self.check_for_opening(0.2)
+                return minqlx.RET_STOP_ALL
 
-    def handle_set_configstring(self, index, values):
+    def handle_set_config_string(self, index, values):
         args = values.split("\\")[1:]
         if "teamsize" in args:
             teamsize = args[args.index("teamsize") + 1]
-            if self.q_gameinfo[1] != teamsize:
-                self.q_gameinfo[1] = teamsize
+            if self.q_game_info[1] != teamsize:
+                self.q_game_info[1] = teamsize
                 self.check_for_opening(1.5)
         if "fraglimit" in args:
             fraglimit = args[args.index("fraglimit") + 1]
-            self.q_gameinfo[2] = fraglimit
+            self.q_game_info[2] = fraglimit
 
     def handle_client_command(self, player, command):
         if command == "team s" and player in self.teams()["spectator"]:
@@ -396,7 +393,7 @@ class specqueue(minqlx.Plugin):
         self.displaying_queue = False
         self.displaying_spec = False
 
-        if self.q_gameinfo[0] not in TEAM_BASED_GAMETYPES + NONTEAM_BASED_GAMETYPES:
+        if self.q_game_info[0] not in TEAM_BASED_GAMETYPES + NONTEAM_BASED_GAMETYPES:
             self._queue.clear()
         else:
             self.check_for_opening(2)
@@ -418,7 +415,7 @@ class specqueue(minqlx.Plugin):
         self._ignore = False
         self._ignore_msg_already_said = False
         self.end_screen = False
-        self.q_gameinfo[0] = self.game.type_short
+        self.q_game_info[0] = self.game.type_short
         self.check_spec_time()
 
     def handle_game_end(self, data):
@@ -447,7 +444,7 @@ class specqueue(minqlx.Plugin):
         self.even_the_teams()
 
     def handle_round_end(self, data):
-        if self.q_gameinfo[0] in NO_COUNTDOWN_TEAM_GAMES:
+        if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
             self.check_for_opening(0.2)
             self.even_the_teams(True)
             if self.get_cvar("qlx_queueQueueMsg", bool):
@@ -457,9 +454,9 @@ class specqueue(minqlx.Plugin):
         self.check_spec_time()
 
     def death_monitor(self, victim, killer, data):
-        if self.q_gameinfo[0] in NON_ROUND_BASED_GAMETYPES:
+        if self.q_game_info[0] in NON_ROUND_BASED_GAMETYPES:
             self.death_count += 1
-            if self.death_count > 5 and self.death_count > self.q_gameinfo[2] / 5:
+            if self.death_count > 5 and self.death_count > self.q_game_info[2] / 5:
                 self.check_for_opening(0.2)
                 if self.get_cvar("qlx_queueQueueMsg", bool):
                     self.cmd_list_queue()
@@ -493,7 +490,7 @@ class specqueue(minqlx.Plugin):
 
     def get_max_players(self):
         max_players = self.get_cvar("teamsize", int)
-        if self.q_gameinfo[0] in TEAM_BASED_GAMETYPES:
+        if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
             max_players *= 2
         if max_players == 0:
             max_players = self.get_cvar("sv_maxClients", int)
@@ -535,9 +532,10 @@ class specqueue(minqlx.Plugin):
                 continue
             try:
                 p.center_print("^7You are in ^4Queue ^7position ^1{}".format(count))
-            except:
-                pass
-            count += 1
+            except Exception as e:
+                minqlx.console_print("SpecQueue Queue Message Exception: {}".format(e))
+            finally:
+                count += 1
         self.displaying_queue = False
 
     def add_spectators(self):
@@ -599,133 +597,151 @@ class specqueue(minqlx.Plugin):
         if delay > 0.0:
             time.sleep(delay)
 
-        state = self.game.state
-        max_players = self.get_max_players()
-        teams = self.teams()
-        red_players = len(teams["red"])
-        blue_players = len(teams["blue"])
-        free_players = len(teams["free"])
-        if self.q_gameinfo[0] in NONTEAM_BASED_GAMETYPES:
-            if free_players < max_players:
-                self.place_in_team(max_players - free_players, "free")
-            else:
-                self.checking_space = False
+        try:
+            state = self.game.state
+            max_players = self.get_max_players()
+            teams = self.teams()
+            red_players = len(teams["red"])
+            blue_players = len(teams["blue"])
+            free_players = len(teams["free"])
+            if self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
+                if free_players < max_players:
+                    self.place_in_team(max_players - free_players, "free")
+                else:
+                    self.checking_space = False
 
-        elif self.q_gameinfo[0] in TEAM_BASED_GAMETYPES:
-            ts = int(self.game.teamsize)
-            if ts == 0:
-                ts = int(max_players / 2)
-            difference = red_players - blue_players
-            if difference < 0 and not self.red_locked:
-                self.place_in_team(abs(difference), "red")
-            elif difference > 0 and not self.blue_locked:
-                self.place_in_team(difference, "blue")
-            elif (red_players + blue_players) < max_players:
-                if self._queue.size() > 1 and not self.red_locked and not self.blue_locked:
-                    self.place_in_both()
-                elif state == "warmup":
-                    if not self.blue_locked and blue_players < ts:
-                        self.place_in_team(1, "blue")
-                    elif not self.red_locked and red_players < ts:
-                        self.place_in_team(1, "red")
+            elif self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                ts = int(self.game.teamsize)
+                if ts == 0:
+                    ts = int(max_players / 2)
+                difference = red_players - blue_players
+                if difference < 0 and not self.red_locked:
+                    self.place_in_team(abs(difference), "red")
+                elif difference > 0 and not self.blue_locked:
+                    self.place_in_team(difference, "blue")
+                elif (red_players + blue_players) < max_players:
+                    if self._queue.size() > 1 and not self.red_locked and not self.blue_locked:
+                        self.place_in_both()
+                    elif state == "warmup":
+                        if not self.blue_locked and blue_players < ts:
+                            self.place_in_team(1, "blue")
+                        elif not self.red_locked and red_players < ts:
+                            self.place_in_team(1, "red")
+                        else:
+                            self.checking_space = False
                     else:
                         self.checking_space = False
                 else:
                     self.checking_space = False
+
             else:
                 self.checking_space = False
-        else:
+        except Exception as e:
             self.checking_space = False
+            minqlx.console_print("SpecQueue Check For Space Exception: {}".format(e))
+        return
 
     def place_in_team(self, amount, team):
         with self.lock:
-            if not self.end_screen:
-                count = 0
-                teams = self.teams()
-                while count < amount and self._queue.size():
-                    p = self._queue.get_next()
-                    if p[1] in teams["spectator"]and p[1].connection_state == "active":
-                        self.team_placement(p[1], team)
-                        if team in "red":
-                            placement = "^1red ^7team"
-                        elif team == "blue":
-                            placement = "^4blue ^7team"
-                        else:
-                            placement = "battle"
-                        self.msg("{} ^7has joined the {}.".format(p[1], placement))
-                        count += 1
-            self.checking_space = False
+            try:
+                if not self.end_screen:
+                    count = 0
+                    teams = self.teams()
+                    while count < amount and self._queue.size():
+                        p = self._queue.get_next()
+                        if p[1] in teams["spectator"]and p[1].connection_state == "active":
+                            self.team_placement(p[1], team)
+                            if team in "red":
+                                placement = "^1red ^7team"
+                            elif team == "blue":
+                                placement = "^4blue ^7team"
+                            else:
+                                placement = "battle"
+                            self.msg("{} ^7has joined the {}.".format(p[1], placement))
+                            count += 1
+            except Exception as e:
+                minqlx.console_print("SpecQueue Place in Team Exception: {}".format(e))
+                for player in self.teams()["spectator"]:
+                    player.tell("^1Error in player placement in team. ^6Check your position in the queue.")
+            finally:
+                self.checking_space = False
             return
 
     def place_in_both(self):
         with self.lock:
-            if not self.end_screen and self._queue.size() > 1:
-                teams = self.teams()
-                spectators = teams["spectator"]
-                p1_sid = self._queue[0][0]
-                p2_sid = self._queue[1][0]
-                # Get red team's and blue team's score so the correct player placements can be executed
-                red_score = int(self.game.red_score)
-                blue_score = int(self.game.blue_score)
-                score_diff = abs(red_score - blue_score) >= self.get_cvar("qlx_queueTeamScoresDiff", int)
-                if self.q_gameinfo[0] in BDM_GAMETYPES and self.get_cvar("qlx_queueUseBDMPlacement", bool):
-                    red_bdm = self.team_average(teams["red"])
-                    blue_bdm = self.team_average(teams["blue"])
-                    p1_bdm = self.get_rating(p1_sid)
-                    p2_bdm = self.get_rating(p2_sid)
-                    # set team related variables initial values
-                    # If the team's score difference is over "qlx_queuesTeamScoresAmount" and
-                    #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher bdm
-                    #  player going to the lower scoring team regardless of average team BDMs
-                    if self.get_cvar("qlx_queuePlaceByTeamScores", bool) and score_diff:
-                        if p1_bdm > p2_bdm:
-                            placement = ["blue", "red"] if red_score > blue_score else ["red", "blue"]
-                        else:
-                            placement = ["red", "blue"] if red_score > blue_score else ["blue", "red"]
-                    # Executes if the 'place by team score' doesn't execute and sets player
-                    #   with higher BDM on the team with the lower average BDM.
-                    else:
-                        if red_bdm > blue_bdm:
-                            placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
-                        elif blue_bdm > red_bdm:
-                            placement = ["red", "blue"] if p1_bdm > p2_bdm else ["blue", "red"]
-                        else:
-                            if red_score > blue_score:
-                                placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
+            try:
+                if not self.end_screen and self._queue.size() > 1:
+                    teams = self.teams()
+                    spectators = teams["spectator"]
+                    p1_sid = self._queue[0][0]
+                    p2_sid = self._queue[1][0]
+                    # Get red team's and blue team's score so the correct player placements can be executed
+                    red_score = int(self.game.red_score)
+                    blue_score = int(self.game.blue_score)
+                    score_diff = abs(red_score - blue_score) >= self.get_cvar("qlx_queueTeamScoresDiff", int)
+                    if self.q_game_info[0] in BDM_GAMETYPES and self.get_cvar("qlx_queueUseBDMPlacement", bool):
+                        red_bdm = self.team_average(teams["red"])
+                        blue_bdm = self.team_average(teams["blue"])
+                        p1_bdm = self.get_rating(p1_sid)
+                        p2_bdm = self.get_rating(p2_sid)
+                        # set team related variables initial values
+                        # If the team's score difference is over "qlx_queuesTeamScoresAmount" and
+                        #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher bdm
+                        #  player going to the lower scoring team regardless of average team BDMs
+                        if self.get_cvar("qlx_queuePlaceByTeamScores", bool) and score_diff:
+                            if p1_bdm > p2_bdm:
+                                placement = ["blue", "red"] if red_score > blue_score else ["red", "blue"]
                             else:
+                                placement = ["red", "blue"] if red_score > blue_score else ["blue", "red"]
+                        # Executes if the 'place by team score' doesn't execute and sets player
+                        #   with higher BDM on the team with the lower average BDM.
+                        else:
+                            if red_bdm > blue_bdm:
+                                placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
+                            elif blue_bdm > red_bdm:
                                 placement = ["red", "blue"] if p1_bdm > p2_bdm else ["blue", "red"]
-                    player1 = self._queue.get_next()
-                    if player1[1] in spectators and player1[1].connection_state == "active":
-                        player2 = self._queue.get_next()
-                        if player2[1] in spectators and player2[1].connection_state == "active":
-                            self.team_placement(player1[1], placement[0])
-                            self.msg("{} ^7has joined the {}{} ^7team."
-                                     .format(player1[1], "^1" if placement[0] == "red" else "^4", placement[0]))
-                            self.team_placement(player2[1], placement[1])
-                            self.msg("{} ^7has joined the {}{} ^7team."
-                                     .format(player2[1], "^1" if placement[1] == "red" else "^4", placement[1]))
-                        else:
-                            self.add_to_queue_pos(player1[1], 0)
-                else:
-                    player1 = self._queue.get_next()
-                    if player1[1] in spectators and player1[1].connection_state == "active":
-                        player2 = self._queue.get_next()
-                        if player2[1] in spectators and player2[1].connection_state == "active":
-                            players = self._queue.get_two_from_queue()
-                            self.team_placement(player1[1], "blue")
-                            self.msg("{} ^7has joined the ^4blue ^7team.".format(players[1]))
-                            self.team_placement(player2[1], "red")
-                            self.msg("{} ^7has joined the ^1red ^7team.".format(players[3]))
-                        else:
-                            self.add_to_queue_pos(player1[1], 0)
-            self.checking_space = False
+                            else:
+                                if red_score > blue_score:
+                                    placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
+                                else:
+                                    placement = ["red", "blue"] if p1_bdm > p2_bdm else ["blue", "red"]
+                        player1 = self._queue.get_next()
+                        if player1[1] in spectators and player1[1].connection_state == "active":
+                            player2 = self._queue.get_next()
+                            if player2[1] in spectators and player2[1].connection_state == "active":
+                                self.team_placement(player1[1], placement[0])
+                                self.msg("{} ^7has joined the {}{} ^7team."
+                                         .format(player1[1], "^1" if placement[0] == "red" else "^4", placement[0]))
+                                self.team_placement(player2[1], placement[1])
+                                self.msg("{} ^7has joined the {}{} ^7team."
+                                         .format(player2[1], "^1" if placement[1] == "red" else "^4", placement[1]))
+                            else:
+                                self.add_to_queue_pos(player1[1], 0)
+                    else:
+                        player1 = self._queue.get_next()
+                        if player1[1] in spectators and player1[1].connection_state == "active":
+                            player2 = self._queue.get_next()
+                            if player2[1] in spectators and player2[1].connection_state == "active":
+                                players = self._queue.get_two_from_queue()
+                                self.team_placement(player1[1], "blue")
+                                self.msg("{} ^7has joined the ^4blue ^7team.".format(players[1]))
+                                self.team_placement(player2[1], "red")
+                                self.msg("{} ^7has joined the ^1red ^7team.".format(players[3]))
+                            else:
+                                self.add_to_queue_pos(player1[1], 0)
+            except Exception as e:
+                minqlx.console_print("SpecQueue Place in Both Exception: {}".format(e))
+                for player in self.teams()["spectator"]:
+                    player.tell("^1Error in player(s) placement in team. ^6Check your position in the queue.")
+            finally:
+                self.checking_space = False
             return
 
     def get_rating(self, sid):
         if self.get_cvar("g_factory").lower() == "ictf":
             game_type = "ictf"
         else:
-            game_type = self.q_gameinfo[0]
+            game_type = self.q_game_info[0]
         if self.db.exists(BDM_KEY.format(sid, game_type, "rating")):
             return int(self.db.get(BDM_KEY.format(sid, game_type, "rating")))
         else:
@@ -769,7 +785,7 @@ class specqueue(minqlx.Plugin):
 
     @minqlx.thread
     def look_at_teams(self):
-        if self.q_gameinfo[0] in TEAM_BASED_GAMETYPES:
+        if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
             teams = self.teams()
             difference = len(teams["red"]) - len(teams["blue"])
             if abs(difference) > 0 and self._latch_ignore or self._ignore:
@@ -818,7 +834,7 @@ class specqueue(minqlx.Plugin):
 
     @minqlx.thread
     def even_the_teams(self, delay=False):
-        if self.q_gameinfo[0] not in TEAM_BASED_GAMETYPES:
+        if self.q_game_info[0] not in TEAM_BASED_GAMETYPES:
             return
         if delay:
             if self.game.type_short == "ft":
@@ -1002,6 +1018,9 @@ class specqueue(minqlx.Plugin):
                 return
             except minqlx.NonexistentPlayerError:
                 player.tell("Invalid client ID.")
+                return
+            except Exception as e:
+                minqlx.console_print("SpecQueue Cmd Que Add Exception: {}".format(e))
                 return
             self.add_to_queue(target_player)
 
