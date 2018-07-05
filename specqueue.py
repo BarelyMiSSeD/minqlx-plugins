@@ -64,7 +64,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.04.1"
+VERSION = "2.04.2"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -307,7 +307,6 @@ class specqueue(minqlx.Plugin):
         self.in_countdown = False
         self.death_count = 0
         self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
-        self.checking_space = False
         self._round = 0
 
         # Initialize Commands
@@ -583,16 +582,10 @@ class specqueue(minqlx.Plugin):
                                           .format(spec_time))
         self.displaying_spec = False
 
-    def check_for_opening(self, delay=0.0):
-        if not self.checking_space:
-            self.check_for_space(delay)
-
     @minqlx.thread
-    def check_for_space(self, delay):
+    def check_for_opening(self, delay=0.0):
         if self._queue.size() == 0 or self.end_screen:
             return
-
-        self.checking_space = True
 
         if delay > 0.0:
             time.sleep(delay)
@@ -607,8 +600,6 @@ class specqueue(minqlx.Plugin):
             if self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
                 if free_players < max_players:
                     self.place_in_team(max_players - free_players, "free")
-                else:
-                    self.checking_space = False
 
             elif self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 ts = int(self.game.teamsize)
@@ -627,17 +618,7 @@ class specqueue(minqlx.Plugin):
                             self.place_in_team(1, "blue")
                         elif not self.red_locked and red_players < ts:
                             self.place_in_team(1, "red")
-                        else:
-                            self.checking_space = False
-                    else:
-                        self.checking_space = False
-                else:
-                    self.checking_space = False
-
-            else:
-                self.checking_space = False
         except Exception as e:
-            self.checking_space = False
             minqlx.console_print("SpecQueue Check For Space Exception: {}".format(e))
         return
 
@@ -663,8 +644,6 @@ class specqueue(minqlx.Plugin):
                 minqlx.console_print("SpecQueue Place in Team Exception: {}".format(e))
                 for player in self.teams()["spectator"]:
                     player.tell("^1Error in player placement in team. ^6Check your position in the queue.")
-            finally:
-                self.checking_space = False
             return
 
     def place_in_both(self):
@@ -733,8 +712,6 @@ class specqueue(minqlx.Plugin):
                 minqlx.console_print("SpecQueue Place in Both Exception: {}".format(e))
                 for player in self.teams()["spectator"]:
                     player.tell("^1Error in player(s) placement in team. ^6Check your position in the queue.")
-            finally:
-                self.checking_space = False
             return
 
     def get_rating(self, sid):
