@@ -64,7 +64,8 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.04.2"
+VERSION = "2.04.3"
+SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -346,7 +347,8 @@ class specqueue(minqlx.Plugin):
             check_spectator()
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
-        if new_team != "spectator" and old_team == "spectator":
+        if self.q_game_info[0] in SUPPORTED_GAMETYPES and\
+                new_team != "spectator" and old_team == "spectator":
             teams = self.teams()
             type_action = 0
             at_max_players = False
@@ -392,8 +394,9 @@ class specqueue(minqlx.Plugin):
         self.displaying_queue = False
         self.displaying_spec = False
 
-        if self.q_game_info[0] not in TEAM_BASED_GAMETYPES + NONTEAM_BASED_GAMETYPES:
+        if self.q_game_info[0] not in SUPPORTED_GAMETYPES:
             self._queue.clear()
+            self.msg("^1This gametype is not supported by the queueing system. Queue functions are not available.")
         else:
             self.check_for_opening(2)
 
@@ -418,10 +421,8 @@ class specqueue(minqlx.Plugin):
         self.check_spec_time()
 
     def handle_game_end(self, data):
-        self.end_screen = True
-        if data["ABORTED"]:
-            self.check_for_opening(2)
-            return
+        if not data["ABORTED"]:
+            self.end_screen = True
 
     def handle_round_countdown(self, round_num):
         self._round = round_num
