@@ -76,7 +76,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.03.17"
+VERSION = "1.03.19"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -707,21 +707,31 @@ class serverBDM(minqlx.Plugin):
         if self.game.state not in ["in_progress", "countdown"]:
             minqlx.console_print("^3Match is not in progress")
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+            red_team = []
+            blue_team = []
             minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}".format(self.game.red_score, self.game.blue_score))
-            minqlx.console_print("^1Red^7: ^7(^1ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)")
             for player in teams["red"]:
-                minqlx.console_print("    ^1{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
-                                     .format(player.id, player.stats.ping, player.stats.score, player,
-                                             "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
-                                             player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
-                                             player.stats.damage_taken))
-            minqlx.console_print("^4Blue^7: ^7(^4ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)")
+                red_team.append("    ^1{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                .format(player.id, player.stats.ping, player.stats.score, player,
+                                        "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
+                                        player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                        player.stats.damage_taken))
+            minqlx.console_print("^1Red^7: ^7(^1ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)"
+                                 " ^1{} ^7Players"
+                                 .format(len(red_team)))
+            for player in red_team:
+                minqlx.console_print(player)
             for player in teams["blue"]:
-                minqlx.console_print("    ^4{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
-                                     .format(player.id, player.stats.ping, player.stats.score, player,
-                                             "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
-                                             player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
-                                             player.stats.damage_taken))
+                blue_team.append("    ^4{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                 .format(player.id, player.stats.ping, player.stats.score, player,
+                                         "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
+                                         player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                         player.stats.damage_taken))
+            minqlx.console_print("^4Blue^7: ^7(^4ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)"
+                                 " ^4{} ^7Players"
+                                 .format(len(blue_team)))
+            for player in blue_team:
+                minqlx.console_print(player)
         else:
             for player in teams["free"]:
                 minqlx.console_print("{}^7: {} ^6Ping^7: {}".format(player, player.stats.score, player.stats.ping))
@@ -755,7 +765,6 @@ class serverBDM(minqlx.Plugin):
         else:
             self.db.setnx(BDM_KEY.format(player.steam_id, game_type, field), str(data))
 
-    #@minqlx.thread
     def record_ctf_events(self, sid, medal):
         with self.lock:
             if sid not in self._record_events:
@@ -770,7 +779,6 @@ class serverBDM(minqlx.Plugin):
             elif medal == "ASSIST":
                 self._record_events[sid]["ASSISTS"] += 1
 
-    #@minqlx.thread
     def record_ft_events(self, stats):
         with self.lock:
             sid = None
@@ -793,7 +801,6 @@ class serverBDM(minqlx.Plugin):
                 if stats["TYPE"] == "PLAYER_MEDAL" and stats["DATA"]["MEDAL"] == "ASSIST":
                     self._record_events[sid]["THAWS"] += 1
 
-    #@minqlx.thread
     def player_disconnect_record(self, player):
         sid = str(player[0].steam_id)
         if sid[0] == "9":
@@ -1292,10 +1299,18 @@ class serverBDM(minqlx.Plugin):
                 self.player_count += 1
                 self._player_stats[sid] = {}
                 self._player_stats[sid]["left_game"] = 1
+                if sid in self._record_events:
+                    p_kills = self._record_events[sid]["KILLS"]
+                    p_thaws = self._record_events[sid]["THAWS"]
+                    p_frozen = self._record_events[sid]["TIMES_FROZEN"]
+                else:
+                    p_kills = 0
+                    p_thaws = 0
+                    p_frozen = 0
                 self._player_stats[sid]["DmgA"] = ((self._disconnected_players[sid]["damage_dealt"] +
-                                                   (self._record_events[sid]["KILLS"] * per_kill_pts) +
-                                                   (self._record_events[sid]["THAWS"] * per_thaw_pts) -
-                                                   (self._record_events[sid]["TIMES_FROZEN"] * per_frozen_pts)) *
+                                                   (p_kills * per_kill_pts) +
+                                                   (p_thaws * per_thaw_pts) -
+                                                   (p_frozen * per_frozen_pts)) *
                                                    match_time / self._disconnected_players[sid]["time"])
                 self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
                 self._player_stats["bdmSum"] += int(self.db.get(BDM_KEY.format(sid, self._bdm_gtype, "rating")))
@@ -1305,10 +1320,18 @@ class serverBDM(minqlx.Plugin):
                 self.player_count += 1
                 self._player_stats[sid] = {}
                 self._player_stats[sid]["left_game"] = 1
+                if sid in self._record_events:
+                    p_kills = self._record_events[sid]["KILLS"]
+                    p_thaws = self._record_events[sid]["THAWS"]
+                    p_frozen = self._record_events[sid]["TIMES_FROZEN"]
+                else:
+                    p_kills = 0
+                    p_thaws = 0
+                    p_frozen = 0
                 self._player_stats[sid]["DmgA"] = ((self._spectating_players[sid]["damage_dealt"] +
-                                                   (self._record_events[sid]["KILLS"] * per_kill_pts) +
-                                                   (self._record_events[sid]["THAWS"] * per_thaw_pts) -
-                                                   (self._record_events[sid]["TIMES_FROZEN"] * per_frozen_pts)) *
+                                                   (p_kills * per_kill_pts) +
+                                                   (p_thaws * per_thaw_pts) -
+                                                   (p_frozen * per_frozen_pts)) *
                                                    match_time / self._spectating_players[sid]["time"])
                 self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
                 self._player_stats["bdmSum"] += int(self.db.get(BDM_KEY.format(sid, self._bdm_gtype, "rating")))
@@ -1321,10 +1344,18 @@ class serverBDM(minqlx.Plugin):
                     damage_dealt = self._match_stats[sid]["damage_dealt"] + self._team_switchers[sid]["damage_dealt"]
                     self._player_stats[sid] = {}
                     self._player_stats[sid]["left_game"] = 0
+                    if sid in self._record_events:
+                        p_kills = self._record_events[sid]["KILLS"]
+                        p_thaws = self._record_events[sid]["THAWS"]
+                        p_frozen = self._record_events[sid]["TIMES_FROZEN"]
+                    else:
+                        p_kills = 0
+                        p_thaws = 0
+                        p_frozen = 0
                     self._player_stats[sid]["DmgA"] = ((damage_dealt +
-                                                       (self._record_events[sid]["KILLS"] * per_kill_pts) +
-                                                       (self._record_events[sid]["THAWS"] * per_thaw_pts) -
-                                                       (self._record_events[sid]["TIMES_FROZEN"] * per_frozen_pts)) *
+                                                       (p_kills * per_kill_pts) +
+                                                       (p_thaws * per_thaw_pts) -
+                                                       (p_frozen * per_frozen_pts)) *
                                                        match_time / play_time)
                     self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
                     self._player_stats["bdmSum"] += int(self.db.get(BDM_KEY.format(sid, self._bdm_gtype, "rating")))
@@ -1333,10 +1364,18 @@ class serverBDM(minqlx.Plugin):
                     self.player_count += 1
                     self._player_stats[sid] = {}
                     self._player_stats[sid]["left_game"] = 0
+                    if sid in self._record_events:
+                        p_kills = self._record_events[sid]["KILLS"]
+                        p_thaws = self._record_events[sid]["THAWS"]
+                        p_frozen = self._record_events[sid]["TIMES_FROZEN"]
+                    else:
+                        p_kills = 0
+                        p_thaws = 0
+                        p_frozen = 0
                     self._player_stats[sid]["DmgA"] = ((self._match_stats[sid]["damage_dealt"] +
-                                                       (self._record_events[sid]["KILLS"] * per_kill_pts) +
-                                                       (self._record_events[sid]["THAWS"] * per_thaw_pts) -
-                                                       (self._record_events[sid]["TIMES_FROZEN"] * per_frozen_pts)) *
+                                                       (p_kills * per_kill_pts) +
+                                                       (p_thaws * per_thaw_pts) -
+                                                       (p_frozen * per_frozen_pts)) *
                                                        match_time / self._match_stats[sid]["time"])
                     self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
                     self._player_stats["bdmSum"] += int(self.db.get(BDM_KEY.format(sid, self._bdm_gtype, "rating")))
@@ -1362,11 +1401,19 @@ class serverBDM(minqlx.Plugin):
                 self.player_count += 1
                 self._player_stats[sid] = {}
                 self._player_stats[sid]["left_game"] = 1
+                if sid in self._record_events:
+                    p_caps = self._record_events[sid]["CAPTURES"]
+                    p_assists = self._record_events[sid]["ASSISTS"]
+                    p_defenses = self._record_events[sid]["DEFENSES"]
+                else:
+                    p_caps = 0
+                    p_assists = 0
+                    p_defenses = 0
                 self._player_stats[sid]["DmgA"] = ((self._disconnected_players[sid]["damage_dealt"] +
                                                    (self._disconnected_players[sid]["kills"] * per_kill_pts) +
-                                                   (self._record_events[sid]["CAPTURES"] * per_cap_pts) +
-                                                   (self._record_events[sid]["ASSISTS"] * per_assist_pts) +
-                                                   (self._record_events[sid]["DEFENSES"] * per_defense_pts) -
+                                                   (p_caps * per_cap_pts) +
+                                                   (p_assists * per_assist_pts) +
+                                                   (p_defenses * per_defense_pts) -
                                                    (self._disconnected_players[sid]["damage_taken"] * dmg_rcvd_perc)) *
                                                    match_time / self._disconnected_players[sid]["time"])
                 self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
@@ -1377,20 +1424,25 @@ class serverBDM(minqlx.Plugin):
                 self.player_count += 1
                 self._player_stats[sid] = {}
                 self._player_stats[sid]["left_game"] = 1
+                if sid in self._record_events:
+                    p_caps = self._record_events[sid]["CAPTURES"]
+                    p_assists = self._record_events[sid]["ASSISTS"]
+                    p_defenses = self._record_events[sid]["DEFENSES"]
+                else:
+                    p_caps = 0
+                    p_assists = 0
+                    p_defenses = 0
                 self._player_stats[sid]["DmgA"] = ((self._spectating_players[sid]["damage_dealt"] +
                                                    (self._match_stats[sid]["kills"] * per_kill_pts) +
-                                                   (self._record_events[sid]["CAPTURES"] * per_cap_pts) +
-                                                   (self._record_events[sid]["ASSISTS"] * per_assist_pts) +
-                                                   (self._record_events[sid]["DEFENSES"] * per_defense_pts) -
+                                                   (p_caps * per_cap_pts) +
+                                                   (p_assists * per_assist_pts) +
+                                                   (p_defenses * per_defense_pts) -
                                                    (self._match_stats[sid]["damage_taken"] * dmg_rcvd_perc)) *
                                                    match_time / self._spectating_players[sid]["time"])
                 self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
                 self._player_stats["bdmSum"] += int(self.db.get(BDM_KEY.format(sid, game_type, "rating")))
 
         for sid in self._match_stats:
-            minqlx.console_print("{}: CAPTURES: {}".format(self.player(int(sid)), self._record_events[sid]["CAPTURES"]))
-            minqlx.console_print("{}: ASSISTS: {}".format(self.player(int(sid)), self._record_events[sid]["ASSISTS"]))
-            minqlx.console_print("{}: DEFENSES: {}".format(self.player(int(sid)), self._record_events[sid]["DEFENSES"]))
             if sid in self._team_switchers:
                 play_time = self._match_stats[sid]["time"] + self._team_switchers[sid]["time"]
                 if play_time >= needed_time:
@@ -1401,11 +1453,19 @@ class serverBDM(minqlx.Plugin):
                     kills = self._match_stats[sid]["kills"] + self._team_switchers[sid]["kills"]
                     damage_taken = self._match_stats[sid]["damage_taken"] + self._team_switchers[sid]["damage_taken"]
                     play_time = self._match_stats[sid]["time"] + self._team_switchers[sid]["time"]
+                    if sid in self._record_events:
+                        p_caps = self._record_events[sid]["CAPTURES"]
+                        p_assists = self._record_events[sid]["ASSISTS"]
+                        p_defenses = self._record_events[sid]["DEFENSES"]
+                    else:
+                        p_caps = 0
+                        p_assists = 0
+                        p_defenses = 0
                     self._player_stats[sid]["DmgA"] = ((damage_dealt +
                                                        (kills * per_kill_pts) +
-                                                       (self._record_events[sid]["CAPTURES"] * per_cap_pts) +
-                                                       (self._record_events[sid]["ASSISTS"] * per_assist_pts) +
-                                                       (self._record_events[sid]["DEFENSES"] * per_defense_pts) -
+                                                       (p_caps * per_cap_pts) +
+                                                       (p_assists * per_assist_pts) +
+                                                       (p_defenses * per_defense_pts) -
                                                        (damage_taken * dmg_rcvd_perc)) * match_time / play_time)
                     self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
                     self._player_stats["bdmSum"] += int(self.db.get(BDM_KEY.format(sid, game_type, "rating")))
@@ -1414,11 +1474,19 @@ class serverBDM(minqlx.Plugin):
                     self.player_count += 1
                     self._player_stats[sid] = {}
                     self._player_stats[sid]["left_game"] = 0
+                    if sid in self._record_events:
+                        p_caps = self._record_events[sid]["CAPTURES"]
+                        p_assists = self._record_events[sid]["ASSISTS"]
+                        p_defenses = self._record_events[sid]["DEFENSES"]
+                    else:
+                        p_caps = 0
+                        p_assists = 0
+                        p_defenses = 0
                     self._player_stats[sid]["DmgA"] = ((self._match_stats[sid]["damage_dealt"] +
                                                        (self._match_stats[sid]["kills"] * per_kill_pts) +
-                                                       (self._record_events[sid]["CAPTURES"] * per_cap_pts) +
-                                                       (self._record_events[sid]["ASSISTS"] * per_assist_pts) +
-                                                       (self._record_events[sid]["DEFENSES"] * per_defense_pts) -
+                                                       (p_caps * per_cap_pts) +
+                                                       (p_assists * per_assist_pts) +
+                                                       (p_defenses * per_defense_pts) -
                                                        (self._match_stats[sid]["damage_taken"] * dmg_rcvd_perc)) *
                                                        match_time / self._match_stats[sid]["time"])
                     self._player_stats["DmgASum"] += self._player_stats[sid]["DmgA"]
