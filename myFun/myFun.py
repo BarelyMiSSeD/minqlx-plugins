@@ -130,7 +130,8 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 2.7
+VERSION = 2.8
+
 
 class myFun(minqlx.Plugin):
     database = Redis
@@ -138,24 +139,23 @@ class myFun(minqlx.Plugin):
     def __init__(self):
         super().__init__()
 
-        #Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
+        # Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
         self.set_cvar_once("qlx_funUnrestrictAdmin", "0")
-        #Delay between sounds being played
+        # Delay between sounds being played
         self.set_cvar_once("qlx_funSoundDelay", "5")
-        #**** Used for limiting players spamming sounds. ****
-        # Amount of seconds player has to wait before allowed to play another sound
+        # **** Used for limiting players spamming sounds. ****
+        #  Amount of seconds player has to wait before allowed to play another sound
         self.set_cvar_once("qlx_funPlayerSoundRepeat", "30")
-        #Keep muted players from playing sounds
+        # Keep muted players from playing sounds
         self.set_cvar_once("qlx_funDisableMutedPlayers", "1")
-        #Enable/Disable sound pack files
+        # Enable/Disable sound pack files
         self.set_cvar_once("qlx_funEnableSoundPacks", "63")
-        #Join sound path/file ("0" disables sound)
+        # Join sound path/file ("0" disables sound)
         self.set_cvar_once("qlx_funJoinSound", "0")
-        #Play Join Sound even if players have sounds disabled
+        # Play Join Sound even if players have sounds disabled
         self.set_cvar_once("qlx_funJoinSoundForEveryone", "0")
-        #Play Join Sound on every map change
+        # Play Join Sound on every map change
         self.set_cvar_once("qlx_funJoinSoundEveryMap", "0")
-
 
         self.add_hook("chat", self.handle_chat)
         self.add_hook("server_command", self.handle_server_command)
@@ -173,45 +173,45 @@ class myFun(minqlx.Plugin):
         self.add_command(("listdisabledsounds", "listdisabled"), self.cmd_list_disabled, client_cmd_perm=5)
         self.add_command(("reenablesounds", "reloadsounds"), self.enable_sound_packs, 5)
 
-        #variable to show when a sound has been played
+        # variable to show when a sound has been played
         self.played = False
-        #variable to store the sound to be called
+        # variable to store the sound to be called
         self.soundFile = ""
-        #variable to store the sound trigger
+        # variable to store the sound trigger
         self.trigger = ""
-        #stores time of last sound play
+        # stores time of last sound play
         self.last_sound = None
-        #stores state of sound trigger find
+        # stores state of sound trigger find
         self.Found_Sound = False
-        #Dictionary used to store player sound call times.
+        # Dictionary used to store player sound call times.
         self.sound_limiting = {}
-        #List to store steam ids of muted players
+        # List to store steam ids of muted players
         self.muted_players = []
-        #List to store the enable/disabled status of the soundpacks
+        # List to store the enable/disabled status of the soundpacks
         self.Enabled_SoundPacks = [0,0,0,0,0,0]
-        #set the desired sound packs to enabled
+        # set the desired sound packs to enabled
         self.enable_sound_packs()
-        #List of soundpack names
+        # List of soundpack names
         self.soundPacks = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
                            "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live",
                            "West Coast Crew Sound"]
-        #List of soundpack categories (used to narrow search results in !listsounds)
+        # List of soundpack categories (used to narrow search results in !listsounds)
         self.categories = ["#Default", "#Prestige", "#Funny", "#Duke", "#Warp", "#West"]
-        #List for storing soundpack dictionaries
+        # List for storing soundpack dictionaries
         self.soundDictionaries = []
-        #List for storing the lists of sounds
+        # List for storing the lists of sounds
         self.soundLists = []
         self.sound_list_count = 0
         self.help_msg = []
-        #populate the list with empty dictionaries
+        # populate the list with empty dictionaries
         dicts = 0
         while dicts < len(self.Enabled_SoundPacks):
             self.soundDictionaries.append({})
             self.soundLists.append([])
             dicts += 1
-        #populate the dictionaries and sound lists with the enabled soundpacks
+        # populate the dictionaries and sound lists with the enabled soundpacks
         self.populate_dicts()
-        #Welcome sound played list
+        # Welcome sound played list
         self.playedWelcome = []
 
     def enable_sound_packs(self, player=None, msg=None, channel=None):
@@ -220,15 +220,15 @@ class myFun(minqlx.Plugin):
         length = len(str(binary))
         count = 0
         
-        #save the packs value's binary representation to the slots in self.Enabled_SoundPacks
-        #to identify the enabled sound packs
+        # save the packs value's binary representation to the slots in self.Enabled_SoundPacks
+        # to identify the enabled sound packs
         while length > 0:
             self.Enabled_SoundPacks[count] = int(binary[length - 1])
             count += 1
             length -= 1
 
-        #If this command was issued by a user them notify the user of the enables soundpacks
-        # and reload the soundpack dictionaries
+        # If this command was issued by a user them notify the user of the enables soundpacks
+        #  and reload the soundpack dictionaries
         if player:
             sound_packs = []
             count = 0
@@ -250,7 +250,7 @@ class myFun(minqlx.Plugin):
     def handle_player_loaded(self, player):
         if self.get_cvar("qlx_motdSound", bool) or self.get_cvar("qlx_funJoinSound") == "0":
             return
-        #plays the join sound for a connecting player if qlx_funJoinSound is set and qlx_motdSound is not set
+        # plays the join sound for a connecting player if qlx_funJoinSound is set and qlx_motdSound is not set
         # join sound can be played for everyone even if sounds are disabled if qlx_funJoinSoundForEveryone is enabled
         # join sound will play every map load for already connected players if qlx_funJoinSoundEveryMap is enabled
         welcome_sound = self.get_cvar("qlx_funJoinSound")
@@ -261,7 +261,7 @@ class myFun(minqlx.Plugin):
             if not self.get_cvar("qlx_funJoinSoundEveryMap", bool):
                 self.playedWelcome.append(player.steam_id)
 
-    #Remove stored information for disconnecting players
+    # Remove stored information for disconnecting players
     def player_disconnect(self, player, reason):
         try:
             del self.sound_limiting[player.steam_id]
@@ -276,7 +276,7 @@ class myFun(minqlx.Plugin):
         except:
             pass
 
-    #stores the mute status of a player when muted or un-muted
+    # stores the mute status of a player when muted or un-muted
     def handle_server_command(self, player, cmd):
         if "has been muted" in cmd:
             cmd_string = cmd.split()
@@ -299,48 +299,48 @@ class myFun(minqlx.Plugin):
             except:
                 pass
 
-    #Monitors the chat messages of players to process the sound triggers
+    # Monitors the chat messages of players to process the sound triggers
     def handle_chat(self, player, msg, channel):
-        #don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
+        # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
         if channel != "chat" or player.steam_id in self.muted_players or\
                 not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
             return
 
-        #find the sound trigger for this sound (sets self.trigger, self.soundFile, self.Found_Sound)
+        # find the sound trigger for this sound (sets self.trigger, self.soundFile, self.Found_Sound)
         self.find_sound_trigger(self.clean_text(msg))
         if self.Found_Sound:
-            #stop sound processing if the player has this sound trigger turned off
+            # stop sound processing if the player has this sound trigger turned off
             if self.db.get("minqlx:players:{0}:flags:myFun:{1}".format(player.steam_id, self.soundFile)):
                 return
-            #check sound delay time
+            # check sound delay time
             delay_time = self.check_time(player)
             if delay_time:
-                #if admins have no delay time restriction then PASS
+                # if admins have no delay time restriction then PASS
                 if self.get_cvar("qlx_funUnrestrictAdmin", bool) and self.db.get_permission(player.steam_id) == 5:
                     pass
-                #otherwise, impose the delay time wait and stop sound trigger processing
+                # otherwise, impose the delay time wait and stop sound trigger processing
                 else:
                     player.tell("^3You played a sound recently. {} seconds timeout remaining."
                                 .format(delay_time))
                     return
-            #check to see if a sound has been played
+            # check to see if a sound has been played
             if not self.last_sound:
                 pass
-            #Make sure the last sound played was not within the sound delay limit
+            # Make sure the last sound played was not within the sound delay limit
             elif time.time() - self.last_sound < self.get_cvar("qlx_funSoundDelay", int):
                 player.tell("^3A sound has been played in last {} seconds. Try again after the timeout."
                             .format(self.get_cvar("qlx_funSoundDelay")))
                 return
-            #call the play sound function
+            # call the play sound function
             self.play_sound(self.soundFile)
 
-        #If the sound played record the time with the player's steam id (for delay_time processing)
+        # If the sound played record the time with the player's steam id (for delay_time processing)
         if self.played:
             self.sound_limiting[player.steam_id] = time.time()
-        #unset self.played so it can be checked again the next time a sound trigger is typed
+        # unset self.played so it can be checked again the next time a sound trigger is typed
         self.played = False
 
-    #Compares the msg with the sound triggers to determine if there is a match
+    # Compares the msg with the sound triggers to determine if there is a match
     @minqlx.thread
     def find_sound_trigger(self, msg):
         msg_lower = msg.lower()
@@ -348,9 +348,10 @@ class myFun(minqlx.Plugin):
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
                 for key in self.soundDictionaries[sound_dict]:
-                    #if sound trigger matches set self.trigger to the trigger,
-                    # self.soundFile to the location of the sound
-                    # self.Found_Sound to True to indicate the trigger match (required because of running check ina thread)
+                    # if sound trigger matches set self.trigger to the trigger,
+                    #  self.soundFile to the location of the sound
+                    #  self.Found_Sound to True to indicate the trigger match
+                    #  (required because of running check in a thread)
                     if self.soundDictionaries[sound_dict][key][0].match(msg_lower):
                         self.trigger = key
                         self.soundFile = self.soundDictionaries[sound_dict][key][1]
@@ -361,14 +362,14 @@ class myFun(minqlx.Plugin):
         self.Found_Sound = False
         return
 
-    #players can turn off individual sounds for only themselves
+    # players can turn off individual sounds for only themselves
     def cmd_sound_off(self, player, msg, channel):
         if len(msg) < 2:
             if self.soundFile != "":
                 if self.db.get("minqlx:players:{0}:flags:myFun:{1}".format(player.steam_id, self.soundFile)):
                     player.tell("^3The sound ^4{0} ^3is already disabled. Use ^1{1}on ^4{0} ^3to enable."
-                            " ^1{1}offlist ^3to see sounds you have disabled."
-                            .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
+                                " ^1{1}offlist ^3to see sounds you have disabled."
+                                .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
                 else:
                     self.db.set("minqlx:players:{0}:flags:myFun:{1}".format(player.steam_id, self.soundFile), 1)
                     if self.trigger == "":
@@ -398,7 +399,7 @@ class myFun(minqlx.Plugin):
                             .format(self.get_cvar("qlx_commandPrefix")))
         return
 
-    #players can re-enable sounds that they previously disabled for themselves
+    # players can re-enable sounds that they previously disabled for themselves
     def cmd_sound_on(self, player, msg, channel):
         if len(msg) < 2:
             if self.soundFile != "":
@@ -410,8 +411,8 @@ class myFun(minqlx.Plugin):
                                 .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
                 else:
                     player.tell("^3The sound ^4{0} ^3is not disabled. Use ^1{1}off ^4{0} ^3to disable."
-                            " ^1{1}offlist ^3to see sounds you have disabled."
-                            .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
+                                " ^1{1}offlist ^3to see sounds you have disabled."
+                                .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
             else:
                 player.tell("^1{0}on <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
                             .format(self.get_cvar("qlx_commandPrefix")))
@@ -426,14 +427,14 @@ class myFun(minqlx.Plugin):
                                 .format(trigger, self.get_cvar("qlx_commandPrefix")))
                 else:
                     player.tell("^3The sound ^4{0} ^3is not disabled. Use ^1{1}off ^4{0} ^3to disable."
-                            " ^1{1}offlist ^3to see sounds you have disabled."
-                            .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                                " ^1{1}offlist ^3to see sounds you have disabled."
+                                .format(trigger, self.get_cvar("qlx_commandPrefix")))
             else:
                 player.tell("^3usage: ^1{0}on <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
                             .format(self.get_cvar("qlx_commandPrefix")))
         return
 
-    #return the path to the supplied sound trigger
+    # return the path to the supplied sound trigger
     def find_sound_path(self, trigger):
         sound_dict = 0
         while sound_dict < len(self.Enabled_SoundPacks):
@@ -445,7 +446,7 @@ class myFun(minqlx.Plugin):
 
         return False
 
-    #return the sound trigger for the sound at the supplied path
+    # return the sound trigger for the sound at the supplied path
     def sound_trigger(self, path):
         sound_dict = 0
         while sound_dict < len(self.Enabled_SoundPacks):
@@ -457,7 +458,7 @@ class myFun(minqlx.Plugin):
 
         return None
 
-    #list the disabled sound to the requesting player
+    # list the disabled sound to the requesting player
     def cmd_sound_off_list(self, player, msg, channel):
         disabled_key = "minqlx:players:{0}:flags:myFun".format(player.steam_id)
         sound_list = []
@@ -473,7 +474,7 @@ class myFun(minqlx.Plugin):
         player.tell("^3You have ^4{0} ^3sounds disabled: ^1{1}".format(count, "^7, ^1".join(sound_list)))
         return
 
-    #disable the specified sound on the server
+    # disable the specified sound on the server
     def cmd_disable_sound(self, player, msg, channel):
         if len(msg) < 2:
             return minqlx.RET_USAGE
@@ -499,7 +500,7 @@ class myFun(minqlx.Plugin):
                         " ^3to find the correct sound trigger.".format(self.get_cvar("qlx_commandPrefix")))
         return minqlx.RET_STOP_ALL
 
-    #enable the specified sound on the server
+    # enable the specified sound on the server
     def cmd_enable_sound(self, player, msg, channel):
         if len(msg) < 2:
             return minqlx.RET_USAGE
@@ -507,18 +508,19 @@ class myFun(minqlx.Plugin):
         try:
             if self.db.exists("minqlx:myFun:disabled:{}".format(trigger)):
                 del self.db["minqlx:myFun:disabled:{}".format(trigger)]
-                player.tell("^3The sound will be enabled on next list reload. Use ^1{0}reloadsounds ^3or the ^4{1} ^3sound"
-                            " list will be reloaded next time the server is restarted or myFun.py is reloaded."
+                player.tell("^3The sound will be enabled on next list reload. Use ^1{0}reloadsounds ^3or the ^4{1}"
+                            " ^3sound list will be reloaded next time the server is restarted or myFun.py is reloaded."
                             .format(self.get_cvar("qlx_commandPrefix"), trigger))
             else:
                 player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
-                        .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                            .format(trigger, self.get_cvar("qlx_commandPrefix")))
         except Exception as e:
             player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
                         .format(trigger, self.get_cvar("qlx_commandPrefix")))
+            minqlx.console_print("^1Enable sound exception:: {}".format(e))
         return minqlx.RET_STOP_ALL
 
-    #list the sounds disabled on the server for the requesting player
+    # list the sounds disabled on the server for the requesting player
     def cmd_list_disabled(self, player, msg, channel):
         sound_list = []
         count = 0
@@ -531,7 +533,7 @@ class myFun(minqlx.Plugin):
         player.tell("^3There are ^4{0} ^3sound(s) disabled on the server:\n^1{1}".format(count, "^7, ^1".join(sound_list)))
         return minqlx.RET_STOP_ALL
 
-    #return the sound dictionary number, the sound trigger (key), and the sound path for the supplied sound trigger
+    # return the sound dictionary number, the sound trigger (key), and the sound path for the supplied sound trigger
     def find_sound_info(self, msg):
         msg_lower = msg.lower()
 
@@ -545,7 +547,7 @@ class myFun(minqlx.Plugin):
 
         return False
 
-    #play the sound at the supplied path
+    # play the sound at the supplied path
     def cmd_sound(self, player, msg, channel):
         if len(msg) < 2:
             player.tell("Include a path/sound to play.")
@@ -568,7 +570,7 @@ class myFun(minqlx.Plugin):
 
         return minqlx.RET_STOP_ALL
 
-    #plays the supplied sound for the players on the server (if the player has the sound(s) enabled)
+    # plays the supplied sound for the players on the server (if the player has the sound(s) enabled)
     def play_sound(self, path):
         self.played = True
 
@@ -578,10 +580,10 @@ class myFun(minqlx.Plugin):
                     not self.db.get("minqlx:players:{0}:flags:myFun:{1}".format(p.steam_id, path)):
                 super().play_sound(path, p)
 
-    #populates the sound list that is used to list the available sounds on the server
+    # populates the sound list that is used to list the available sounds on the server
     @minqlx.thread
     def populate_sound_lists(self):
-        #remove dictionary entries for sounds disabled on the server
+        # remove dictionary entries for sounds disabled on the server
         for key in self.db.keys("minqlx:myFun:disabled:*"):
             if self.db[key]:
                 sound_dict = 0
@@ -628,7 +630,7 @@ class myFun(minqlx.Plugin):
         except KeyError:
             return False
 
-    #list the command usage for !listsounds
+    # list the command usage for !listsounds
     def cmd_help(self, player, msg=None, channel=None):
         player.tell("^1myFun Version {0}\n"
                     "^6{1}myFun ^3to quickly pull up this help menu.\n"
@@ -639,13 +641,13 @@ class myFun(minqlx.Plugin):
                     " ^4Default Quake Live Sounds\n^6{1}lsitsounds #Default yeah ^3 will search ^4#Default"
                     " ^3for sounds containing ^4yeah\n^6{1}listsounds yeah ^3 will search all the sound packs"
                     " for sounds containing ^4yeah\n^3Search terms can be multiple words\n"
-                    "^3Valid sound-pack are ^2{2}\n^6{1}sounds ^3to disable^7/^3enable all sound playing for yourself.\n"
-                    " ^6{1}off^7/^6{1}on trigger ^3to disable^7/^3enable a specific sound\n^6{1}offlist ^3to see a"
+                    "^3Valid sound-pack are ^2{2}\n^6{1}sounds ^3to disable^7/^3enable all sound playing for yourself."
+                    "\n ^6{1}off^7/^6{1}on trigger ^3to disable^7/^3enable a specific sound\n^6{1}offlist ^3to see a"
                     " list of sounds you have disabled."
                     .format(VERSION, self.get_cvar("qlx_commandPrefix"), "^7/^2".join(self.help_msg)))
         return
 
-    #list the available sounds to the requesting player
+    # list the available sounds to the requesting player
     @minqlx.thread
     def cmd_list_sounds(self, player, msg, channel):
         sounds = ["^4SOUNDS^7: ^3Type these words/phrases in normal chat to play a sound on the server.\n"]
@@ -756,10 +758,10 @@ class myFun(minqlx.Plugin):
             player.tell("".join(sounds))
         return
 
-    #puts the list of sounds in a column style format for easier reading
+    # puts the list of sounds in a column style format for easier reading
     def line_up(self, sound_line, add_sound):
         length = len(sound_line)
-        #0 = add to line, 1 = add to new line, 2 = add current sound and start new line
+        # 0 = add to line, 1 = add to new line, 2 = add current sound and start new line
         status = 0
         if length + len(add_sound) > 78:
             append = add_sound
@@ -780,8 +782,8 @@ class myFun(minqlx.Plugin):
             status = 1
         return append, status
 
-    #These are the sounds available on the server put into the dictionaries used to search for a sound trigger match
-    # when processing normal chat messages
+    # These are the sounds available on the server put into the dictionaries used to search for a sound trigger match
+    #  when processing normal chat messages
     @minqlx.thread
     def populate_dicts(self):
         if self.Enabled_SoundPacks[0]:
@@ -1241,6 +1243,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[3]["long walk"] = [re.compile(r"^long walk\W?$"), "sound/duke/yohoho09.wav"]
 
         if self.Enabled_SoundPacks[4]:
+            self.soundDictionaries[4]["angry cat"] = [re.compile(r"^angry cat\W?$"), "sound/warp/angry_cat.ogg"]
             self.soundDictionaries[4]["thanks for the advice"] = [re.compile(r"^thanks for the advice\W?$"), "sound/warp/ash_advice.ogg"]
             self.soundDictionaries[4]["appreciate"] = [re.compile(r"^appreciate\W?$"), "sound/warp/ash_appreciate.ogg"]
             self.soundDictionaries[4]["looking forward to it"] = [re.compile(r"^looking forward to it\W?$"), "sound/warp/ash_lookingforwardtoit.ogg"]
@@ -1255,8 +1258,11 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["bad feeling"] = [re.compile(r"^bad feeling\W?$"), "sound/warp/badfeeling.ogg"]
             self.soundDictionaries[4]["bad idea"] = [re.compile(r"^bad idea\W?$"), "sound/warp/badidea.ogg"]
             self.soundDictionaries[4]["ballbag"] = [re.compile(r"^ballbag\W?$"), "sound/warp/ballbag.ogg"]
+            self.soundDictionaries[4]["bburp"] = [re.compile(r"^bburp\W?$"), "sound/warp/bburp.ogg"]
+            self.soundDictionaries[4]["bburpp"] = [re.compile(r"^bburpp\W?$"), "sound/warp/bburpp.ogg"]
             self.soundDictionaries[4]["believe"] = [re.compile(r"^believe\W?$"), "sound/warp/believe.ogg"]
             self.soundDictionaries[4]["big leagues"] = [re.compile(r"^big leagues\W?$"), "sound/warp/bigleagues.ogg"]
+            self.soundDictionaries[4]["bike horn"] = [re.compile(r"^bike horn\W?$"), "sound/warp/bike_horn.ogg"]
             self.soundDictionaries[4]["bj"] = [re.compile(r"^bj\W?$"), "sound/warp/bj.ogg"]
             self.soundDictionaries[4]["kill you with my brain"] = [re.compile(r"^kill you with my brain\W?$"), "sound/warp/brain.ogg"]
             self.soundDictionaries[4]["bravery"] = [re.compile(r"^bravery\W?$"), "sound/warp/bravery.ogg"]
@@ -1264,11 +1270,14 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["space bugs"] = [re.compile(r"^space bugs\W?$"), "sound/warp/bugs.ogg"]
             self.soundDictionaries[4]["bunk"] = [re.compile(r"^bunk\W?$"), "sound/warp/bunk.ogg"]
             self.soundDictionaries[4]["burp"] = [re.compile(r"^burp\W?$"), "sound/warp/burp.ogg"]
+            self.soundDictionaries[4]["burpp"] = [re.compile(r"^burpp\W?$"), "sound/warp/burpp.ogg"]
             self.soundDictionaries[4]["cover your butt"] = [re.compile(r"^cover your butt\W?$"), "sound/warp/butt.ogg"]
             self.soundDictionaries[4]["came out"] = [re.compile(r"^came out\W?$"), "sound/warp/cameout.ogg"]
             self.soundDictionaries[4]["anybody care"] = [re.compile(r"^anybody care\W?$"), "sound/warp/care.ogg"]
             self.soundDictionaries[4]["castrate"] = [re.compile(r"^castrate\W?$"), "sound/warp/castrate.ogg"]
+            self.soundDictionaries[4]["cat scream"] = [re.compile(r"^cat scream\W?$"), "sound/warp/cat_scream.ogg"]
             self.soundDictionaries[4]["hello2"] = [re.compile(r"^hello2\W?$"), "sound/warp/coach_hello.ogg"]
+            self.soundDictionaries[4]["corny"] = [re.compile(r"^corny\W?$"), "sound/warp/corny.ogg"]
             self.soundDictionaries[4]["cock push ups"] = [re.compile(r"^(?:(cock )?push ups)\W?$"), "sound/warp/cockpushups.ogg"]
             self.soundDictionaries[4]["code"] = [re.compile(r"^code\W?$"), "sound/warp/code.ogg"]
             self.soundDictionaries[4]["cold"] = [re.compile(r"^cold\W?$"), "sound/warp/cold.ogg"]
@@ -1283,6 +1292,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["dead"] = [re.compile(r"^dead\W?$"), "sound/warp/dead.ogg"]
             self.soundDictionaries[4]["dead guy"] = [re.compile(r"^dead guy\W?$"), "sound/warp/deadguy.ogg"]
             self.soundDictionaries[4]["dick message"] = [re.compile(r"^dick message\W?$"), "sound/warp/dickmessage.ogg"]
+            self.soundDictionaries[4]["dick slip"] = [re.compile(r"^dick slip\W?$"), "sound/warp/dick_slip.ogg"]
             self.soundDictionaries[4]["dink bag"] = [re.compile(r"^dink bag\W?$"), "sound/warp/dinkbag.ogg"]
             self.soundDictionaries[4]["dirty"] = [re.compile(r"^dirty\W?$"), "sound/warp/dirty.ogg"]
             self.soundDictionaries[4]["do as you're told"] = [re.compile(r"^do as you'?re told\W?$"), "sound/warp/doasyouretold.ogg"]
@@ -1297,6 +1307,14 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["electricity"] = [re.compile(r"^electricity\W?$"), "sound/warp/electricity.ogg"]
             self.soundDictionaries[4]["face"] = [re.compile(r"^face\W?$"), "sound/warp/face.ogg"]
             self.soundDictionaries[4]["face2"] = [re.compile(r"^face2\W?$"), "sound/warp/face2.ogg"]
+            self.soundDictionaries[4]["fart"] = [re.compile(r"^fart\W?$"), "sound/warp/fart.ogg"]
+            self.soundDictionaries[4]["fartt"] = [re.compile(r"^fartt\W?$"), "sound/warp/fartt.ogg"]
+            self.soundDictionaries[4]["farttt"] = [re.compile(r"^farttt\W?$"), "sound/warp/farttt.ogg"]
+            self.soundDictionaries[4]["ffart"] = [re.compile(r"^ffart\W?$"), "sound/warp/ffart.ogg"]
+            self.soundDictionaries[4]["ffartt"] = [re.compile(r"^ffartt\W?$"), "sound/warp/ffartt.ogg"]
+            self.soundDictionaries[4]["ffarttt"] = [re.compile(r"^ffarttt\W?$"), "sound/warp/ffarttt.ogg"]
+            self.soundDictionaries[4]["fffartt"] = [re.compile(r"^fffartt\W?$"), "sound/warp/fffartt.ogg"]
+            self.soundDictionaries[4]["fffarttt"] = [re.compile(r"^fffarttt\W?$"), "sound/warp/fffarttt.ogg"]
             self.soundDictionaries[4]["not fair"] = [re.compile(r"^not fair\W?$"), "sound/warp/fair.ogg"]
             self.soundDictionaries[4]["falcon pawnch"] = [re.compile(r"^falcon pawnch\W?$"), "sound/warp/falcon_pawnch.ogg"]
             self.soundDictionaries[4]["fall"] = [re.compile(r"^fall\W?$"), "sound/warp/fall.ogg"]
@@ -1305,6 +1323,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["feels"] = [re.compile(r"^feels\W?$"), "sound/warp/feels.ogg"]
             self.soundDictionaries[4]["something wrong"] = [re.compile(r"^something wrong\??\W?$"), "sound/warp/femaleshepherd_somethingwrong.ogg"]
             self.soundDictionaries[4]["suspense"] = [re.compile(r"^suspense\W?$"), "sound/warp/femaleshepherd_suspense.ogg"]
+            self.soundDictionaries[4]["fog horn"] = [re.compile(r"^fog horn\W?$"), "sound/warp/fog_horn.ogg"]
             self.soundDictionaries[4]["found them"] = [re.compile(r"^found them\W?$"), "sound/warp/found_them.ogg"]
             self.soundDictionaries[4]["fuku"] = [re.compile(r"^fuku\W?$"), "sound/warp/fuku.ogg"]
             self.soundDictionaries[4]["awaiting orders"] = [re.compile(r"^awaiting orders\W?$"), "sound/warp/garrus_awaitingorders.ogg"]
@@ -1324,6 +1343,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["hunting"] = [re.compile(r"^hunting\W?$"), "sound/warp/hunting.ogg"]
             self.soundDictionaries[4]["i am the law"] = [re.compile(r"^i am the law\W?$"), "sound/warp/iamthelaw.ogg"]
             self.soundDictionaries[4]["i died"] = [re.compile(r"^i died\W?$"), "sound/warp/i_died.ogg"]
+            self.soundDictionaries[4]["i farted"] = [re.compile(r"^i farted\W?$"), "sound/warp/i_farted.ogg"]
             self.soundDictionaries[4]["i don't trust you"] = [re.compile(r"^(?:(i don'?t )?trust you|leaf(green)?)\W?$"), "sound/warp/idonttrustyou.ogg"]
             self.soundDictionaries[4]["i have a plan"] = [re.compile(r"^i have a plan\W?$"), "sound/warp/ihaveaplan.ogg"]
             self.soundDictionaries[4]["i like you"] = [re.compile(r"^i like you\W?$"), "sound/warp/ilikeyou.ogg"]
@@ -1331,12 +1351,14 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["in the ass"] = [re.compile(r"^in ?the ?ass\W?"), "sound/warp/intheass.ogg"]
             self.soundDictionaries[4]["i will eat"] = [re.compile(r"^i will eat( your)?\W?$"), "sound/warp/iwilleatyour.ogg"]
             self.soundDictionaries[4]["jail"] = [re.compile(r"^jail\W?$"), "sound/warp/jail.ogg"]
+            self.soundDictionaries[4]["just the tip"] = [re.compile(r"^(?:just the tip|tippy(touch)?)\W?$"), "sound/warp/just_the_tip.ogg"]
             self.soundDictionaries[4]["kevin bacon"] = [re.compile(r"^kevin bacon\W?$"), "sound/warp/kevinbacon.ogg"]
             self.soundDictionaries[4]["kill"] = [re.compile(r"^kill\W?$"), "sound/warp/kill.ogg"]
             self.soundDictionaries[4]["kizuna"] = [re.compile(r"^kizuna\W?$"), "sound/warp/kizuna.ogg"]
             self.soundDictionaries[4]["need to kill"] = [re.compile(r"^need to kill\W?$"), "sound/warp/krogan_kill.ogg"]
             self.soundDictionaries[4]["ladybug"] = [re.compile(r"^ladybug\W?$"), "sound/warp/ladybug.ogg"]
             self.soundDictionaries[4]["legend"] = [re.compile(r"^(?:legend|ere(?:bux)?)\W?$"), "sound/warp/legend.ogg"]
+            self.soundDictionaries[4]["lego maniac"] = [re.compile(r"^(?:lego maniac|zach|stukey)\W?$"), "sound/warp/lego_maniac.ogg"]
             self.soundDictionaries[4]["human relationships"] = [re.compile(r"^human relationships?\W?$"), "sound/warp/liara_humanrelationships.ogg"]
             self.soundDictionaries[4]["incredible"] = [re.compile(r"^incredible\W?$"), "sound/warp/liara_incredible.ogg"]
             self.soundDictionaries[4]["never happened"] = [re.compile(r"^never happened\W?$"), "sound/warp/liara_neverhappened.ogg"]
@@ -1357,6 +1379,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["my friends"] = [re.compile(r"^my friends\W?$"), "sound/warp/my_friends.ogg"]
             self.soundDictionaries[4]["my gun's bigger"] = [re.compile(r"^my gun'?s bigger\W?$"), "sound/warp/mygunsbigger.ogg"]
             self.soundDictionaries[4]["never look back"] = [re.compile(r"^(?:never look back|muddy(?:creek)?)\W?$"), "sound/warp/neverlookback.ogg"]
+            self.soundDictionaries[4]["nonono"] = [re.compile(r"^no( )?no( )?no\W?$"), "sound/warp/nonono.ogg"]
             self.soundDictionaries[4]["nutsack"] = [re.compile(r"^nutsack\W?$"), "sound/warp/nutsack.ogg"]
             self.soundDictionaries[4]["my god"] = [re.compile(r"^my god\W?$"), "sound/warp/oh_my_god.ogg"]
             self.soundDictionaries[4]["on me"] = [re.compile(r"^on me\W?$"), "sound/warp/onme.ogg"]
@@ -1364,24 +1387,33 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["ow what the"] = [re.compile(r"^(ow )?what the\W?"), "sound/warp/owwhatthe.ogg"]
             self.soundDictionaries[4]["pain in the ass"] = [re.compile(r"^pain in the ass\W?$"), "sound/warp/pain.ogg"]
             self.soundDictionaries[4]["pan out"] = [re.compile(r"^pan out\W?$"), "sound/warp/panout.ogg"]
+            self.soundDictionaries[4]["pee bad"] = [re.compile(r"^pee bad\W?$"), "sound/warp/pee_bad.ogg"]
+            self.soundDictionaries[4]["pee myself"] = [re.compile(r"^pee myself\W?$"), "sound/warp/pee_myself.ogg"]
             self.soundDictionaries[4]["petty"] = [re.compile(r"^petty\W?$"), "sound/warp/petty.ogg"]
             self.soundDictionaries[4]["pie intro"] = [re.compile(r"^pie intro\W?$"), "sound/warp/pie_intro4.ogg"]
             self.soundDictionaries[4]["pile of shit"] = [re.compile(r"^pile( of shit)?\W?$"), "sound/warp/pile.ogg"]
+            self.soundDictionaries[4]["pizza time"] = [re.compile(r"^pizza time\W?$"), "sound/warp/pizza_time.ogg"]
             self.soundDictionaries[4]["plasma"] = [re.compile(r"^(?:(respect )?(the )?plasma)\W?"), "sound/warp/plasma.ogg"]
+            self.soundDictionaries[4]["poop myself"] = [re.compile(r"^poop myself\W?$"), "sound/warp/poop_myself.ogg"]
             self.soundDictionaries[4]["good point"] = [re.compile(r"^good point\W?$"), "sound/warp/point.ogg"]
             self.soundDictionaries[4]["quarter"] = [re.compile(r"^quarter\W?$"), "sound/warp/quarter.ogg"]
             self.soundDictionaries[4]["rage"] = [re.compile(r"^rage\W?$"), "sound/warp/rage.ogg"]
             self.soundDictionaries[4]["real me"] = [re.compile(r"^real me\W?$"), "sound/warp/realme.ogg"]
+            self.soundDictionaries[4]["roll with"] = [re.compile(r"^roll with\W?$"), "sound/warp/roll_with.ogg"]
             self.soundDictionaries[4]["no longer require"] = [re.compile(r"^no longer require\W?$"), "sound/warp/require.ogg"]
             self.soundDictionaries[4]["ready for this"] = [re.compile(r"^ready for this\W?$"), "sound/warp/rochelle_ready.ogg"]
             self.soundDictionaries[4]["rock this"] = [re.compile(r"^rock this\W?$"), "sound/warp/rockthis.ogg"]
             self.soundDictionaries[4]["santa"] = [re.compile(r"^santa\W?$"), "sound/warp/santa.ogg"]
             self.soundDictionaries[4]["say my name"] = [re.compile(r"^say my name\W?$"), "sound/warp/saymyname.ogg"]
             self.soundDictionaries[4]["you can scream"] = [re.compile(r"^you can scream\W?$"), "sound/warp/scream.ogg"]
+            self.soundDictionaries[4]["shart"] = [re.compile(r"^shart\W?$"), "sound/warp/shart.ogg"]
+            self.soundDictionaries[4]["shartt"] = [re.compile(r"^shartt\W?$"), "sound/warp/shartt.ogg"]
             self.soundDictionaries[4]["smiley face"] = [re.compile(r"^(?:smiley face\W?)|:\)|:-\)|:\]|\(:$"), "sound/warp/smileyface.ogg"]
             self.soundDictionaries[4]["oh snap"] = [re.compile(r"^(oh )?snap\W?$"), "sound/warp/snap.ogg"]
             self.soundDictionaries[4]["sneezed"] = [re.compile(r"^sneezed\W?$"), "sound/warp/sneezed.ogg"]
+            self.soundDictionaries[4]["solitude"] = [re.compile(r"^solitude\W?$"), "sound/warp/solitude.ogg"]
             self.soundDictionaries[4]["sorry"] = [re.compile(r"^sorry\W?$"), "sound/warp/sorry.ogg"]
+            self.soundDictionaries[4]["spagetti"] = [re.compile(r"^spagetti\W?$"), "sound/warp/spagetti.ogg"]
             self.soundDictionaries[4]["human speech"] = [re.compile(r"^(human )?speech\W?$"), "sound/warp/speech.ogg"]
             self.soundDictionaries[4]["sprechen sie dick"] = [re.compile(r"^sprechen sie dick\W?$"), "sound/warp/sprechensiedick.ogg"]
             self.soundDictionaries[4]["start over"] = [re.compile(r"^start over\W?$"), "sound/warp/startover.ogg"]
@@ -1413,6 +1445,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[4]["what i want"] = [re.compile(r"^what i want\W?$"), "sound/warp/want.ogg"]
             self.soundDictionaries[4]["at war"] = [re.compile(r"^at war\W?$"), "sound/warp/war.ogg"]
             self.soundDictionaries[4]["warp server intro"] = [re.compile(r"^(warp server intro)|(quality)\W?$"), "sound/warp/warpserverintro.ogg"]
+            self.soundDictionaries[4]["wednesday"] = [re.compile(r"^wednesday\W?$"), "sound/warp/wednesday.ogg"]
             self.soundDictionaries[4]["wee lamb"] = [re.compile(r"^wee lamb\W?$"), "sound/warp/weelamb.ogg"]
             self.soundDictionaries[4]["well"] = [re.compile(r"^well\W?$"), "sound/warp/well.ogg"]
             self.soundDictionaries[4]["we're grownups"] = [re.compile(r"^we'?re grownups\W?$"), "sound/warp/weregrownups.ogg"]
