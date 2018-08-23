@@ -12,6 +12,8 @@ qlx_voteLimiterLimit "5" - Sets the amount of votes each player is allowed to ca
 qlx_voteLimiterTypes "1" - Enable/Disable the restricting of vote types ("1" = Enable, "0" = Disable)
 qlx_voteLimiterDelay "60" - The amount of seconds a player must wait before the same type of vote may be called again.
 qlx_voteLimiterExcludeAdmin "0" - Exclude admins from vote limiting? (Exclude on = 1, off = 0)
+qlx_voteLimiterAllowed "2" - The amount of votes, of each type, a player will be allowed to call
+                            before being time limited to call that type of vote again
 """
 
 import minqlx
