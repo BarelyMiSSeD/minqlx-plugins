@@ -39,6 +39,10 @@ set qlx_bdmEnableSwitch "0"
 set qlx_bdmRespondToTeamsCommand "0"
 // Set BDM to respond to the !balance bot command
 set qlx_bdmRespondToBalanceCommand "0"
+// Set to "1" to enable '/callvote do' on the server to allow voting to force the suggested switch from !bteams
+set qlx_bdmREnableDoVote "1"
+// Set to "1" to display a message on player join to show games played and rating status to the server
+set qlx_bdmPrintJoinMsg "1"
 
 // *** Clan Arena Settings ***
 set qlx_bdmCaKillPts "50"
@@ -76,7 +80,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.03.19"
+VERSION = "1.03.31"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -99,6 +103,8 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmEnableSwitch", "0")
         self.set_cvar_once("qlx_bdmRespondToTeamsCommand", "0")
         self.set_cvar_once("qlx_bdmRespondToBalanceCommand", "0")
+        self.set_cvar_once("qlx_bdmREnableDoVote", "1")
+        self.set_cvar_once("qlx_bdmPrintJoinMsg", "1")
         # CA
         self.set_cvar_once("qlx_bdmCaKillPts", "50")
         # CTF
@@ -133,7 +139,7 @@ class serverBDM(minqlx.Plugin):
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("team_switch", self.handle_team_switch)
         self.add_hook("round_countdown", self.handle_round_countdown)
-        self.add_hook("vote_called", self.handle_vote_called)
+        self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("round_start", self.handle_round_start)
         self.add_hook("round_end", self.handle_round_end)
@@ -153,7 +159,10 @@ class serverBDM(minqlx.Plugin):
         self.add_command("do", self.cmd_bdmdo, self.get_cvar("qlx_bdmAdmin", int))
         self.add_command("setbdm", self.cmd_set_bdm, self.get_cvar("qlx_bdmAdmin", int))
         self.add_command("bbalance", self.cmd_bdmbalance, self.get_cvar("qlx_bdmAdmin", int))
+        self.add_command("damage", self.cmd_damage_status)
+        self.add_command("dmg", self.cmd_dmg_status)
         self.add_command("gamestatus", self.cmd_game_status, self.get_cvar("qlx_bdmAdmin", int))
+        self.add_command("mark_agree", self.cmd_mark_agree, self.get_cvar("qlx_bdmAdmin", int))
 
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
@@ -212,6 +221,47 @@ class serverBDM(minqlx.Plugin):
         self.set_bdm_field(player, game_type, "games_completed", "0", False)
         self.set_bdm_field(player, game_type, "games_left", "0", False)
 
+        @minqlx.delay(2.5)
+        def join_message():
+            if self.get_cvar("qlx_bdmPrintJoinMsg", bool) and str(player.steam_id)[0] != "9":
+                try:
+                    games_completed = self.get_db_field(player, "minqlx:players:{}:games_completed")
+                except Exception as e:
+                    games_completed = 0
+                    minqlx.console_print("Games Completed retrieval error: {}".format(e))
+                try:
+                    games_left = self.get_db_field(player, "minqlx:players:{}:games_left")
+                except Exception as e:
+                    games_left = 0
+                    minqlx.console_print("Games Left retrieval error: {}".format(e))
+                # games_here = games_completed + games_left
+                try:
+                    bdm_rating = self.get_bdm_field(player, game_type, "rating")
+                except Exception as e:
+                    bdm_rating = self.get_cvar("qlx_bdmDefaultBDM", int)
+                    minqlx.console_print("BDM Rating retrieval error: {}".format(e))
+                try:
+                    bdm_completed = self.get_bdm_field(player, game_type, "games_completed")
+                except Exception as e:
+                    bdm_completed = 0
+                    minqlx.console_print("BDM Completed retrieval error: {}".format(e))
+                try:
+                    bdm_left = self.get_bdm_field(player, game_type, "games_left")
+                except Exception as e:
+                    bdm_left = 0
+                    minqlx.console_print("BDM Left retrieval error: {}".format(e))
+                try:
+                    quit_percentage = round(bdm_left / bdm_completed * 100)
+                except Exception as e:
+                    quit_percentage = 0
+                    minqlx.console_print("Quit calculation error: {}".format(e))
+                # bdm_games = bdm_left + bdm_completed
+                # bdm_quit = round(bdm_left / bdm_completed * 100)
+                self.msg("^3Connecting^7: ^6{0} ^3{1} ^7games here, ^3{2} ^4BDM ^7games ^7(quit ^6{3}^7％)."
+                         .format(player, (games_completed + games_left), (bdm_left + bdm_completed), quit_percentage))
+                self.msg("            ^4BDM ^7rating: ^2{0}^7.".format(bdm_rating))
+        join_message()
+
     def handle_player_disconnect(self, player, reason):
         self.player_disconnect_record([player, player.stats])
 
@@ -265,15 +315,26 @@ class serverBDM(minqlx.Plugin):
 
     def handle_vote_called(self, caller, vote, args):
         minqlx.console_print("{} ^7called vote: ^6{} {}".format(caller, vote, args))
-        if vote.lower() == "bbalance":
-            self.callvote("qlx !bbalance", "Balance Teams based on database stored BDMs?")
+        if vote.lower() == "bbalance" or\
+                vote.lower() == "balance" and self.get_cvar("qlx_bdmRespondToBalanceCommand", bool):
+            self.callvote("qlx {}bbalance".format(self.get_cvar("qlx_commandPrefix")),
+                          "Balance Teams based on database stored BDMs?")
             minqlx.client_command(caller.id, "vote yes")
-            self.msg("{}^7 called a vote.".format(caller.name))
+            self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
             return minqlx.RET_STOP_ALL
-        if vote.lower() == "shuffle" and self._bdm_gtype in BDM_GAMETYPES:
+        elif vote.lower() == "shuffle" and self._bdm_gtype in BDM_GAMETYPES:
             if self.get_cvar("qlx_bdmBalanceAtGameStart", bool) and self.get_cvar("qlx_bdmEnableSwitch", bool):
                 self.msg("^3Shuffle vote denied. Teams ^4will be balanced ^3at start of game.")
                 return minqlx.RET_STOP_ALL
+        elif vote.lower() == "do":
+            if not self._agreeing_players:
+                caller.tell("^3There are no suggested players to switch.")
+                return minqlx.RET_STOP_ALL
+            self.callvote("qlx {}mark_agree".format(self.get_cvar("qlx_commandPrefix")),
+                          "Force the suggested player switch?")
+            minqlx.client_command(caller.id, "vote yes")
+            self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
+            return minqlx.RET_STOP_ALL
 
     def handle_vote_ended(self, votes, vote, args, passed):
         if passed and vote.lower() == "shuffle" and self.get_cvar("qlx_bdmBalanceAfterShuffleVote", bool):
@@ -558,6 +619,15 @@ class serverBDM(minqlx.Plugin):
             self.msg("^7This game type is not a supported Team-Based BDM game type.")
             self._suggested_switch = 0
 
+    def cmd_mark_agree(self, player, msg, channel):
+        self._players_agree[0] = True
+        self._players_agree[1] = True
+        if self.game.state == "in_progress" and not self.in_countdown:
+            self.msg("^3The players will be switched at the start of next round.")
+            return
+        # Otherwise, switch right away.
+        self.execute_switch()
+
     def cmd_bdmagree(self, player, msg, channel):
         if self._suggested_switch == -1:
             self.msg("^6Team makeups have changed. Run ^1{0}{1} ^6again."
@@ -698,6 +768,72 @@ class serverBDM(minqlx.Plugin):
             self.msg("^6{} ^4was not included in the balance.".format(exclude))
 
     @minqlx.thread
+    def cmd_damage_status(self, player=None, msg=None, channel=None):
+        teams = self.teams()
+        if len(teams["red"] + teams["blue"] + teams["free"] + teams["spectator"]) == 0:
+            self.msg("^3No players connected")
+        if self.game.state not in ["in_progress", "countdown"]:
+            self.msg("^3Match is not in progress")
+        self.msg("^6ID ^5Player ^3Kills^7/^3Deaths^7: ^3Damage Dealt^7/^3Received^7:")
+        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+            red_team = []
+            blue_team = []
+            for player in teams["red"]:
+                red_team.append("^1{} ^6{} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                .format(player.id, player,
+                                        player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                        player.stats.damage_taken))
+            for player in red_team:
+                self.msg(player)
+            for player in teams["blue"]:
+                blue_team.append("^4{} ^6{} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                 .format(player.id, player,
+                                         player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                         player.stats.damage_taken))
+            for player in blue_team:
+                self.msg(player)
+        else:
+            for player in teams["free"]:
+                self.msg("^2{} ^6{} ^2{}^7/^1{} ^2{}^7/^1{}"
+                         .format(player.id, player,
+                                 player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                 player.stats.damage_taken))
+
+    def cmd_dmg_status(self, player=None, msg=None, channel=None):
+        teams = self.teams()
+        if self.game.state not in ["in_progress", "countdown"]:
+            self.msg("^3Match is not in progress")
+        if len(msg) > 1:
+            try:
+                pid = int(msg[1])
+                player = self.player(pid)
+            except minqlx.NonexistentPlayerError:
+                self.msg("^1Invalid player ID.")
+                return
+            except ValueError:
+                self.msg("^3Use a valid player ID.")
+                return
+        if player in teams["spectator"]:
+            self.msg("^3{} ^3is spectating".format(player))
+            return
+        if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+            if player in teams["red"]:
+                self.msg("^1{} ^6{} ^3Kills^7/^3Deaths^7:^2{}^7/^1{} ^3Damage^7:^2{}^7/^1{}"
+                         .format(player.id, player,
+                                 player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                 player.stats.damage_taken))
+            else:
+                self.msg("^4{} ^6{} ^3Kills^7/^3Deaths^7:^2{}^7/^1{} ^3Damage^7:^2{}^7/^1{}"
+                         .format(player.id, player,
+                                 player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                 player.stats.damage_taken))
+        else:
+            self.msg("^2{} ^6{} ^3Kills^7/^3Deaths^7:^2{}^7/^1{} ^3Damage^7:^2{}^7/^1{}"
+                     .format(player.id, player,
+                             player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                             player.stats.damage_taken))
+
+    @minqlx.thread
     def cmd_game_status(self, player=None, msg=None, channel=None):
         minqlx.console_print("^6Game Status: ^4Map ^1- ^7{} ^5Game Mode ^1- ^7{}"
                              .format(self.get_cvar("mapname"), self._bdm_gtype.upper()))
@@ -757,6 +893,18 @@ class serverBDM(minqlx.Plugin):
         except ValueError:
             split_rating = value.split(".")
             data = int(split_rating[0])
+        return data
+
+    def get_db_field(self, player, field):
+        value = None
+        data = None
+        if self.db.exists(field.format(player.steam_id)):
+            value = self.db.get(field.format(player.steam_id))
+        if value:
+            try:
+                data = int(value)
+            except ValueError:
+                data = value
         return data
 
     def set_bdm_field(self, player, game_type, field, data, overwrite=True):
