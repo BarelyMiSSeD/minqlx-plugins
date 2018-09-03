@@ -234,7 +234,6 @@ class serverBDM(minqlx.Plugin):
                 except Exception as e:
                     games_left = 0
                     minqlx.console_print("Games Left retrieval error: {}".format(e))
-                # games_here = games_completed + games_left
                 try:
                     bdm_rating = self.get_bdm_field(player, game_type, "rating")
                 except Exception as e:
@@ -255,11 +254,9 @@ class serverBDM(minqlx.Plugin):
                 except Exception as e:
                     quit_percentage = 0
                     minqlx.console_print("Quit calculation error: {}".format(e))
-                # bdm_games = bdm_left + bdm_completed
-                # bdm_quit = round(bdm_left / bdm_completed * 100)
-                self.msg("^3Connecting^7: ^6{0} ^3{1} ^7games here, ^3{2} ^4BDM ^7games ^7(quit ^6{3}^7％)."
-                         .format(player, (games_completed + games_left), (bdm_left + bdm_completed), quit_percentage))
-                self.msg("            ^4BDM ^7rating: ^2{0}^7.".format(bdm_rating))
+                self.msg("^6{0}^7: ^3{1} ^7games here ^2{2} ^4BDM ^7games ^7(quit ^6{3}^7％) ^7rating: ^2{4}^7."
+                         .format(player, (games_completed + games_left), bdm_completed,
+                                 quit_percentage, bdm_rating))
         join_message()
 
     def handle_player_disconnect(self, player, reason):
