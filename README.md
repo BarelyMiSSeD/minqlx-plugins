@@ -54,22 +54,6 @@ set qlx_queueMaxSpecTime "9999"<br>
 !addqueue or !addq: puts a player into the next available queue slot<br>
 !qversion or !qv: displays the queue version number<br>
 
-
-# queue.py
-<b>This script works with serverBDM.py</b><br>
-This plugin is intended to help keep the game as enjoyable as possible, without<br>
-the hassles of people making teams uneven, or someone joining later than others,<br>
-but happening to hit the join button first and cutting in line when a play spot opens.<br>
-
-The plugin will also attempt to keep team games even, when adding 2 players at once,<br>
-by putting players into the most appropriate team, base on team scores or player BDMs.<br>
-
-<b>Commands:</b><br>
-!q or !queue: displays the players currently in the queue<br>
-!s or !specs: Displays the players currently set to spectate only<br>
-!addqueue or !addq: puts a player into the next available queue slot<br>
-!qversion or !qv: displays the queue version number<br>
-
 # serverBDM.py
 This script collects data on the players on the server and calculates a Basic Damage Metric (BDM) rating. It works for game types Clan Arena, Freeze Tag, Free For All, Capture The Flag, Instagib Capture the Flag, and Team Death Match.
 
