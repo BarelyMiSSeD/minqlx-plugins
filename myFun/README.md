@@ -151,6 +151,12 @@ This does not use the sound anti-spam function.
 
 Usage: !playsound \<sound_path/file\>
 
+<b>!listtriggers</b>
+
+Lists the custom sound trigers that have been added for the sound.
+
+Usage: !listtriggers \<sound trigger\>
+
 <b>•	Permission level 5</b>
 
 <b>!reloadsounds</b> (alternatively !reenablesounds)
@@ -182,6 +188,18 @@ Usage: !enablesound \<sound trigger\><br>
 Shows the sounds to the player that are disabled on the server.<br>
 
 Usage: !listdisabled
+
+<b>!addtrigger</b>
+
+Adds the desired trigger to the custom sound triggers. The default trigger and cutom trigger must be seperated by an = sign.<br>
+
+Usage: !addtrigger \<default trigger\> = \<add trigger\>
+
+<b>!deltrigger</b>
+
+Removes the desired trigger from the custom sound triggers. The default trigger and cutom trigger must be seperated by an = sign.
+
+Usage: !deltrigger \<default trigger\> = \<del trigger\>
 
 
 <br><br>
