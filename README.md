@@ -751,7 +751,7 @@ Commands available with votelimiter.py listed with the default settings
 
 <b>•	Permission level 0</b>
 
-<b>Callvote<b>
+<b>Callvote</b>
 
 Players can use '/cv voteban \<player name/id\>' to ban a player from being able to vote.
 The player is maintianed on the list until the plyer disconnects or the server is restarted.
