@@ -12,17 +12,17 @@ qlx_voteLimiterLimit "5" - Sets the amount of votes each player is allowed to ca
 qlx_voteLimiterTypes "1" - Enable/Disable the restricting of vote types ("1" = Enable, "0" = Disable)
 qlx_voteLimiterDelay "60" - The amount of seconds a player must wait before the same type of vote may be called again.
 qlx_voteLimiterExcludeAdmin "0" - Exclude admins from vote limiting? (Exclude on = 1, off = 0)
-qlx_voteLimiterAllowed "2" - The amount of votes, of each type, a player will be allowed to call
-                            before being time limited to call that type of vote again
 """
 
 import minqlx
 import requests
 import os
 import time
+import re
 
-VERSION = "v2.01"
+VERSION = "v2.02"
 VOTELIMITER_FILE = "votelimiter.txt"
+VOTELIMITER_DEFAULT_VOTES = ["kick", "kick", "clientkick", "map", "teamsize", "cointoss", "shuffle", "map_restart"]
 
 
 class votelimiter(minqlx.Plugin):
@@ -32,15 +32,17 @@ class votelimiter(minqlx.Plugin):
         self.set_cvar_once("qlx_voteLimiterLimit", "5")
         self.set_cvar_once("qlx_voteLimiterTypes", "1")
         self.set_cvar_once("qlx_voteLimiterDelay", "60")
-        self.set_cvar_once("qlx_voteLimiterExcludeAdmin", "1")
+        self.set_cvar_once("qlx_voteLimiterExcludeAdmin", "0")
         self.set_cvar_once("qlx_voteLimiterAllowed", "2")
 
         # Variable to hold the admin permission level
         self.AdminLevel = self.get_cvar("qlx_voteLimiterAdmin", int)
 
         # monitored server occurrences
-        self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
+        self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGHEST)
+        self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("game_end", self.handle_end_game)
+        self.add_hook("player_disconnect", self.handle_player_disconnect)
 
         # commands
         self.add_command(("addvote", "allowvote"), self.cmd_allow_vote, self.AdminLevel)
@@ -49,6 +51,10 @@ class votelimiter(minqlx.Plugin):
         self.add_command(("votelimiter", "vlv"), self.get_version, self.AdminLevel)
         self.add_command(("resetvotecount", "rvc"), self.reset_vote_data, self.AdminLevel)
         self.add_command(("listvotes", "votes", "allowedvotes"), self.cmd_list_allowed_votes)
+        self.add_command("votelimiter_voteban", self.votelimiter_voteban, self.AdminLevel)
+        self.add_command("unvoteban", self.unvoteban, self.AdminLevel)
+        self.add_command("addvoteban", self.addvoteban, self.AdminLevel)
+        self.add_command("votebanlist", self.vote_ban_list, self.AdminLevel)
 
         # Opens the allowed votes container
         self.voteLimiterAllowed = []
@@ -60,10 +66,53 @@ class votelimiter(minqlx.Plugin):
         self.excludeAdmin = self.get_cvar("qlx_voteLimiterExcludeAdmin", bool)
         # Loads the allowed votes list
         self.load_allowed_votes()
+        # Holds Steam ID of player who called a vote
+        self.steam_id = "0"
+        # Holds player names that have been vote banned through callvote
+        self.vote_banned = []
 
     def handle_vote_called(self, caller, vote, args):
+        if caller.id in self.vote_banned:
+            caller.tell("^1You have had your voting privileges removed by a server callvote."
+                        " Your vote will not be allowed.")
+            minqlx.console_print("^3Player ^6{} ^7tried calling a vote while on the votelimiter voteban list."
+                                 " Vote was denied.".format(caller))
+            return minqlx.RET_STOP_ALL
+
         vote = vote.lower()
         sid = caller.steam_id
+
+        if vote == "voteban":
+            try:
+                player_name = self.player(int(args))
+                player_id = self.player(int(args)).id
+            except ValueError:
+                player_id = self.find_player_id(args)
+                if player_id == -1:
+                    caller.tell("^1No player matching that name found")
+                    return minqlx.RET_STOP_ALL
+                player_name = self.player(player_id)
+            except Exception as e:
+                if type(e).__name__ == "NonexistentPlayerError":
+                    caller.tell("^1Invalid ID.^7 Use a client ID from the ^2/players^7 command.")
+                    return minqlx.RET_STOP_ALL
+                minqlx.console_print("^3Exception during vote call attempt^7: ^1{} ^7: ^4{}"
+                                     .format(type(e).__name__, e.args))
+                return minqlx.RET_STOP_ALL
+
+            if self.db.get_permission(player_name) >= self.AdminLevel and\
+                    self.db.get_permission(player_name) >= self.db.get_permission(caller):
+                caller.tell("^3That player is a server admin and can't have their voting privileges suspended.")
+                minqlx.console_print("Votelimiter voteban attempted for player {}."
+                                     " Vote denied due to admin permission level.".format(player_name))
+                return minqlx.RET_STOP_ALL
+
+            self.callvote("qlx {}votelimiter_voteban {}".format(self.get_cvar("qlx_commandPrefix"), player_id),
+                          "Ban {} from calling votes on the server?".format(player_name))
+            minqlx.client_command(caller.id, "vote yes")
+            self.msg("{}^7 called vote /cv {} {}".format(caller.name, vote, args))
+            return minqlx.RET_STOP_ALL
+
         if self.get_cvar("qlx_voteLimiterTypes", bool) and vote not in self.voteLimiterAllowed:
             minqlx.console_print("{} called vote {} {}, which is currently disabled on the server."
                                  .format(caller, vote, args))
@@ -75,6 +124,7 @@ class votelimiter(minqlx.Plugin):
 
         if sid not in self.voteLimiterVote:
             self.voteLimiterVote[sid] = {}
+
         if vote not in self.voteLimiterVote[sid]:
             self.voteLimiterVote[sid]["{}".format(vote)] = vote
             self.voteLimiterVote[sid]["{}_time".format(vote)] = int(time.time())
@@ -83,27 +133,86 @@ class votelimiter(minqlx.Plugin):
         elapsed = int(time.time()) - self.voteLimiterVote[sid]["{}_time".format(vote)]
         delay = self.get_cvar("qlx_voteLimiterDelay", int)
 
-        if self.get_cvar("qlx_voteLimiterAllowed", int) > self.voteLimiterVote[sid]["{}_count".format(vote)]:
-            self.voteLimiterVote[sid]["{}_count".format(vote)] += 1
-        elif elapsed <= delay:
-            caller.tell("^3You have called a {} vote, ^2{} seconds ^3before you "
-                        "can call this vote again.".format(vote, delay - elapsed))
-            minqlx.console_print("{} called vote {} {}, the similar vote wait period in effect. Vote denied."
-                                 .format(caller, vote, args))
-            return minqlx.RET_STOP_ALL
-        self.voteLimiterVote[sid]["{}_time".format(vote)] = int(time.time())
-
         if sid in self.voteLimiterCount:
+            self.voteLimiterCount[sid] += 1
             if self.voteLimiterCount[sid] >= self.get_cvar("qlx_voteLimiterLimit", int):
                 caller.tell("^3You have called your maximum number of votes.")
                 caller.tell("^3Your vote count will reset at the end of a game/match.")
                 return minqlx.RET_STOP_ALL
-            self.voteLimiterCount[sid] += 1
         else:
             self.voteLimiterCount[sid] = 1
 
+        if self.get_cvar("qlx_voteLimiterAllowed", int) > self.voteLimiterVote[sid]["{}_count".format(vote)]:
+            self.voteLimiterVote[sid]["{}_count".format(vote)] += 1
+        elif elapsed <= delay:
+            caller.tell("^3You have called a {} type of vote, ^2{} seconds ^3before you "
+                        "can call this type of vote again.".format(vote, delay - elapsed))
+            return minqlx.RET_STOP_ALL
+        self.steam_id = sid
+        self.voteLimiterVote[sid]["{}_time".format(vote)] = int(time.time())
+
+    def handle_vote_ended(self, votes, vote, args, passed):
+        self.voteLimiterVote[self.steam_id]["{}_time".format(vote.lower())] = int(time.time())
+
     def handle_end_game(self, data):
         self.reset_vote_data()
+
+    def handle_player_disconnect(self, player, reason):
+        if player.id in self.vote_banned:
+            self.vote_banned.remove(player.id)
+
+    def find_player_id(self, name):
+        players = self.players()
+        for player in players:
+            if re.sub(r"\^[0-9]", "", name.lower()) in re.sub(r"\^[0-9]", "", str(player).lower()):
+                return self.player(player).id
+        return -1
+
+    def votelimiter_voteban(self, player, msg, channel):
+        try:
+            if int(msg[1]) not in self.vote_banned:
+                self.vote_banned.append(int(msg[1]))
+        except Exception as e:
+            minqlx.console_print("Error adding player ID to votelimiter voteban: {} : {}"
+                                 .format(type(e).__name__, e.args))
+
+    def unvoteban(self, player, msg, channel):
+        try:
+            if int(msg[1]) in self.vote_banned:
+                self.vote_banned.remove(int(msg[1]))
+                player.tell("^6Player ^4{} ^6has been removed from the votelimiter voteban list^7."
+                            .format(self.player(int(msg[1]))))
+        except:
+            player.tell("^3Usage^7: {}unvoteban <player id>".format(self.get_cvar("qlx_commandPrefix")))
+        return minqlx.RET_STOP_ALL
+
+    def vote_ban_list(self, player=None, msg=None, channel=None):
+        banned = []
+        populated = False
+        for pid in self.vote_banned:
+            populated = True
+            banned.append("^7(^4{}^7)^2{}".format(pid, self.player(pid)))
+        if populated:
+            if player:
+                player.tell("^3Current Voting Bans^7: {}".format(", ".join(banned)))
+            else:
+                minqlx.console_print("^3Current Voting Bans^7: {}".format(", ".join(banned)))
+        else:
+            if player:
+                player.tell("^3The votelimiter voteban list is empty^7.")
+            else:
+                minqlx.console_print("^3The votelimiter voteban list is empty^7.")
+        return minqlx.RET_STOP_ALL
+
+    def addvoteban(self, player, msg, channel):
+        try:
+            if int(msg[1]) not in self.vote_banned:
+                self.vote_banned.append(int(msg[1]))
+                player.tell("^6Player ^4{} ^6has been added to the votelimiter voteban list^7."
+                            .format(self.player(int(msg[1]))))
+        except:
+            player.tell("^3Usage^7: {}addvoteban <player id>".format(self.get_cvar("qlx_commandPrefix")))
+        return minqlx.RET_STOP_ALL
 
     def load_allowed_votes(self, player=None, msg=None, channel=None):
         try:
@@ -133,20 +242,9 @@ class votelimiter(minqlx.Plugin):
 
                 # The following lines add the default votes that are allowed. You can edit here,
                 # but I recommend just removing the vote from the allowed list using the !rvote <vote> command.
-                m.write("kick\n")
-                temp_list.append("kick")
-                m.write("clientkick\n")
-                temp_list.append("clientkick")
-                m.write("map\n")
-                temp_list.append("map")
-                m.write("teamsize\n")
-                temp_list.append("teamsize")
-                m.write("cointoss\n")
-                temp_list.append("cointoss")
-                m.write("shuffle\n")
-                temp_list.append("shuffle")
-                m.write("map_restart\n")
-                temp_list.append("map_restart")
+                for vote in VOTELIMITER_DEFAULT_VOTES:
+                    m.write(vote + "\n")
+                    temp_list.append(vote)
                 # End default vote list
 
                 m.close()
