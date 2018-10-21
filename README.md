@@ -730,7 +730,7 @@ The settings are shown with the default settings. Edit them to change the permis
 <b>set qlx_voicechatJoinMessage "1"</b> - Set to "1" to display the script join message to connecting players.<br>
 
 <br><br>
-# Votelimiter.py
+# votelimiter.py
 
 I created this script to keep people from callvoting stupid votes and votes that mess up the server but the admin hadn't thought about. This script will keep people from being able to callvote something that has not been added to the Allowed Vote List.<br>
 This will stop any vote type, if enabled, that is not in the allowed vote list.<br>
@@ -751,13 +751,20 @@ Commands available with votelimiter.py listed with the default settings
 
 <b>•	Permission level 0</b>
 
+<b>Callvote<b>
+
+Players can use '/cv voteban \<player name/id\>' to ban a player from being able to vote.
+The player is maintianed on the list until the plyer disconnects or the server is restarted.
+
+Usage: '/cv voteban \<player name/id\>' in console
+
 <b>!voteslist</b> (alternatively !listvotes or !votes)
 
 Shows the votes that the script will allow.
 
 Usage: !voteslist
 
-<b>•	Permission level 5</b>
+<b>•	Permission level 'qlx_votelimiterAdmin'</b>
 
 <b>!addvote</b> (alternatively !allowvote or !av)
 
@@ -782,6 +789,26 @@ Usage: !reload_voteslist
 Checks to see if the votelimiter.py is up to date and lists the version running on the server.
 
 Usage: !versionvotelimiter
+
+<b>!unvoteban</b>
+
+Removes a player from the votelimiter voteban list.
+This voteban list only maintains a player on the list until the player disconnects ro the server is restarted.
+
+Usage: !unvoteban \<id\>
+
+<b>!addvoteban</b>
+
+Adds a player to the votelimiter voteban list.
+This voteban list only maintains a player on the list until the player disconnects ro the server is restarted.
+
+Usage: !addvoteban \<id\>
+
+<b>!votebanlist</b>
+
+Lists the players on the votelimiter voteban list.
+
+Usage: !votebanlist \<vote\>
 <br><br>
 <b>CVARs</b>
 <b>The following bot settings used in the votelimiter script can be set with the rest of the minqlx bot settings:</b><br>
