@@ -43,6 +43,10 @@ set qlx_bdmRespondToBalanceCommand "0"
 set qlx_bdmREnableDoVote "1"
 // Set to "1" to display a message on player join to show games played and rating status to the server
 set qlx_bdmPrintJoinMsg "1"
+// If it is set to different than "0" it will use that number as a percentage of players who are playing
+//  that are needed to vote on the '/cv do' vote for the script to pass the vote if at least that percentage
+//  vote and more vote yes than no.
+set qlx_bdmPlayerPercForVote "26"  // set to "0" to disable
 // The BDM Player join message can be modified with the following cvar. The formatting instructions are:
 //    The cvar is the structure of the join message. You have the ability to put any of the following information into
 //    the join message (the numbers in front of the information will be used in the message format).
@@ -105,8 +109,9 @@ set qlx_bdmMinimumTeamSize "3"
 import minqlx
 import time
 from threading import Lock
+import random
 
-VERSION = "1.03.34"
+VERSION = "1.03.35"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -132,6 +137,7 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmREnableDoVote", "1")
         self.set_cvar_once("qlx_bdmPrintJoinMsg", "1")
         self.set_cvar_once("qlx_bdmPrintBdmStatsEveryMap", "0")
+        self.set_cvar_once("qlx_bdmPlayerPercForVote", "26")
         self.set_cvar_once("qlx_bdmJoinMessage",
                            "^6{0}^7: ^3{6} ^7games here ^2{2} ^4BDM ^7games ^7(quit ^6{5}^7％) ^7rating: ^2{1}^7.")
         # CA
@@ -170,6 +176,7 @@ class serverBDM(minqlx.Plugin):
         self.add_hook("team_switch", self.handle_team_switch)
         self.add_hook("round_countdown", self.handle_round_countdown)
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
+        self.add_hook("vote", self.handle_vote_count)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("round_start", self.handle_round_start)
         self.add_hook("round_end", self.handle_round_end)
@@ -214,6 +221,7 @@ class serverBDM(minqlx.Plugin):
         self.game_start = 0
         self.player_count = 0
         self.player_join_rating_displayed = []
+        self.vote_count = [0, 0, 0]
 
         self.create_db()
         if self.game.state == "in_progress":
@@ -346,7 +354,6 @@ class serverBDM(minqlx.Plugin):
         self.game_start = int(round(time.time() * 1000))
 
         # Give a little time for the game to insert everyone into a team
-
         @minqlx.next_frame
         def set_up():
             self.players_in_teams()
@@ -379,13 +386,17 @@ class serverBDM(minqlx.Plugin):
             if not self._agreeing_players:
                 caller.tell("^3There are no suggested players to switch.")
                 return minqlx.RET_STOP_ALL
-            self.callvote("qlx {}mark_agree".format(self.get_cvar("qlx_commandPrefix")),
-                          "Force the suggested player switch?")
-            minqlx.client_command(caller.id, "vote yes")
-            self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
+            self.check_force_switch_vote(caller, vote)
             return minqlx.RET_STOP_ALL
 
+    def handle_vote_count(self, player, yes):
+        if yes:
+            self.vote_count[0] += 1
+        else:
+            self.vote_count[1] += 1
+
     def handle_vote_ended(self, votes, vote, args, passed):
+        self.vote_count[2] = 0
         if passed and vote.lower() == "shuffle" and self.get_cvar("qlx_bdmBalanceAfterShuffleVote", bool):
             if self._bdm_gtype not in TEAM_BASED_GAMETYPES:
                 return
@@ -926,6 +937,26 @@ class serverBDM(minqlx.Plugin):
     # ==============================================
     #               Script Commands
     # ==============================================
+    @minqlx.thread
+    def check_force_switch_vote(self, caller, vote):
+        self.callvote("qlx {}mark_agree".format(self.get_cvar("qlx_commandPrefix")),
+                      "Force the suggested player switch?")
+        minqlx.client_command(caller.id, "vote yes")
+        self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
+        voter_perc = self.get_cvar("qlx_bdmPlayerPercForVote", int)
+        if voter_perc > 0:
+            self.vote_count[0] = 1
+            self.vote_count[1] = 0
+            thread_number = random.randrange(0, 10000000)
+            self.vote_count[2] = thread_number
+            teams = self.teams()
+            voters = len(teams["red"]) + len(teams["blue"])
+            time.sleep(28.7)
+            if self.vote_count[2] == thread_number and self.vote_count[0] / voters * 100 >= voter_perc and\
+                    self.vote_count[0] > self.vote_count[1]:
+                self.force_vote(True)
+        return
+
     def check_entry_exists(self, player, game_type, field):
         return self.db.exists(BDM_KEY.format(player.steam_id, game_type, field))
 
@@ -1762,10 +1793,7 @@ class serverBDM(minqlx.Plugin):
             games = int(self.db.get(BDM_KEY.format(p_sid, game_type, "games_completed"))) + \
                 int(self.db.get(BDM_KEY.format(p_sid, game_type, "games_left")))
             rating = int(self.db.get(BDM_KEY.format(p_sid, game_type, "rating")))
-            if games > 40:
-                games_played = 40
-            else:
-                games_played = games
+            games_played = games if games < 30 else 30
             try:
                 change = (((self._player_stats[p_sid]["DmgA"] *
                             self._player_stats["bdmSum"] / self._player_stats["DmgASum"]) - rating) / games_played)
