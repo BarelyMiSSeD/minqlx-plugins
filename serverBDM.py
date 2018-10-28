@@ -40,7 +40,7 @@ set qlx_bdmRespondToTeamsCommand "0"
 // Set BDM to respond to the !balance bot command
 set qlx_bdmRespondToBalanceCommand "0"
 // Set to "1" to enable '/callvote do' on the server to allow voting to force the suggested switch from !bteams
-set qlx_bdmREnableDoVote "1"
+set qlx_bdmEnableDoVote "1"
 // Set to "1" to display a message on player join to show games played and rating status to the server
 set qlx_bdmPrintJoinMsg "1"
 // If it is set to different than "0" it will use that number as a percentage of players who are playing
@@ -143,7 +143,7 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmEnableSwitch", "0")
         self.set_cvar_once("qlx_bdmRespondToTeamsCommand", "0")
         self.set_cvar_once("qlx_bdmRespondToBalanceCommand", "0")
-        self.set_cvar_once("qlx_bdmREnableDoVote", "1")
+        self.set_cvar_once("qlx_bdmEnableDoVote", "1")
         self.set_cvar_once("qlx_bdmPrintJoinMsg", "1")
         self.set_cvar_once("qlx_bdmPrintBdmStatsEveryMap", "0")
         self.set_cvar_once("qlx_bdmPlayerPercForVote", "26")
@@ -400,7 +400,7 @@ class serverBDM(minqlx.Plugin):
             if self.get_cvar("qlx_bdmBalanceAtGameStart", bool) and self.get_cvar("qlx_bdmEnableSwitch", bool):
                 self.msg("^3Shuffle vote denied. Teams ^4will be balanced ^3at start of game.")
                 return minqlx.RET_STOP_ALL
-        elif vote.lower() == "do":
+        elif vote.lower() == "do" and self.get_cvar("qlx_bdmEnableDoVote", bool):
             if not self._agreeing_players:
                 caller.tell("^3There are no suggested players to switch.")
                 return minqlx.RET_STOP_ALL
