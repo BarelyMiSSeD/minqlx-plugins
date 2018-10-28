@@ -47,6 +47,13 @@ set qlx_bdmPrintJoinMsg "1"
 //  that are needed to vote on the '/cv do' vote for the script to pass the vote if at least that percentage
 //  vote and more vote yes than no.
 set qlx_bdmPlayerPercForVote "26"  // set to "0" to disable
+// This enables/disables the use of the ELO_URL to set initial player bdm. ( 0 = off, 1 = on )
+set qlx_bdmSetIntitialBDM "1"
+// These are used to calculate the initial bdm of a player who has not been on the server yet.
+//  The ELO_URL will be queried to get the players elo for the game type and the formula bdm=m*elo+b is used
+//   to calculate the initial bdm. Adjust the values if needed to get the desired initial bdm.
+set qlx_bdmMCalculation "0.92"
+set qlx_bdmBCalculation "-250"
 // The BDM Player join message can be modified with the following cvar. The formatting instructions are:
 //    The cvar is the structure of the join message. You have the ability to put any of the following information into
 //    the join message (the numbers in front of the information will be used in the message format).
@@ -110,13 +117,15 @@ import minqlx
 import time
 from threading import Lock
 import random
+import requests
 
-VERSION = "1.03.35"
+VERSION = "1.04.00"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
 ROUND_BASED_GAMETYPES = ("ca", "ft")
 BDM_KEY = "minqlx:players:{}:bdm:{}:{}"
+ELO_URL = "qlstats.net"
 
 
 class serverBDM(minqlx.Plugin):
@@ -138,6 +147,9 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmPrintJoinMsg", "1")
         self.set_cvar_once("qlx_bdmPrintBdmStatsEveryMap", "0")
         self.set_cvar_once("qlx_bdmPlayerPercForVote", "26")
+        self.set_cvar_once("qlx_bdmSetIntitialBDM", "1")
+        self.set_cvar_once("qlx_bdmMCalculation", "0.92")
+        self.set_cvar_once("qlx_bdmBCalculation", "-250")
         self.set_cvar_once("qlx_bdmJoinMessage",
                            "^6{0}^7: ^3{6} ^7games here ^2{2} ^4BDM ^7games ^7(quit ^6{5}^7％) ^7rating: ^2{1}^7.")
         # CA
@@ -259,6 +271,9 @@ class serverBDM(minqlx.Plugin):
         self.set_bdm_field(player, game_type, "rating", self.get_cvar("qlx_bdmDefaultBDM"), False)
         self.set_bdm_field(player, game_type, "games_completed", "0", False)
         self.set_bdm_field(player, game_type, "games_left", "0", False)
+        if self.get_cvar("qlx_bdmSetIntitialBDM", bool) and self.get_bdm_field(player, game_type, "games_completed") +\
+                self.get_bdm_field(player, game_type, "games_left") == 0:
+            self.set_initial_bdm(player, game_type)
 
     def handle_player_loaded(self, player):
         sid = str(player.steam_id)
@@ -1814,3 +1829,33 @@ class serverBDM(minqlx.Plugin):
                                      .format(name, rating, new_rating))
         if len(self._save_previous_bdm) > 0:
             self.save_previous()
+
+    @minqlx.thread
+    def set_initial_bdm(self, player, game_type):
+        sid = player.steam_id
+        response = False
+        url = "http://{}/elo/{}".format(ELO_URL, sid)
+        attempts = 0
+        elo_dict = {}
+        while attempts < 3:
+            attempts += 1
+            info = requests.get(url)
+            if info.status_code != requests.codes.ok:
+                continue
+            info_js = info.json()
+            if "players" in info_js:
+                attempts = 3
+                response = True
+        if response:
+            elo_dict[sid] = {}
+            for record in info_js["players"]:
+                for gt in BDM_GAMETYPES:
+                    if gt in record:
+                        elo_dict[sid][gt] = record[str(gt)]["elo"]
+                    else:
+                        elo_dict[sid][gt] = 1200
+
+            m = self.get_cvar("qlx_bdmMCalculation", float)
+            b = self.get_cvar("qlx_bdmBCalculation", float)
+            bdm = int(m * int(elo_dict[sid][game_type]) + b)
+            self.db.set(BDM_KEY.format(sid, game_type, "rating"), str(bdm))
