@@ -1857,5 +1857,8 @@ class serverBDM(minqlx.Plugin):
 
             m = self.get_cvar("qlx_bdmMCalculation", float)
             b = self.get_cvar("qlx_bdmBCalculation", float)
-            bdm = int(m * int(elo_dict[sid][game_type]) + b)
+            if game_type in elo_dict[sid]:
+                bdm = int(m * int(elo_dict[sid][game_type]) + b)
+            else:
+                bdm = self.get_cvar("qlx_bdmDefaultBDM", int)
             self.db.set(BDM_KEY.format(sid, game_type, "rating"), str(bdm))
