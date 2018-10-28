@@ -64,7 +64,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.04.3"
+VERSION = "2.04.5"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -276,6 +276,7 @@ class specqueue(minqlx.Plugin):
         self.add_hook("round_start", self.handle_round_start)
         self.add_hook("round_end", self.handle_round_end)
         self.add_hook("death", self.death_monitor)
+        self.add_hook("player_connect", self.handle_player_connect)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("team_switch", self.handle_team_switch)
         self.add_hook("team_switch_attempt", self.handle_team_switch_attempt)
@@ -321,6 +322,12 @@ class specqueue(minqlx.Plugin):
     # ==============================================
     #               Event Handler's
     # ==============================================
+
+    def handle_player_connect(self, player):
+        if player.steam_id not in self._queue:
+            self.add_to_spec(player)
+            self.remove_from_queue(player)
+            self.remove_from_join(player)
 
     def handle_player_disconnect(self, player, reason):
         self.remove_from_spec(player)
@@ -512,8 +519,7 @@ class specqueue(minqlx.Plugin):
         self.check_for_opening(0.2)
 
     def remove_from_queue(self, player):
-        if player in self._queue:
-            self._queue.remove_from_queue(player.steam_id, player)
+        self._queue.remove_from_queue(player.steam_id, player)
 
     def check_queue(self, delay=0.1):
         if not self.end_screen and not self.displaying_queue and self._queue.size() > 0\
@@ -662,8 +668,8 @@ class specqueue(minqlx.Plugin):
                     if self.q_game_info[0] in BDM_GAMETYPES and self.get_cvar("qlx_queueUseBDMPlacement", bool):
                         red_bdm = self.team_average(teams["red"])
                         blue_bdm = self.team_average(teams["blue"])
-                        p1_bdm = self.get_rating(p1_sid)
-                        p2_bdm = self.get_rating(p2_sid)
+                        p1_bdm = int(self.get_rating(p1_sid))
+                        p2_bdm = int(self.get_rating(p2_sid))
                         # set team related variables initial values
                         # If the team's score difference is over "qlx_queuesTeamScoresAmount" and
                         #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher bdm
@@ -676,6 +682,7 @@ class specqueue(minqlx.Plugin):
                         # Executes if the 'place by team score' doesn't execute and sets player
                         #   with higher BDM on the team with the lower average BDM.
                         else:
+                            minqlx.console_print("77")
                             if red_bdm > blue_bdm:
                                 placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
                             elif blue_bdm > red_bdm:
@@ -721,7 +728,7 @@ class specqueue(minqlx.Plugin):
         else:
             game_type = self.q_game_info[0]
         if self.db.exists(BDM_KEY.format(sid, game_type, "rating")):
-            return int(self.db.get(BDM_KEY.format(sid, game_type, "rating")))
+            return int(float(self.db.get(BDM_KEY.format(sid, game_type, "rating"))))
         else:
             return self.get_cvar("qlx_bdmDefaultBDM", int)
 
@@ -1058,3 +1065,4 @@ class specqueue(minqlx.Plugin):
             channel.reply("^4Spectators^7: " + ", ".join(message))
         elif player or count:
             self.msg("^4Spectators^7: " + ", ".join(message))
+
