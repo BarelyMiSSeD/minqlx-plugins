@@ -1864,4 +1864,8 @@ class serverBDM(minqlx.Plugin):
                 bdm = int(m * int(elo_dict[sid][game_type]) + b)
             else:
                 bdm = self.get_cvar("qlx_bdmDefaultBDM", int)
+            if bdm < self.get_cvar("qlx_bdmMinRating", int):
+                bdm = self.get_cvar("qlx_bdmMinRating", int)
+            elif bdm > self.get_cvar("qlx_bdmMaxRating", int):
+                bdm = self.get_cvar("qlx_bdmMaxRating", int)
             self.db.set(BDM_KEY.format(sid, game_type, "rating"), str(bdm))
