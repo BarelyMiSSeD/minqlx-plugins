@@ -300,10 +300,13 @@ class serverBDM(minqlx.Plugin):
                 games_left = 0
                 minqlx.console_print("Games Left retrieval error: {}".format(e))
             try:
-                quit_percentage = round(games_left / games_completed * 100)
+                if games_completed > 0:
+                    quit_percentage = round((games_left / games_completed) * 100)
+                else:
+                    quit_percentage = 0
             except Exception as e:
                 quit_percentage = 0
-                minqlx.console_print("Quit calculation error: {}".format(e))
+                minqlx.console_print("Games Quit Percentage calculation error: {}".format(e))
             games_played = games_completed + games_left
             try:
                 bdm_rating = self.get_bdm_field(player, game_type, "rating")
