@@ -14,7 +14,7 @@ set qlx_mmChangeWhenEmpty "1"           //Enable to change to default map when a
 import minqlx
 import time
 
-Version = 1.0
+Version = 1.1
 
 
 class mapmonitor(minqlx.Plugin):
@@ -28,6 +28,9 @@ class mapmonitor(minqlx.Plugin):
         self.add_hook("map", self.handle_map)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
+
+        # Minqlx bot commands
+        self.add_command("map", self.map_change, 2, usage="<mapname> [factory]")
 
         # Script Variables
         self._map_change_time = 0.0
@@ -72,3 +75,11 @@ class mapmonitor(minqlx.Plugin):
         minqlx.console_print("^1Changing map to {}".format(self.get_cvar("qlx_mmDefaultMap")))
         self.map_changed = True
         minqlx.console_command("map {}".format(self.get_cvar("qlx_mmDefaultMap")))
+
+    def map_change(self, player, msg, channel):
+        if "essentials" not in self._loaded_plugins:
+            """Changes the map."""
+            if len(msg) < 2:
+                return minqlx.RET_USAGE
+            self.change_map(msg[1], msg[2] if len(msg) > 2 else None)
+        self.map_changed = True
