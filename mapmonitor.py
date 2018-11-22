@@ -55,7 +55,7 @@ class mapmonitor(minqlx.Plugin):
             self.mm_check = False
 
     def handle_player_disconnect(self, player, reason):
-        if len(self.players() == 0) and self.get_cvar("qlx_mmChangeWhenEmpty", bool):
+        if len(self.players()) == 0 and self.get_cvar("qlx_mmChangeWhenEmpty", bool):
             self.change_map()
 
     def handle_console_print(self, text):
