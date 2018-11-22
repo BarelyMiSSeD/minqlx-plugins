@@ -1115,6 +1115,8 @@ class serverBDM(minqlx.Plugin):
         sid = str(player.steam_id)
         if sid[0] == "9":
             return
+        if sid not in self._played_time:
+            self.init_played_time(sid)
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
             if self.game.state != "in_progress":
                 return
@@ -1153,14 +1155,7 @@ class serverBDM(minqlx.Plugin):
                         self._spectating_players.pop(sid, None)
                         self._played_time[sid]["team"] = new_team
                     else:
-                        self._played_time[sid] = {}
                         self._played_time[sid]["team"] = new_team
-                        self._played_time[sid]["score"] = 0
-                        self._played_time[sid]["kills"] = 0
-                        self._played_time[sid]["deaths"] = 0
-                        self._played_time[sid]["damage_dealt"] = 0
-                        self._played_time[sid]["damage_taken"] = 0
-                        self._played_time[sid]["time"] = 0
                 else:
                     if sid in self._team_switchers:
                         self._team_switchers[sid]["score"] +=\
@@ -1184,6 +1179,16 @@ class serverBDM(minqlx.Plugin):
                         self._team_switchers[sid]["damage_taken"] = self._played_time[sid]["damage_taken"]
                         self._team_switchers[sid]["time"] = self._played_time[sid]["time"]
                     self._played_time[sid]["team"] = new_team
+
+    def init_played_time(self, sid):
+        self._played_time[sid] = {}
+        self._played_time[sid]["team"] = ""
+        self._played_time[sid]["score"] = 0
+        self._played_time[sid]["kills"] = 0
+        self._played_time[sid]["deaths"] = 0
+        self._played_time[sid]["damage_dealt"] = 0
+        self._played_time[sid]["damage_taken"] = 0
+        self._played_time[sid]["time"] = 0
 
     def reset_data(self):
         self._played_time.clear()
@@ -1281,6 +1286,8 @@ class serverBDM(minqlx.Plugin):
                 sid = str(player.steam_id)
                 if sid[0] == "9":
                     continue
+                if sid not in self._played_time:
+                    self.init_played_time(sid)
                 stats = player.stats
                 self._played_time[sid]["score"] = stats.score
                 self._played_time[sid]["kills"] = stats.kills
@@ -1313,42 +1320,27 @@ class serverBDM(minqlx.Plugin):
                 if self._bdm_gtype in TEAM_BASED_GAMETYPES:
                     for player in teams["red"]:
                         sid = str(player.steam_id)
+                        if sid not in self._played_time:
+                            self.init_played_time(sid)
                         if sid[0] == "9":
                             continue
-                        self._played_time[sid] = {}
                         self._played_time[sid]["team"] = "red"
-                        self._played_time[sid]["score"] = 0
-                        self._played_time[sid]["kills"] = 0
-                        self._played_time[sid]["deaths"] = 0
-                        self._played_time[sid]["damage_dealt"] = 0
-                        self._played_time[sid]["damage_taken"] = 0
-                        self._played_time[sid]["time"] = 0
                     for player in teams["blue"]:
                         sid = str(player.steam_id)
                         if sid[0] == "9":
                             continue
-                        self._played_time[sid] = {}
+                        if sid not in self._played_time:
+                            self.init_played_time(sid)
                         self._played_time[sid]["team"] = "blue"
-                        self._played_time[sid]["score"] = 0
-                        self._played_time[sid]["kills"] = 0
-                        self._played_time[sid]["deaths"] = 0
-                        self._played_time[sid]["damage_dealt"] = 0
-                        self._played_time[sid]["damage_taken"] = 0
-                        self._played_time[sid]["time"] = 0
 
                 else:
                     for player in teams["free"]:
                         sid = str(player.steam_id)
                         if sid[0] == "9":
                             continue
-                        self._played_time[sid] = {}
+                        if sid not in self._played_time:
+                            self.init_played_time(sid)
                         self._played_time[sid]["team"] = "free"
-                        self._played_time[sid]["score"] = 0
-                        self._played_time[sid]["kills"] = 0
-                        self._played_time[sid]["deaths"] = 0
-                        self._played_time[sid]["damage_dealt"] = 0
-                        self._played_time[sid]["damage_taken"] = 0
-                        self._played_time[sid]["time"] = 0
 
     def create_db(self):
         players = self.players()
