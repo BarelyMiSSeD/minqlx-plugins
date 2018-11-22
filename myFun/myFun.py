@@ -254,7 +254,7 @@ class myFun(minqlx.Plugin):
 
     @minqlx.delay(2)
     def handle_player_loaded(self, player):
-        if self.get_cvar("qlx_motdSound", bool) or self.get_cvar("qlx_funJoinSound") == "0":
+        if self.get_cvar("qlx_motdSound") != "0" or self.get_cvar("qlx_funJoinSound") == "0":
             return
         # plays the join sound for a connecting player if qlx_funJoinSound is set and qlx_motdSound is not set
         # join sound can be played for everyone even if sounds are disabled if qlx_funJoinSoundForEveryone is enabled
