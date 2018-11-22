@@ -14,7 +14,7 @@ set qlx_mmChangeWhenEmpty "1"           //Enable to change to default map when a
 import minqlx
 import time
 
-Version = 1.1
+Version = 1.2
 
 
 class mapmonitor(minqlx.Plugin):
@@ -28,20 +28,23 @@ class mapmonitor(minqlx.Plugin):
         self.add_hook("map", self.handle_map)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
+        self.add_hook("console_print", self.handle_console_print)
+        self.add_hook("game_end", self.handle_game_end)
 
         # Minqlx bot commands
         self.add_command("map", self.map_change, 2, usage="<mapname> [factory]")
 
         # Script Variables
         self._map_change_time = 0.0
-        self.map_changed = False
+        self.map_changed = True
         self.mm_check = False
+        self.player_count = 0
 
     def handle_map(self, mapname, factory):
         self.mm_check = False
         self._map_change_time = time.time()
 
-        @minqlx.delay(1)
+        @minqlx.delay(5)
         def check():
             self.check_player_count()
 
@@ -55,9 +58,19 @@ class mapmonitor(minqlx.Plugin):
         if len(self.players() == 0) and self.get_cvar("qlx_mmChangeWhenEmpty", bool):
             self.change_map()
 
+    def handle_console_print(self, text):
+        if text.startswith("zmq RCON command"):
+            args = text.split(":")
+            if args[1].startswith(" map "):
+                self.player_count = len(self.players())
+                self.map_changed = True
+
+    def handle_game_end(self, data):
+        self.player_count = len(self.players())
+
     @minqlx.thread
     def check_player_count(self):
-        if not self.map_changed:
+        if self.player_count != 0 or not self.map_changed:
             self.mm_check = True
             loop = 1
             loop_time = self.get_cvar("qlx_mmCheckTime", int)
@@ -69,11 +82,13 @@ class mapmonitor(minqlx.Plugin):
                 loop += 1
         self.map_changed = False
         self.mm_check = False
+        self.player_count = len(self.players())
 
     @minqlx.next_frame
     def change_map(self):
         minqlx.console_print("^1Changing map to {}".format(self.get_cvar("qlx_mmDefaultMap")))
         self.map_changed = True
+        self.player_count = len(self.players())
         minqlx.console_command("map {}".format(self.get_cvar("qlx_mmDefaultMap")))
 
     def map_change(self, player, msg, channel):
@@ -83,3 +98,4 @@ class mapmonitor(minqlx.Plugin):
                 return minqlx.RET_USAGE
             self.change_map(msg[1], msg[2] if len(msg) > 2 else None)
         self.map_changed = True
+        self.player_count = len(self.players())
