@@ -130,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 3.3
+VERSION = 3.4
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 PLAYERS_SOUNDS = "minqlx:players:{0}:flags:myFun:{1}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -1167,7 +1167,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[2]["nightmare"] = [re.compile(r"^nightmare\W?$"), "sound/funnysounds/nightmare.ogg"]
             self.soundDictionaries[2]["nobody likes you"] = [re.compile(r"^nobody likes you\W?$"), "sound/funnysounds/nobodylikesyou.ogg"]
             self.soundDictionaries[2]["nonie"] = [re.compile(r"^nonie\W?$"), "sound/funnysounds/nonie.ogg"]
-            self.soundDictionaries[2]["nooo"] = [re.compile(r"^nooo\W?$"), "sound/funnysounds/nooo.ogg"]
+            self.soundDictionaries[2]["nooo"] = [re.compile(r"^nooo+\W?$"), "sound/funnysounds/nooo.ogg"]
             self.soundDictionaries[2]["no time for loosers"] = [re.compile(r"^no time for loosers\W?$"), "sound/funnysounds/notimeforloosers.ogg"]
             self.soundDictionaries[2]["numanuma"] = [re.compile(r"^numanuma\W?$"), "sound/funnysounds/numanuma.ogg"]
             self.soundDictionaries[2]["nyancat"] = [re.compile(r"^nyancat\W?$"), "sound/funnysounds/nyancat.ogg"]
@@ -1596,7 +1596,8 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[5]["ahsi"] = [re.compile(r"^ahsi\W?$"), "sound/westcoastcrew/ahsi.ogg"]
             self.soundDictionaries[5]["all dead"] = [re.compile(r"^all( )?dead\W?$"), "sound/westcoastcrew/alldead.ogg"]
             self.soundDictionaries[5]["kinrazed"] = [re.compile(r"kinrazed\W?"), "sound/westcoastcrew/alright.ogg"]
-            self.soundDictionaries[5]["another one bites the dust"] = [re.compile(r"another one bites the dust\W?"), "sound/westcoastcrew/anotheronebitesthedust.ogg"]
+            self.soundDictionaries[5]["another one bites the dustt"] = [re.compile(r"(another one )?bites the dustt\W?$"), "sound/westcoastcrew/anotherbitesdust.ogg"]
+            self.soundDictionaries[5]["another one bites the dust"] = [re.compile(r"(another one )?bites the dust\W?$"), "sound/westcoastcrew/anotheronebitesthedust.ogg"]
             self.soundDictionaries[5]["and another one gone"] = [re.compile(r"and another one gone\W?"), "sound/westcoastcrew/anotheronegone.ogg"]
             self.soundDictionaries[5]["atustamena"] = [re.compile(r"atustamena\W?"), "sound/westcoastcrew/atustamena.ogg"]
             self.soundDictionaries[5]["ay caramba"] = [re.compile(r"^ay caramba\W?"), "sound/westcoastcrew/aycaramba.ogg"]
@@ -1628,8 +1629,11 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[5]["clear"] = [re.compile(r"^clear\W?$"), "sound/westcoastcrew/clear.ogg"]
             self.soundDictionaries[5]["clever girl"] = [re.compile(r"^clever girl\W?"), "sound/westcoastcrew/clevergirl.ogg"]
             self.soundDictionaries[5]["clr"] = [re.compile(r"^clr\W?$"), "sound/westcoastcrew/clr.ogg"]
-            self.soundDictionaries[5]["clr2"] = [re.compile(r"clr2\W?"), "sound/westcoastcrew/clr2.ogg"]
+            self.soundDictionaries[5]["clr2"] = [re.compile(r"^clr2\W?"), "sound/westcoastcrew/clr2.ogg"]
             self.soundDictionaries[5]["counting on you"] = [re.compile(r"^counting on you\W?"), "sound/westcoastcrew/countingonyou.ogg"]
+            self.soundDictionaries[5]["g1bbles"] = [re.compile(r"^g1bbles\W?"), "sound/westcoastcrew/crymeariver.ogg"]
+            self.soundDictionaries[5]["cry me a river"] = [re.compile(r"^cry me a river\W?$"), "sound/westcoastcrew/crymeariver1.ogg"]
+            self.soundDictionaries[5]["cry me a riverr"] = [re.compile(r"^cry me a riverr\W?$"), "sound/westcoastcrew/crymeariver2.ogg"]
             self.soundDictionaries[5]["cthree"] = [re.compile(r"^cthree\W?$"), "sound/westcoastcrew/cuttingedge.ogg"]
             self.soundDictionaries[5]["damn im good"] = [re.compile(r"^damn i'?m good\W?"), "sound/westcoastcrew/damnimgood.ogg"]
             self.soundDictionaries[5]["dead last"] = [re.compile(r"(?:yeah,? how'?d he finish again|dead ?last)\W?"), "sound/westcoastcrew/deadlast.ogg"]
@@ -1726,6 +1730,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[5]["no way"] = [re.compile(r"^no( )?way\W?$"), "sound/westcoastcrew/noway.ogg"]
             self.soundDictionaries[5]["oblivion"] = [re.compile(r"oblivion\W?"), "sound/westcoastcrew/obliv.ogg"]
             self.soundDictionaries[5]["obliv"] = [re.compile(r"^(?:obliv(ious)?)\W?$"), "sound/westcoastcrew/obliv2.ogg"]
+            self.soundDictionaries[5]["oh boy"] = [re.compile(r"^oh boy\W?$"), "sound/westcoastcrew/ohboy.ogg"]
             # repeat of FunnySounds
             # self.soundDictionaries[5]["oh no"] = [re.compile(r"^oh no\W?$"), "sound/westcoastcrew/OhNo.ogg"]
             self.soundDictionaries[5]["he's on fire"] = [re.compile(r"he'?s on fire\W?"), "sound/westcoastcrew/onfire.ogg"]
@@ -1754,11 +1759,14 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[5]["rothkoo"] = [re.compile(r"^rothkoo\W?$"), "sound/westcoastcrew/rothko.ogg"]
             self.soundDictionaries[5]["rothko"] = [re.compile(r"^rothko\W?$"), "sound/westcoastcrew/rothko_theme.ogg"]
             self.soundDictionaries[5]["rugged"] = [re.compile(r"(?:rugged\W?$|like a rock)"), "sound/westcoastcrew/rugged.ogg"]
+            self.soundDictionaries[5]["santa town"] = [re.compile(r"santa( )?town\W?"), "sound/westcoastcrew/santatown.ogg"]
             self.soundDictionaries[5]["saved"] = [re.compile(r"saved\W?"), "sound/westcoastcrew/saved.ogg"]
             self.soundDictionaries[5]["scrub"] = [re.compile(r"scrub\W?"), "sound/westcoastcrew/scrub.ogg"]
+            self.soundDictionaries[5]["senth"] = [re.compile(r"^senth\W?$"), "sound/westcoastcrew/senth.ogg"]
             self.soundDictionaries[5]["shaft"] = [re.compile(r"^shaft\W?$"), "sound/westcoastcrew/shaft.ogg"]
             self.soundDictionaries[5]["shenookies cookies"] = [re.compile(r"shenookie'?s cookies\W?$"), "sound/westcoastcrew/shenook.ogg"]
             self.soundDictionaries[5]["shenookie"] = [re.compile(r"shenookie\W?$"), "sound/westcoastcrew/shenookies.ogg"]
+            self.soundDictionaries[5]["you show that turd"] = [re.compile(r"(?:turd|(you )?show that turd)\W?$"), "sound/westcoastcrew/showthatturd.ogg"]
             self.soundDictionaries[5]["shufflenufiguess"] = [re.compile(r"shufflenufiguess\W?"), "sound/westcoastcrew/shufflenufflegus.ogg"]
             self.soundDictionaries[5]["skadoosh"] = [re.compile(r"skadoosh\W?"), "sound/westcoastcrew/skadoosh.ogg"]
             self.soundDictionaries[5]["slime"] = [re.compile(r"slime\W?"), "sound/westcoastcrew/slime.ogg"]
@@ -1772,6 +1780,7 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[5]["still feel like you're mad"] = [re.compile(r"still feel like you'?re mad\W?"), "sound/westcoastcrew/stillmad.ogg"]
             self.soundDictionaries[5]["stitch"] = [re.compile(r"stitch\W?"), "sound/westcoastcrew/stitch.ogg"]
             self.soundDictionaries[5]["somebody stop me"] = [re.compile(r"somebody stop me\W?"), "sound/westcoastcrew/stopme.ogg"]
+            self.soundDictionaries[5]["survey said"] = [re.compile(r"^survey said\W?"), "sound/westcoastcrew/surveysaid.ogg"]
             self.soundDictionaries[5]["swish"] = [re.compile(r"swish\W?"), "sound/westcoastcrew/swish.ogg"]
             self.soundDictionaries[5]["team complete"] = [re.compile(r"^team( )?complete\W?$"), "sound/westcoastcrew/teamcomplete2.ogg"]
             # repeat of FunnySounds
@@ -1798,16 +1807,18 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[5]["wow"] = [re.compile(r"^wow\W?$"), "sound/westcoastcrew/wow.ogg"]
             self.soundDictionaries[5]["woww"] = [re.compile(r"^woww\W?$"), "sound/westcoastcrew/wow2.ogg"]
             self.soundDictionaries[5]["wuyoga"] = [re.compile(r"wuyoga\W?"), "sound/westcoastcrew/wuyoga.ogg"]
+            self.soundDictionaries[5]["xxx"] = [re.compile(r"^xxx\W?$"), "sound/westcoastcrew/xxx.ogg"]
             self.soundDictionaries[5]["ya basic"] = [re.compile(r"ya ?basic\W?"), "sound/westcoastcrew/yabasic.ogg"]
             self.soundDictionaries[5]["jdub"] = [re.compile(r"(?:jdub|y'?all ready for this)\W?$"), "sound/westcoastcrew/yallreadyforthis.ogg"]
             self.soundDictionaries[5]["yawn"] = [re.compile(r"^yawn\W?$"), "sound/westcoastcrew/yawn.ogg"]
-            self.soundDictionaries[5]["yawnn"] = [re.compile(r"^yawnn\W?$"), "sound/westcoastcrew/yawnn.ogg"]
+            self.soundDictionaries[5]["yawnn"] = [re.compile(r"^yawnn+\W?$"), "sound/westcoastcrew/yawnn.ogg"]
             self.soundDictionaries[5]["yeah baby"] = [re.compile(r"yeah baby\W?"), "sound/westcoastcrew/yeahbaby.ogg"]
             # repeat of FunnySounds
             # self.soundDictionaries[5]["yhehehe"] = [re.compile(r"^yhehehe\W?$"), "sound/westcoastcrew/YHehehe.ogg"]
             self.soundDictionaries[5]["you can do it"] = [re.compile(r"you can do( it)?\W?"), "sound/westcoastcrew/youcandoit.ogg"]
             self.soundDictionaries[5]["youlose"] = [re.compile(r"youlose\W?"), "sound/westcoastcrew/youlose.ogg"]
             self.soundDictionaries[5]["your pick"] = [re.compile(r"your ?pick\W?"), "sound/westcoastcrew/yourpick.ogg"]
+            self.soundDictionaries[5]["zebby"] = [re.compile(r"^zebby\W?$"), "sound/westcoastcrew/zebby.ogg"]
 
         self.populate_sound_lists()
         return
