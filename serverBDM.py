@@ -110,6 +110,9 @@ set qlx_bdmMinTimePerc "60"
 set qlx_bdmMinRounds "5"
 // Minimum players that have played enough of the match needed for players stats to be counted/calculated
 set qlx_bdmMinimumTeamSize "3"
+// Adjust this if the player BDMs are not adjusting enough or is adjusting too much after each game.
+// Smaller number results in more BDM change, larger number will result in less BDM change.
+set qlx_bdmNumGamesForCalculation "25"
 
 """
 
@@ -119,7 +122,7 @@ from threading import Lock
 import random
 import requests
 
-VERSION = "1.04.00"
+VERSION = "1.04.01"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -178,6 +181,7 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmMinTimePerc", "60")
         self.set_cvar_once("qlx_bdmMinRounds", "5")
         self.set_cvar_once("qlx_bdmMinimumTeamSize", "3")
+        self.set_cvar_once("qlx_bdmNumGamesForCalculation", "25")
 
         # Minqlx bot Hooks
         self.add_hook("chat", self.handle_chat)
@@ -236,7 +240,7 @@ class serverBDM(minqlx.Plugin):
         self.vote_count = [0, 0, 0]
 
         self.create_db()
-        if self.game.state == "in_progress":
+        if self.game is not None and self.game.state == "in_progress":
             self.players_in_teams()
 
     # ==============================================
@@ -253,7 +257,7 @@ class serverBDM(minqlx.Plugin):
             return
 
     def handle_stats(self, stats):
-        if self.game.state != "in_progress":
+        if self.game is not None and self.game.state != "in_progress":
             return
         if self._bdm_gtype == "ctf" and stats["TYPE"] == "PLAYER_MEDAL":
             self.record_ctf_events(stats["DATA"]["STEAM_ID"], stats["DATA"]["MEDAL"])
@@ -1811,7 +1815,8 @@ class serverBDM(minqlx.Plugin):
             games = int(self.db.get(BDM_KEY.format(p_sid, game_type, "games_completed"))) + \
                 int(self.db.get(BDM_KEY.format(p_sid, game_type, "games_left")))
             rating = int(self.db.get(BDM_KEY.format(p_sid, game_type, "rating")))
-            games_played = games if games < 30 else 30
+            max_games_for_calc = self.get_cvar("qlx_bdmNumGamesForCalculation", int)
+            games_played = games if games < max_games_for_calc else max_games_for_calc
             try:
                 change = (((self._player_stats[p_sid]["DmgA"] *
                             self._player_stats["bdmSum"] / self._player_stats["DmgASum"]) - rating) / games_played)
