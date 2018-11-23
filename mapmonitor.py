@@ -14,7 +14,7 @@ set qlx_mmChangeWhenEmpty "1"           //Enable to change to default map when a
 import minqlx
 import time
 
-Version = 1.2
+Version = 1.3
 
 
 class mapmonitor(minqlx.Plugin):
@@ -55,8 +55,9 @@ class mapmonitor(minqlx.Plugin):
             self.mm_check = False
 
     def handle_player_disconnect(self, player, reason):
-        if len(self.players()) == 0 and self.get_cvar("qlx_mmChangeWhenEmpty", bool):
-            self.change_map()
+        if len(self.players()) - 1 <= 0 and self.get_cvar("qlx_mmChangeWhenEmpty", bool):
+            self.def_change_map()
+            self.player_count = 0
 
     def handle_console_print(self, text):
         if text.startswith("zmq RCON command"):
@@ -72,23 +73,21 @@ class mapmonitor(minqlx.Plugin):
     def check_player_count(self):
         if self.player_count != 0 or not self.map_changed:
             self.mm_check = True
-            loop = 1
             loop_time = self.get_cvar("qlx_mmCheckTime", int)
             while time.time() - self._map_change_time < loop_time and self.mm_check:
                 time.sleep(1)
                 if len(self.players()) == 0:
-                    self.change_map()
-                    break
-                loop += 1
+                    self.player_count = 0
+                    self.def_change_map()
+                    return
         self.map_changed = False
         self.mm_check = False
         self.player_count = len(self.players())
 
     @minqlx.next_frame
-    def change_map(self):
+    def def_change_map(self):
         minqlx.console_print("^1Changing map to {}".format(self.get_cvar("qlx_mmDefaultMap")))
         self.map_changed = True
-        self.player_count = len(self.players())
         minqlx.console_command("map {}".format(self.get_cvar("qlx_mmDefaultMap")))
 
     def map_change(self, player, msg, channel):
