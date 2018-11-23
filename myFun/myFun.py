@@ -130,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 3.4
+VERSION = 3.5
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 PLAYERS_SOUNDS = "minqlx:players:{0}:flags:myFun:{1}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -443,27 +443,35 @@ class myFun(minqlx.Plugin):
                             .format(self.get_cvar("qlx_commandPrefix")))
         return minqlx.RET_STOP_ALL
 
+    @minqlx.thread
     def list_triggers(self, player, msg, channel):
-        if len(msg) < 2:
-            player.tell("^3usage^7: ^1!listtriggers ^7<^2default trigger^7>")
-            return minqlx.RET_STOP_ALL
-        msg_lower = [x.lower() for x in msg]
-        trigger = " ".join(msg_lower[1:])
-        found_path = self.find_sound_path(trigger)
-        if found_path:
-            if self.db.exists(TRIGGERS_LOCATION.format(found_path)):
-                if self.db.llen(TRIGGERS_LOCATION.format(found_path)) == 0:
-                    player.tell("^3There are no custom triggers saved for ^4{}".format(trigger))
-                    return minqlx.RET_STOP_ALL
+        if len(msg) >= 2:
+            msg_lower = [x.lower() for x in msg]
+            trigger = " ".join(msg_lower[1:])
+            found_path = self.find_sound_path(trigger)
+            if found_path:
+                if self.db.exists(TRIGGERS_LOCATION.format(found_path)):
+                    if self.db.llen(TRIGGERS_LOCATION.format(found_path)) == 0:
+                        player.tell("^3There are no custom triggers saved for ^4{}".format(trigger))
+                        return minqlx.RET_STOP_ALL
+                    else:
+                        triggers = self.db.lrange(TRIGGERS_LOCATION.format(found_path), 0, -1)
+                        self.msg("^3The custom sound triggers for ^4{0}^7: ^2{1}".format(trigger, ", ".join(triggers)))
+                        return
                 else:
-                    triggers = self.db.lrange(TRIGGERS_LOCATION.format(found_path), 0, -1)
-                    self.msg("^3The custom sound triggers for ^4{0}^7: ^2{1}".format(trigger, ", ".join(triggers)))
-                    return
+                    player.tell("^3There are no custom triggers saved for ^4{}".format(trigger))
             else:
-                player.tell("^3There are no custom triggers saved for ^4{}".format(trigger))
+                player.tell("^3There are no custom sound triggers for ^2{}^7.".format(trigger))
+            return minqlx.RET_STOP_ALL
         else:
-            player.tell("^3There are no custom sound triggers for ^2{}^7.".format(trigger))
-        return minqlx.RET_STOP_ALL
+            message = ["^3Custom Triggers:"]
+            triggers = self.db.keys(TRIGGERS_LOCATION.format("*"))
+            for item in triggers:
+                trigger = self.sound_trigger(item.split(":")[3])
+                custom_triggers = self.db.lrange(item, 0, 100)
+                message.append("^1{}:\n^2   {}".format(trigger, "^7, ^2".join(custom_triggers)))
+            player.tell("\n".join(message))
+            return minqlx.RET_STOP_ALL
 
     # players can turn off individual sounds for only themselves
     @minqlx.thread
