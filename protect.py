@@ -22,9 +22,12 @@ import minqlx
 import requests
 import os
 import codecs
+import random
+import time
 
-VERSION = "v1.07"
+VERSION = "v1.08"
 PROTECT_FILE = "protect.txt"
+
 
 class protect(minqlx.Plugin):
     def __init__(self):
@@ -42,6 +45,7 @@ class protect(minqlx.Plugin):
         self.set_cvar_once("qlx_protectAdminLevel", "5")
         self.set_cvar_once("qlx_protectPassLevel", "5")
         self.set_cvar_once("qlx_protectFTS", "5")
+        self.set_cvar_once("qlx_protectPlayerPercForVote", "26")
 
         self.protectPermission = self.get_cvar("qlx_protectPermissionLevel")
         self.mapProtect = self.get_cvar("qlx_protectMapVoting", bool)
@@ -57,6 +61,7 @@ class protect(minqlx.Plugin):
         
         # Opens Protect list container
         self.protect = []
+        self.vote_count = [0, 0, 0]
 
         # Loads the protect list.
         self.cmd_loadProtects()
@@ -150,9 +155,7 @@ class protect(minqlx.Plugin):
             if self.player(int(args)).team == "spectator":
                 caller.tell("That player is already in the spectators.")
                 return minqlx.RET_STOP_ALL
-            self.callvote("put {} spec".format(player_id), "Move {} to spectate?".format(player_name))
-            minqlx.client_command(caller.id, "vote yes")
-            self.msg("{}^7 called a vote.".format(caller.name))
+            self.callvote_to_spec(caller, vote, player_name, player_id)
             return minqlx.RET_STOP_ALL
         # Voting to mute people
         elif vote == "mute" or vote == "silence":
@@ -195,6 +198,25 @@ class protect(minqlx.Plugin):
             minqlx.client_command(caller.id, "vote yes")
             self.msg("{}^7 called a vote.".format(caller.name))
             return minqlx.RET_STOP_ALL
+
+    @minqlx.thread
+    def callvote_to_spec(self, caller, vote, player_name, player_id):
+        self.callvote("put {} spec".format(player_id), "Move {} to spectate?".format(player_name))
+        minqlx.client_command(caller.id, "vote yes")
+        self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
+        voter_perc = self.get_cvar("qlx_protectPlayerPercForVote", int)
+        if voter_perc > 0:
+            self.vote_count[0] = 1
+            self.vote_count[1] = 0
+            thread_number = random.randrange(0, 10000000)
+            self.vote_count[2] = thread_number
+            teams = self.teams()
+            voters = len(teams["red"]) + len(teams["blue"])
+            time.sleep(28.7)
+            if self.vote_count[2] == thread_number and self.vote_count[0] / voters * 100 >= voter_perc and\
+                    self.vote_count[0] > self.vote_count[1]:
+                self.force_vote(True)
+        return
 
     # Checks for a protect.txt file and loads the entries if the file exists. Creates one if it doesn't.
     def cmd_loadProtects(self, player=None, msg=None, channel=None):
