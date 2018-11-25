@@ -1,4 +1,18 @@
 # minqlx-plugins
+# mapmonitor.py
+This is a script to monitor the server when a map changes. If the server boots everyone due to a bad
+map it will change the map to the default map. It can also monitor for the server emptying out and change
+to the default map.
+
+set qlx_mmDefaultMap "almostlost ca"    //set the default map and factory type<br>
+set qlx_mmCheckTime "60"                //The amount of time the script will check after a map change for a bad map<br>
+set qlx_mmChangeWhenEmpty "1"           //Enable to change to default map when all players disconnect (1=enabled, 0=disabled)<br>
+<br>
+<b>Commands:</b><br>
+!map: Monitors the use of the map command so that it knows when an admin changes the map. If the default !map command is not 
+being used it will also change the map.<br>
+
+
 # specqueue.py
 <b>This script works with serverBDM.py</b><br>
 This is a queueing plugin for the minqlx admin bot.
