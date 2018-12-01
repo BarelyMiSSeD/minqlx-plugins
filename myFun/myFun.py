@@ -130,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 3.5
+VERSION = 3.6
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 PLAYERS_SOUNDS = "minqlx:players:{0}:flags:myFun:{1}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -900,23 +900,50 @@ class myFun(minqlx.Plugin):
     @minqlx.thread
     def populate_dicts(self):
         if self.Enabled_SoundPacks[0]:
+            self.soundDictionaries[0]["battlesuit"] = [re.compile(r"^battlesuit\W?$"), "sound/vo/battlesuit.ogg"]
+            self.soundDictionaries[0]["bite"] = [re.compile(r"^bite\W?$"), "sound/vo/bite.ogg"]
+            self.soundDictionaries[0]["combo kill"] = [re.compile(r"^combo kill\W?$"), "sound/vo/combokill2.ogg"]
             self.soundDictionaries[0]["hahaha yeah"] = [re.compile(r"^haha(?:ha)?,? yeah?\W?$"), "sound/player/lucy/taunt.wav"]
             self.soundDictionaries[0]["haha yeah haha"] = [re.compile(r"^haha(?:ha)?,? yeah?,? haha\W?$"), "sound/player/biker/taunt.wav"]
             self.soundDictionaries[0]["yeah hahaha"] = [re.compile(r"^yeah?,? haha(?:ha)\W?$"), "sound/player/razor/taunt.wav"]
+            self.soundDictionaries[0]["death"] = [re.compile(r"^death?\W?$"), "sound/player/biker/death1.wav"]
+            self.soundDictionaries[0]["death2"] = [re.compile(r"^death2?\W?$"), "sound/player/bitterman/death2.wav"]
+            self.soundDictionaries[0]["death3"] = [re.compile(r"^death3?\W?$"), "sound/player/bones/death2.wav"]
+            self.soundDictionaries[0]["death4"] = [re.compile(r"^death4?\W?$"), "sound/player/doom/death2.wav"]
+            self.soundDictionaries[0]["death5"] = [re.compile(r"^death5?\W?$"), "sound/player/grunt/death1.wav"]
+            self.soundDictionaries[0]["death6"] = [re.compile(r"^death6?\W?$"), "sound/player/hunter/death2.wav"]
+            self.soundDictionaries[0]["death7"] = [re.compile(r"^death7?\W?$"), "sound/player/james/death3.wav"]
+            self.soundDictionaries[0]["death8"] = [re.compile(r"^death8?\W?$"), "sound/player/janet/death1.wav"]
+            self.soundDictionaries[0]["death9"] = [re.compile(r"^death9?\W?$"), "sound/player/keel/death3.wav"]
+            self.soundDictionaries[0]["death10"] = [re.compile(r"^death10?\W?$"), "sound/player/klesk/death3.wav"]
+            self.soundDictionaries[0]["death11"] = [re.compile(r"^death11?\W?$"), "sound/player/major/death1.wav"]
+            self.soundDictionaries[0]["death12"] = [re.compile(r"^death12?\W?$"), "sound/player/orbb/death3.wav"]
+            self.soundDictionaries[0]["death13"] = [re.compile(r"^death13?\W?$"), "sound/player/santa/death3.wav"]
+            self.soundDictionaries[0]["death14"] = [re.compile(r"^death14?\W?$"), "sound/player/sarge/death2.wav"]
+            self.soundDictionaries[0]["death15"] = [re.compile(r"^death15?\W?$"), "sound/player/slash/death1.wav"]
+            self.soundDictionaries[0]["death16"] = [re.compile(r"^death16?\W?$"), "sound/player/sorlag/death1.wav"]
+            self.soundDictionaries[0]["death17"] = [re.compile(r"^death17?\W?$"), "sound/player/tankjr/death1.wav"]
+            self.soundDictionaries[0]["death18"] = [re.compile(r"^death18?\W?$"), "sound/player/uriel/death1.wav"]
+            self.soundDictionaries[0]["death19"] = [re.compile(r"^death19?\W?$"), "sound/player/visor/death3.wav"]
+            self.soundDictionaries[0]["death20"] = [re.compile(r"^death20?\W?$"), "sound/player/xaero/death1.wav"]
             self.soundDictionaries[0]["duahahaha"] = [re.compile(r"^duahaha(?:ha)?\W?$"), "sound/player/keel/taunt.wav"]
+            self.soundDictionaries[0]["denied"] = [re.compile(r"^denied\W?$"), "sound/vo/denied"]
+            self.soundDictionaries[0]["headshot"] = [re.compile(r"^headshot\W?$"), "sound/vo/headshot"]
             self.soundDictionaries[0]["hahaha"] = [re.compile(r"^hahaha"), "sound/player/santa/taunt.wav"]
             self.soundDictionaries[0]["glhf"] = [re.compile(r"^(?:gl ?hf\W?)|(?:hf\W?)|(?:gl hf\W?)"), "sound/vo/crash_new/39_01.wav"]
+            self.soundDictionaries[0]["fall2"] = [re.compile(r"^fall2?\W?$"), "sound/player/santa/falling1.wav"]
             self.soundDictionaries[0]["f3"] = [re.compile(r"^((?:(?:press )?f3)|ready|ready up)$\W?"), "sound/vo/crash_new/36_04.wav"]
             self.soundDictionaries[0]["holy shit"] = [re.compile(r"holy shit"), "sound/vo_female/holy_shit"]
             self.soundDictionaries[0]["welcome to quake live"] = [re.compile(r"^welcome to (?:ql|quake live)\W?$"), "sound/vo_evil/welcome"]
+            self.soundDictionaries[0]["gasp"] = [re.compile(r"^gasp\W?$"), "sound/player/anarki/gasp.wav"]
             self.soundDictionaries[0]["go"] = [re.compile(r"^go\W?$"), "sound/vo/go"]
             self.soundDictionaries[0]["beep boop"] = [re.compile(r"^beep boop\W?$"), "sound/player/tankjr/taunt.wav"]
             self.soundDictionaries[0]["you win"] = [re.compile(r"^you win\W?$"), "sound/vo_female/you_win.wav"]
             self.soundDictionaries[0]["you lose"] = [re.compile(r"^you lose\W?$"), "sound/vo/you_lose.wav"]
             self.soundDictionaries[0]["impressive"] = [re.compile(r"impressive"), "sound/vo_female/impressive1.wav"]
             self.soundDictionaries[0]["excellent"] = [re.compile(r"excellent"), "sound/vo_evil/excellent1.wav"]
-            self.soundDictionaries[0]["denied"] = [re.compile(r"^denied\W?$"), "sound/vo/denied"]
             self.soundDictionaries[0]["balls out"] = [re.compile(r"^ball'?s out\W?$"), "sound/vo_female/balls_out"]
+            self.soundDictionaries[0]["one frag left"] = [re.compile(r"^one frag left\W?$"), "sound/vo/1_frag.ogg"]
             self.soundDictionaries[0]["one"] = [re.compile(r"^one\W?$"), "sound/vo_female/one"]
             self.soundDictionaries[0]["two"] = [re.compile(r"^two\W?$"), "sound/vo_female/two"]
             self.soundDictionaries[0]["three"] = [re.compile(r"^three\W?$"), "sound/vo_female/three"]
@@ -940,6 +967,9 @@ class myFun(minqlx.Plugin):
             self.soundDictionaries[0]["salute"] = [re.compile(r"^salute\W?$"), "sound/player/sarge/taunt.wav"]
             self.soundDictionaries[0]["squish"] = [re.compile(r"^squish\W?$"), "sound/player/orbb/taunt.wav"]
             self.soundDictionaries[0]["oh god"] = [re.compile(r"^oh god\W?$"), "sound/player/ranger/taunt.wav"]
+            self.soundDictionaries[0]["pain"] = [re.compile(r"^pain\W?$"), "sound/player/anarki/pain25_1.wav"]
+            self.soundDictionaries[0]["pain2"] = [re.compile(r"^pain2\W?$"), "sound/player/orbb/pain25_1.wav"]
+            self.soundDictionaries[0]["pain3"] = [re.compile(r"^pain3\W?$"), "sound/player/keel/pain50_1.wav"]
             self.soundDictionaries[0]["snarl"] = [re.compile(r"^snarl\W?$"), "sound/player/sorlag/taunt.wav"]
 
         if self.Enabled_SoundPacks[1]:
