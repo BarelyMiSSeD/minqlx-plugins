@@ -130,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 3.6
+VERSION = 3.7
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 PLAYERS_SOUNDS = "minqlx:players:{0}:flags:myFun:{1}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -178,6 +178,7 @@ class myFun(minqlx.Plugin):
         self.add_command("addtrigger", self.add_trigger, 5)
         self.add_command("deltrigger", self.del_trigger, 5)
         self.add_command("listtriggers", self.list_triggers, 3)
+        self.add_command("sounds", self.cmd_enable_sounds, usage="<0/1>")
 
         # variable to show when a sound has been played
         self.played = False
@@ -729,6 +730,21 @@ class myFun(minqlx.Plugin):
             channel.reply("For me? Thank you, {}!".format(player))
         else:
             channel.reply("I'm out of cookies right now, {}. Sorry!".format(player))
+
+    ''' Here in case the essentials plugin in not loaded '''
+    def cmd_enable_sounds(self, player, msg, channel):
+        if "essentials" not in self._loaded_plugins:
+            flag = self.db.get_flag(player, "essentials:sounds_enabled", default=True)
+            self.db.set_flag(player, "essentials:sounds_enabled", not flag)
+
+            if flag:
+                player.tell("Sounds have been disabled. Use ^6{}sounds^7 to enable them again."
+                            .format(self.get_cvar("qlx_commandPrefix")))
+            else:
+                player.tell("Sounds have been enabled. Use ^6{}sounds^7 to disable them again."
+                            .format(self.get_cvar("qlx_commandPrefix")))
+
+            return minqlx.RET_STOP_ALL
 
     def check_time(self, player):
         if self.get_cvar("qlx_funUnrestrictAdmin", bool) and self.db.get_permission(player.steam_id) == 5:
