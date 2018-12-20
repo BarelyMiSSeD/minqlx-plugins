@@ -10,6 +10,8 @@
 
 # This is a plugin for the minqlx admin bot.
 # It modifies the game CVARs to make warmup time a little different and hopefully more fun.
+# Be careful modifying the setting too much. Too many projectiles needing to be kept track of
+#   by the server may result in server crashes. Use/Modify this at your own risk.
 
 """
 //script cvars to be put in server configuration file (default: server.cfg). Default values shown.
