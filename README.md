@@ -1,4 +1,38 @@
 # minqlx-plugins
+# funwarmup.py
+It modifies the game CVARs to make warmup time a little different and hopefully more fun.
+Be careful modifying the setting too much. Too many projectiles needing to be kept track of
+  by the server may result in server crashes. Use/Modify this at your own risk.
+
+//script cvars to be put in server configuration file (default: server.cfg). Default values shown.<br>
+// set the permission level for admins to allow setting and unsetting of the fun warm up mode<br>
+set qlx_fwAdminLevel "3"<br>
+// Enable or Disable the automatic enabling of the fun warm up mode on map changes<br>
+set qlx_fwSetupWarmupFun "1"<br>
+// Set the number of seconds each weapon is used during the fun warm up period<br>
+set qlx_fwInterval "60"<br>
+// Set the number of players allowed on the server to choose if the fun warm up uses WEAPONS or WEAPONS2 settings<br>
+// It looks at teamsize or maxplayers to determine which to use.<br>
+set qlx_fwPlayerSplit "8"<br>
+<br>
+<br><br>
+Commands available with funwarmup.py listed with the set permission levels
+
+<b>•	Permission level 3</b> (set with qlx_fwAdminLevel)
+
+<b>!setfun</b>
+
+If the server is in warmup this will enable the Fun Warmup Mode.
+
+Usage: !setfun
+
+<b>!unsetfun</b>
+
+Turns off the Fun Warmup Mode.
+
+Usage: !unsetfun
+
+
 # mapmonitor.py
 This is a script to monitor the server when a map changes. If the server boots everyone due to a bad
 map it will change the map to the default map. It can also monitor for the server emptying out and change
@@ -9,8 +43,7 @@ set qlx_mmCheckTime "60"                //The amount of time the script will che
 set qlx_mmChangeWhenEmpty "1"           //Enable to change to default map when all players disconnect (1=enabled, 0=disabled)<br>
 <br>
 <b>Commands:</b><br>
-!map: Monitors the use of the map command so that it knows when an admin changes the map. If the default !map command is not 
-being used it will also change the map.<br>
+!setfun<br>
 
 
 # specqueue.py
