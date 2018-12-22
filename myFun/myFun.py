@@ -130,10 +130,11 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = 3.7
+VERSION = "3.9"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 PLAYERS_SOUNDS = "minqlx:players:{0}:flags:myFun:{1}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
+SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 
 
 class myFun(minqlx.Plugin):
@@ -165,10 +166,10 @@ class myFun(minqlx.Plugin):
         self.add_hook("player_disconnect", self.player_disconnect)
         self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
         self.add_command("cookies", self.cmd_cookies)
-        self.add_command(("getsounds", "listsounds", "listsound"), self.cmd_list_sounds)
+        self.add_command(("getsounds", "listsounds", "listsound"), self.list_sounds)
         self.add_command(("myfun", "fun"), self.cmd_help)
-        self.add_command(("off", "soundoff"), self.cmd_sound_off, client_cmd_perm=0)
-        self.add_command(("on", "soundon"), self.cmd_sound_on, client_cmd_perm=0)
+        self.add_command(("off", "soundoff"), self.sound_off, client_cmd_perm=0)
+        self.add_command(("on", "soundon"), self.sound_on, client_cmd_perm=0)
         self.add_command(("offlist", "soundofflist"), self.cmd_sound_off_list, client_cmd_perm=0)
         self.add_command("playsound", self.cmd_sound, 3)
         self.add_command("disablesound", self.cmd_disable_sound, client_cmd_perm=5, usage="<sound trigger>")
@@ -177,7 +178,7 @@ class myFun(minqlx.Plugin):
         self.add_command(("reenablesounds", "reloadsounds"), self.enable_sound_packs, 5)
         self.add_command("addtrigger", self.add_trigger, 5)
         self.add_command("deltrigger", self.del_trigger, 5)
-        self.add_command("listtriggers", self.list_triggers, 3)
+        self.add_command("listtriggers", self.request_triggers, 3)
         self.add_command("sounds", self.cmd_enable_sounds, usage="<0/1>")
 
         # variable to show when a sound has been played
@@ -188,14 +189,12 @@ class myFun(minqlx.Plugin):
         self.trigger = ""
         # stores time of last sound play
         self.last_sound = None
-        # stores state of sound trigger find
-        self.Found_Sound = False
         # Dictionary used to store player sound call times.
         self.sound_limiting = {}
         # List to store steam ids of muted players
         self.muted_players = []
         # List to store the enable/disabled status of the soundpacks
-        self.Enabled_SoundPacks = [0,0,0,0,0,0]
+        self.Enabled_SoundPacks = [0, 0, 0, 0, 0, 0]
         # set the desired sound packs to enabled
         self.enable_sound_packs()
         # List of soundpack names
@@ -204,20 +203,12 @@ class myFun(minqlx.Plugin):
                            "West Coast Crew Sound"]
         # List of soundpack categories (used to narrow search results in !listsounds)
         self.categories = ["#Default", "#Prestige", "#Funny", "#Duke", "#Warp", "#West"]
-        # List for storing soundpack dictionaries
-        self.soundDictionaries = []
         # List for storing the lists of sounds
-        self.soundLists = []
+        self.soundLists = [None, None, None, None, None, None]
         self.sound_list_count = 0
         self.help_msg = []
-        # populate the list with empty dictionaries
-        dicts = 0
-        while dicts < len(self.Enabled_SoundPacks):
-            self.soundDictionaries.append({})
-            self.soundLists.append([])
-            dicts += 1
-        # populate the dictionaries and sound lists with the enabled soundpacks
-        self.populate_dicts()
+        # populate the datqabase and sound lists with the enabled soundpacks
+        self.populate_database()
         # Welcome sound played list
         self.playedWelcome = []
 
@@ -246,10 +237,9 @@ class myFun(minqlx.Plugin):
             player.tell("Enabled Sound Packs are: ^3{}".format(", ".join(sound_packs)))
             dicts = 0
             while dicts < len(self.Enabled_SoundPacks):
-                self.soundDictionaries[dicts].clear()
                 self.soundLists[dicts] = []
                 dicts += 1
-            self.populate_dicts()
+            self.populate_database()
             player.tell("Completed Sound Pack reload.")
             return minqlx.RET_STOP_ALL
 
@@ -307,19 +297,21 @@ class myFun(minqlx.Plugin):
                 pass
 
     # Monitors the chat messages of players to process the sound triggers
-    @minqlx.thread
     def handle_chat(self, player, msg, channel):
-        # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
-        if channel != "chat" or player.steam_id in self.muted_players or\
-                not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
-            return
+        self.scan_chat(player, msg, channel)
 
-        # find the sound trigger for this sound (sets self.trigger, self.soundFile, self.Found_Sound)
-        self.find_sound_trigger(self.clean_text(msg))
-        if self.Found_Sound:
+    @minqlx.thread
+    def scan_chat(self, player, msg, channel):
+        # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
+        if msg.startswith("!") or channel != "chat" or player.steam_id in self.muted_players or\
+                not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
+            return msg
+
+        # find the sound trigger for this sound (sets self.trigger, self.soundFile)
+        if self.find_sound_trigger(self.clean_text(msg)):
             # stop sound processing if the player has this sound trigger turned off
             if self.db.get(PLAYERS_SOUNDS.format(player.steam_id, self.soundFile)):
-                return
+                return minqlx.RET_NONE
             # check sound delay time
             delay_time = self.check_time(player)
             if delay_time:
@@ -330,7 +322,7 @@ class myFun(minqlx.Plugin):
                 else:
                     player.tell("^3You played a sound recently. {} seconds timeout remaining."
                                 .format(delay_time))
-                    return
+                    return minqlx.RET_NONE
             # check to see if a sound has been played
             if not self.last_sound:
                 pass
@@ -338,7 +330,7 @@ class myFun(minqlx.Plugin):
             elif time.time() - self.last_sound < self.get_cvar("qlx_funSoundDelay", int):
                 player.tell("^3A sound has been played in last {} seconds. Try again after the timeout."
                             .format(self.get_cvar("qlx_funSoundDelay")))
-                return
+                return minqlx.RET_NONE
             # call the play sound function
             self.play_sound(self.soundFile)
 
@@ -347,36 +339,35 @@ class myFun(minqlx.Plugin):
             self.sound_limiting[player.steam_id] = time.time()
         # unset self.played so it can be checked again the next time a sound trigger is typed
         self.played = False
+        return minqlx.RET_NONE
 
     # Compares the msg with the sound triggers to determine if there is a match
     def find_sound_trigger(self, msg):
+        self.trigger = None
+        self.soundFile = None
         msg_lower = msg.lower()
         sound_dict = 0
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
-                for key in self.soundDictionaries[sound_dict]:
+                keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
+                for key in keys:
+                    match = self.db.get(key).split(",")
                     # if sound trigger matches set self.trigger to the trigger,
                     #  self.soundFile to the location of the sound
-                    #  self.Found_Sound to True to indicate the trigger match
-                    #  (required because of running check in a thread)
-                    if self.soundDictionaries[sound_dict][key][0].match(msg_lower):
+                    if re.compile(match[0]).match(msg_lower):
                         self.trigger = key
-                        self.soundFile = self.soundDictionaries[sound_dict][key][1]
-                        self.Found_Sound = True
-                        return
+                        self.soundFile = match[1]
+                        return True
                     # if custom sound triggers have been added for the sound being examined
                     #  it searches through the stored triggers for a match
-                    if self.db.exists(TRIGGERS_LOCATION.format(self.soundDictionaries[sound_dict][key][1])):
-                        for trigger in self.db.lrange(TRIGGERS_LOCATION.format(self.soundDictionaries[sound_dict][key][1]), 0, -1):
+                    if self.db.exists(TRIGGERS_LOCATION.format(match[1])):
+                        for trigger in self.db.lrange(TRIGGERS_LOCATION.format(match[1]), 0, -1):
                             if trigger == msg_lower:
                                 self.trigger = key
-                                self.soundFile = self.soundDictionaries[sound_dict][key][1]
-                                self.Found_Sound = True
-                                return
+                                self.soundFile = match[1]
+                                return True
             sound_dict += 1
-
-        self.Found_Sound = False
-        return
+        return False
 
     def add_trigger(self, player, msg, channel):
         if len(msg) < 3:
@@ -444,6 +435,9 @@ class myFun(minqlx.Plugin):
                             .format(self.get_cvar("qlx_commandPrefix")))
         return minqlx.RET_STOP_ALL
 
+    def request_triggers(self, player, msg, channel):
+        self.list_triggers(player, msg, channel)
+
     @minqlx.thread
     def list_triggers(self, player, msg, channel):
         if len(msg) >= 2:
@@ -475,6 +469,9 @@ class myFun(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
 
     # players can turn off individual sounds for only themselves
+    def sound_off(self, player, msg, channel):
+        self.cmd_sound_off(player, msg, channel)
+
     @minqlx.thread
     def cmd_sound_off(self, player, msg, channel):
         if len(msg) < 2:
@@ -513,8 +510,11 @@ class myFun(minqlx.Plugin):
         return
 
     # players can re-enable sounds that they previously disabled for themselves
+    def sound_on(self, player, msg, channel):
+        self.cmd_sound_on(player, msg)
+
     @minqlx.thread
-    def cmd_sound_on(self, player, msg, channel):
+    def cmd_sound_on(self, player, msg):
         if len(msg) < 2:
             if self.soundFile != "":
                 if self.trigger == "":
@@ -553,9 +553,10 @@ class myFun(minqlx.Plugin):
         sound_dict = 0
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
-                for key in self.soundDictionaries[sound_dict]:
+                keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
+                for key in keys:
                     if key == trigger:
-                        return self.soundDictionaries[sound_dict][key][1]
+                        return self.db.get(SOUND_TRIGGERS.format(sound_dict, key))[1]
             sound_dict += 1
 
         return False
@@ -565,8 +566,9 @@ class myFun(minqlx.Plugin):
         sound_dict = 0
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
-                for key in self.soundDictionaries[sound_dict]:
-                    if self.soundDictionaries[sound_dict][key][1] == path:
+                keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
+                for key in keys:
+                    if self.db.get(SOUND_TRIGGERS.format(sound_dict, key))[1] == path:
                         return key
             sound_dict += 1
 
@@ -577,8 +579,8 @@ class myFun(minqlx.Plugin):
         disabled_key = "minqlx:players:{0}:flags:myFun".format(player.steam_id)
         sound_list = []
         count = 0
-        list = self.db.keys(disabled_key + ":*")
-        for key in list:
+        _list = self.db.keys(disabled_key + ":*")
+        for key in _list:
             trigger = self.sound_trigger(key.split(":")[-1])
             sound_list.append(trigger)
             count += 1
@@ -600,7 +602,7 @@ class myFun(minqlx.Plugin):
                             .format(key, self.get_cvar("qlx_commandPrefix")))
             else:
                 self.db.set(DISABLED_SOUNDS.format(key), 1)
-                del self.soundDictionaries[sound_dict][key]
+                del self.db[SOUND_TRIGGERS.format(sound_dict, key)]
                 slot = 0
                 while slot < len(self.Enabled_SoundPacks):
                     if self.Enabled_SoundPacks[slot] and key in self.soundLists[slot]:
@@ -654,9 +656,11 @@ class myFun(minqlx.Plugin):
         sound_dict = 0
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
-                for key in self.soundDictionaries[sound_dict]:
-                    if self.soundDictionaries[sound_dict][key][0].match(msg_lower):
-                        return sound_dict, key, self.soundDictionaries[sound_dict][key][1]
+                keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
+                for key in keys:
+                    trigger = self.db.get(SOUND_TRIGGERS.format(sound_dict, key))
+                    if trigger[0].match(msg_lower):
+                        return sound_dict, key, trigger[1]
             sound_dict += 1
 
         return False
@@ -685,6 +689,7 @@ class myFun(minqlx.Plugin):
         return minqlx.RET_STOP_ALL
 
     # plays the supplied sound for the players on the server (if the player has the sound(s) enabled)
+    @minqlx.thread
     def play_sound(self, path):
         self.played = True
 
@@ -697,14 +702,15 @@ class myFun(minqlx.Plugin):
     # populates the sound list that is used to list the available sounds on the server
     @minqlx.thread
     def populate_sound_lists(self):
-        # remove dictionary entries for sounds disabled on the server
-        for key in self.db.keys("minqlx:myFun:disabled:*"):
+        # remove entries for sounds disabled on the server
+        keys = self.db.keys("minqlx:myFun:disabled:*")
+        for key in keys:
             if self.db[key]:
                 sound_dict = 0
                 trigger = key.split(":")[-1]
                 while sound_dict < len(self.Enabled_SoundPacks):
                     if self.Enabled_SoundPacks[sound_dict]:
-                        self.soundDictionaries[sound_dict].pop(trigger, None)
+                        del self.db[SOUND_TRIGGERS.format(sound_dict, trigger)]
                     sound_dict += 1
 
         self.sound_list_count = 0
@@ -715,8 +721,9 @@ class myFun(minqlx.Plugin):
                 self.soundLists[slot] = []
                 self.sound_list_count += 1
                 self.help_msg.append(self.categories[slot])
-                for key in self.soundDictionaries[slot]:
-                    self.soundLists[slot].append(key)
+                keys = self.db.keys(SOUND_TRIGGERS.format(slot, "*"))
+                for key in keys:
+                    self.soundLists[slot].append(key.split(":")[-1])
                 self.soundLists[slot].sort()
             slot += 1
 
@@ -777,6 +784,9 @@ class myFun(minqlx.Plugin):
         return
 
     # list the available sounds to the requesting player
+    def list_sounds(self, player, msg, channel):
+        self.cmd_list_sounds(player, msg, channel)
+
     @minqlx.thread
     def cmd_list_sounds(self, player, msg, channel):
         sounds = ["^4SOUNDS^7: ^3Type these words/phrases in normal chat to play a sound on the server.\n"]
@@ -914,965 +924,973 @@ class myFun(minqlx.Plugin):
     # These are the sounds available on the server put into the dictionaries used to search for a sound trigger match
     #  when processing normal chat messages
     @minqlx.thread
-    def populate_dicts(self):
+    def populate_database(self):
+        if self.db.get("minqlx:myFun:version") == VERSION and\
+                self.db.get("minqlx:myFun:enabled") == self.get_cvar("qlx_funEnableSoundPacks"):
+            self.populate_sound_lists()
+            return
+        else:
+            self.db.set("minqlx:myFun:version", VERSION)
+            self.db.set("minqlx:myFun:enabled", self.get_cvar("qlx_funEnableSoundPacks"))
         if self.Enabled_SoundPacks[0]:
-            self.soundDictionaries[0]["battlesuit"] = [re.compile(r"^battlesuit\W?$"), "sound/vo/battlesuit.ogg"]
-            self.soundDictionaries[0]["bite"] = [re.compile(r"^bite\W?$"), "sound/vo/bite.ogg"]
-            self.soundDictionaries[0]["combo kill"] = [re.compile(r"^combo kill\W?$"), "sound/vo/combokill2.ogg"]
-            self.soundDictionaries[0]["hahaha yeah"] = [re.compile(r"^haha(?:ha)?,? yeah?\W?$"), "sound/player/lucy/taunt.wav"]
-            self.soundDictionaries[0]["haha yeah haha"] = [re.compile(r"^haha(?:ha)?,? yeah?,? haha\W?$"), "sound/player/biker/taunt.wav"]
-            self.soundDictionaries[0]["yeah hahaha"] = [re.compile(r"^yeah?,? haha(?:ha)\W?$"), "sound/player/razor/taunt.wav"]
-            self.soundDictionaries[0]["death"] = [re.compile(r"^death?\W?$"), "sound/player/biker/death1.wav"]
-            self.soundDictionaries[0]["death2"] = [re.compile(r"^death2?\W?$"), "sound/player/bitterman/death2.wav"]
-            self.soundDictionaries[0]["death3"] = [re.compile(r"^death3?\W?$"), "sound/player/bones/death2.wav"]
-            self.soundDictionaries[0]["death4"] = [re.compile(r"^death4?\W?$"), "sound/player/doom/death2.wav"]
-            self.soundDictionaries[0]["death5"] = [re.compile(r"^death5?\W?$"), "sound/player/grunt/death1.wav"]
-            self.soundDictionaries[0]["death6"] = [re.compile(r"^death6?\W?$"), "sound/player/hunter/death2.wav"]
-            self.soundDictionaries[0]["death7"] = [re.compile(r"^death7?\W?$"), "sound/player/james/death3.wav"]
-            self.soundDictionaries[0]["death8"] = [re.compile(r"^death8?\W?$"), "sound/player/janet/death1.wav"]
-            self.soundDictionaries[0]["death9"] = [re.compile(r"^death9?\W?$"), "sound/player/keel/death3.wav"]
-            self.soundDictionaries[0]["death10"] = [re.compile(r"^death10?\W?$"), "sound/player/klesk/death3.wav"]
-            self.soundDictionaries[0]["death11"] = [re.compile(r"^death11?\W?$"), "sound/player/major/death1.wav"]
-            self.soundDictionaries[0]["death12"] = [re.compile(r"^death12?\W?$"), "sound/player/orbb/death3.wav"]
-            self.soundDictionaries[0]["death13"] = [re.compile(r"^death13?\W?$"), "sound/player/santa/death3.wav"]
-            self.soundDictionaries[0]["death14"] = [re.compile(r"^death14?\W?$"), "sound/player/sarge/death2.wav"]
-            self.soundDictionaries[0]["death15"] = [re.compile(r"^death15?\W?$"), "sound/player/slash/death1.wav"]
-            self.soundDictionaries[0]["death16"] = [re.compile(r"^death16?\W?$"), "sound/player/sorlag/death1.wav"]
-            self.soundDictionaries[0]["death17"] = [re.compile(r"^death17?\W?$"), "sound/player/tankjr/death1.wav"]
-            self.soundDictionaries[0]["death18"] = [re.compile(r"^death18?\W?$"), "sound/player/uriel/death1.wav"]
-            self.soundDictionaries[0]["death19"] = [re.compile(r"^death19?\W?$"), "sound/player/visor/death3.wav"]
-            self.soundDictionaries[0]["death20"] = [re.compile(r"^death20?\W?$"), "sound/player/xaero/death1.wav"]
-            self.soundDictionaries[0]["duahahaha"] = [re.compile(r"^duahaha(?:ha)?\W?$"), "sound/player/keel/taunt.wav"]
-            self.soundDictionaries[0]["denied"] = [re.compile(r"^denied\W?$"), "sound/vo/denied"]
-            self.soundDictionaries[0]["headshot"] = [re.compile(r"^headshot\W?$"), "sound/vo/headshot"]
-            self.soundDictionaries[0]["hahaha"] = [re.compile(r"^hahaha"), "sound/player/santa/taunt.wav"]
-            self.soundDictionaries[0]["glhf"] = [re.compile(r"^(?:gl ?hf\W?)|(?:hf\W?)|(?:gl hf\W?)"), "sound/vo/crash_new/39_01.wav"]
-            self.soundDictionaries[0]["fall2"] = [re.compile(r"^fall2?\W?$"), "sound/player/santa/falling1.wav"]
-            self.soundDictionaries[0]["f3"] = [re.compile(r"^((?:(?:press )?f3)|ready|ready up)$\W?"), "sound/vo/crash_new/36_04.wav"]
-            self.soundDictionaries[0]["holy shit"] = [re.compile(r"holy shit"), "sound/vo_female/holy_shit"]
-            self.soundDictionaries[0]["welcome to quake live"] = [re.compile(r"^welcome to (?:ql|quake live)\W?$"), "sound/vo_evil/welcome"]
-            self.soundDictionaries[0]["gasp"] = [re.compile(r"^gasp\W?$"), "sound/player/anarki/gasp.wav"]
-            self.soundDictionaries[0]["go"] = [re.compile(r"^go\W?$"), "sound/vo/go"]
-            self.soundDictionaries[0]["beep boop"] = [re.compile(r"^beep boop\W?$"), "sound/player/tankjr/taunt.wav"]
-            self.soundDictionaries[0]["you win"] = [re.compile(r"^you win\W?$"), "sound/vo_female/you_win.wav"]
-            self.soundDictionaries[0]["you lose"] = [re.compile(r"^you lose\W?$"), "sound/vo/you_lose.wav"]
-            self.soundDictionaries[0]["impressive"] = [re.compile(r"impressive"), "sound/vo_female/impressive1.wav"]
-            self.soundDictionaries[0]["excellent"] = [re.compile(r"excellent"), "sound/vo_evil/excellent1.wav"]
-            self.soundDictionaries[0]["balls out"] = [re.compile(r"^ball'?s out\W?$"), "sound/vo_female/balls_out"]
-            self.soundDictionaries[0]["one frag left"] = [re.compile(r"^one frag left\W?$"), "sound/vo/1_frag.ogg"]
-            self.soundDictionaries[0]["one"] = [re.compile(r"^one\W?$"), "sound/vo_female/one"]
-            self.soundDictionaries[0]["two"] = [re.compile(r"^two\W?$"), "sound/vo_female/two"]
-            self.soundDictionaries[0]["three"] = [re.compile(r"^three\W?$"), "sound/vo_female/three"]
-            self.soundDictionaries[0]["fight"] = [re.compile(r"^fight\W?$"), "sound/vo_evil/fight"]
-            self.soundDictionaries[0]["gauntlet"] = [re.compile(r"^gauntlet\W?$"), "sound/vo_evil/gauntlet"]
-            self.soundDictionaries[0]["humiliation"] = [re.compile(r"^humiliation\W?$"), "sound/vo_evil/humiliation1"]
-            self.soundDictionaries[0]["perfect"] = [re.compile(r"^perfect\W?$"), "sound/vo_evil/perfect"]
-            self.soundDictionaries[0]["wah wah wah wah"] = [re.compile(r"^wa+h wa+h wa+h wa+h\W?$"), "sound/misc/yousuck"]
-            self.soundDictionaries[0]["ah ah ah ah"] = [re.compile(r"^a+h a+h a+h\W?$"), "sound/player/slash/taunt.wav"]
-            self.soundDictionaries[0]["oink"] = [re.compile(r"^oink\W?$"), "sound/player/sorlag/pain50_1.wav"]
-            self.soundDictionaries[0]["argh"] = [re.compile(r"^a+rgh\W?$"), "sound/player/doom/taunt.wav"]
-            self.soundDictionaries[0]["hah haha"] = [re.compile(r"^hah haha\W?$"), "sound/player/hunter/taunt.wav"]
-            self.soundDictionaries[0]["woohoo"] = [re.compile(r"^woo+hoo+\W?$"), "sound/player/janet/taunt.wav"]
-            self.soundDictionaries[0]["quake live"] = [re.compile(r"^(?:ql|quake live)\W?$"), "sound/vo_female/quake_live"]
-            self.soundDictionaries[0]["chaching"] = [re.compile(r"(?:\$|€|£|chaching)"), "sound/misc/chaching"]
-            self.soundDictionaries[0]["uh ah"] = [re.compile(r"^uh ah$"), "sound/player/mynx/taunt.wav"]
-            self.soundDictionaries[0]["oohwee"] = [re.compile(r"^ooh+wee\W?$"), "sound/player/anarki/taunt.wav"]
-            self.soundDictionaries[0]["erah"] = [re.compile(r"^erah\W?$"), "sound/player/bitterman/taunt.wav"]
-            self.soundDictionaries[0]["yeahhh"] = [re.compile(r"^yeahhh\W?$"), "sound/player/major/taunt.wav"]
-            self.soundDictionaries[0]["scream"] = [re.compile(r"^scream\W?$"), "sound/player/bones/taunt.wav"]
-            self.soundDictionaries[0]["salute"] = [re.compile(r"^salute\W?$"), "sound/player/sarge/taunt.wav"]
-            self.soundDictionaries[0]["squish"] = [re.compile(r"^squish\W?$"), "sound/player/orbb/taunt.wav"]
-            self.soundDictionaries[0]["oh god"] = [re.compile(r"^oh god\W?$"), "sound/player/ranger/taunt.wav"]
-            self.soundDictionaries[0]["pain"] = [re.compile(r"^pain\W?$"), "sound/player/anarki/pain25_1.wav"]
-            self.soundDictionaries[0]["pain2"] = [re.compile(r"^pain2\W?$"), "sound/player/orbb/pain25_1.wav"]
-            self.soundDictionaries[0]["pain3"] = [re.compile(r"^pain3\W?$"), "sound/player/keel/pain50_1.wav"]
-            self.soundDictionaries[0]["snarl"] = [re.compile(r"^snarl\W?$"), "sound/player/sorlag/taunt.wav"]
+            # SOUND_TRIGGERS self.db.get(DISABLED_SOUNDS.format(key)) self.db.set(DISABLED_SOUNDS.format(key), 1)
+            self.db.set(SOUND_TRIGGERS.format(0, "battlesuit"), "^battlesuit\W?$, sound/vo/battlesuit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(0, "bite"), "^bite\W?$, sound/vo/bite.ogg")
+            self.db.set(SOUND_TRIGGERS.format(0, "combo kill"), "^combo kill\W?$, sound/vo/combokill2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(0, "hahaha yeah"), "^haha(?:ha)?,? yeah?\W?$, sound/player/lucy/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "haha yeah haha"), "^haha(?:ha)?,? yeah?,? haha\W?$, sound/player/biker/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "yeah hahaha"), "^yeah?,? haha(?:ha)\W?$, sound/player/razor/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death"), "^death\W?$, sound/player/biker/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death2"), "^death2\W?$, sound/player/bitterman/death2.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death3"), "^death3\W?$, sound/player/bones/death2.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death4"), "^death4\W?$, sound/player/doom/death2.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death5"), "^death5\W?$, sound/player/grunt/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death6"), "^death6\W?$, sound/player/hunter/death2.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death7"), "^death7\W?$, sound/player/james/death3.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death8"), "^death8\W?$, sound/player/janet/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death9"), "^death9\W?$, sound/player/keel/death3.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death10"), "^death10\W?$, sound/player/klesk/death3.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death11"), "^death11\W?$, sound/player/major/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death12"), "^death12\W?$, sound/player/orbb/death3.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death13"), "^death13\W?$, sound/player/santa/death3.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death14"), "^death14\W?$, sound/player/sarge/death2.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death15"), "^death15\W?$, sound/player/slash/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death16"), "^death16\W?$, sound/player/sorlag/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death17"), "^death17\W?$, sound/player/tankjr/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death18"), "^death18\W?$, sound/player/uriel/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death19"), "^death19\W?$, sound/player/visor/death3.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "death20"), "^death20\W?$, sound/player/xaero/death1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "duahahaha"), "^duahaha(?:ha)?\W?$, sound/player/keel/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "denied"), "^denied\W?$, sound/vo/denied")
+            self.db.set(SOUND_TRIGGERS.format(0, "headshot"), "^headshot\W?$, sound/vo/headshot")
+            self.db.set(SOUND_TRIGGERS.format(0, "hahaha"), "^hahaha, sound/player/santa/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "glhf"), "^(?:gl ?hf\W?)|(?:hf\W?)|(?:gl hf\W?), sound/vo/crash_new/39_01.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "fall2"), "^fall2?\W?$, sound/player/santa/falling1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "f3"), "^((?:(?:press )?f3)|ready|ready up)$\W?, sound/vo/crash_new/36_04.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "holy shit"), "holy shit, sound/vo_female/holy_shit")
+            self.db.set(SOUND_TRIGGERS.format(0, "welcome to quake live"), "^welcome to (?:ql|quake live)\W?$, sound/vo_evil/welcome")
+            self.db.set(SOUND_TRIGGERS.format(0, "gasp"), "^gasp\W?$, sound/player/anarki/gasp.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "go"), "^go\W?$, sound/vo/go")
+            self.db.set(SOUND_TRIGGERS.format(0, "beep boop"), "^beep boop\W?$, sound/player/tankjr/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "you win"), "^you win\W?$, sound/vo_female/you_win.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "you lose"), "^you lose\W?$, sound/vo/you_lose.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "impressive"), "impressive, sound/vo_female/impressive1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "excellent"), "excellent, sound/vo_evil/excellent1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "balls out"), "^ball'?s out\W?$, sound/vo_female/balls_out")
+            self.db.set(SOUND_TRIGGERS.format(0, "one frag left"), "^one frag left\W?$, sound/vo/1_frag.ogg")
+            self.db.set(SOUND_TRIGGERS.format(0, "one"), "^one\W?$, sound/vo_female/one")
+            self.db.set(SOUND_TRIGGERS.format(0, "two"), "^two\W?$, sound/vo_female/two")
+            self.db.set(SOUND_TRIGGERS.format(0, "three"), "^three\W?$, sound/vo_female/three")
+            self.db.set(SOUND_TRIGGERS.format(0, "fight"), "^fight\W?$, sound/vo_evil/fight")
+            self.db.set(SOUND_TRIGGERS.format(0, "gauntlet"), "^gauntlet\W?$, sound/vo_evil/gauntlet")
+            self.db.set(SOUND_TRIGGERS.format(0, "humiliation"), "^humiliation\W?$, sound/vo_evil/humiliation1")
+            self.db.set(SOUND_TRIGGERS.format(0, "perfect"), "^perfect\W?$, sound/vo_evil/perfect")
+            self.db.set(SOUND_TRIGGERS.format(0, "wah wah wah wah"), "^wa+h wa+h wa+h wa+h\W?$, sound/misc/yousuck")
+            self.db.set(SOUND_TRIGGERS.format(0, "ah ah ah ah"), "^a+h a+h a+h\W?$, sound/player/slash/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "oink"), "^oink\W?$, sound/player/sorlag/pain50_1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "argh"), "^a+rgh\W?$, sound/player/doom/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "hah haha"), "^hah haha\W?$, sound/player/hunter/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "woohoo"), "^woo+hoo+\W?$, sound/player/janet/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "quake live"), "^(?:ql|quake live)\W?$, sound/vo_female/quake_live")
+            self.db.set(SOUND_TRIGGERS.format(0, "chaching"), "(?:\$|€|£|chaching), sound/misc/chaching")
+            self.db.set(SOUND_TRIGGERS.format(0, "uh ah"), "^uh ah$, sound/player/mynx/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "oohwee"), "^ooh+wee\W?$, sound/player/anarki/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "erah"), "^erah\W?$, sound/player/bitterman/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "yeahhh"), "^yeahhh\W?$, sound/player/major/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "scream"), "^scream\W?$, sound/player/bones/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "salute"), "^salute\W?$, sound/player/sarge/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "squish"), "^squish\W?$, sound/player/orbb/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "oh god"), "^oh god\W?$, sound/player/ranger/taunt.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "pain"), "^pain\W?$, sound/player/anarki/pain25_1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "pain2"), "^pain2\W?$, sound/player/orbb/pain25_1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "pain3"), "^pain3\W?$, sound/player/keel/pain50_1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "snarl"), "^snarl\W?$, sound/player/sorlag/taunt.wav")
 
         if self.Enabled_SoundPacks[1]:
-            self.soundDictionaries[1]["assholes"] = [re.compile(r"^assholes\W?$"), "soundbank/assholes.ogg"]
-            self.soundDictionaries[1]["assshafter"] = [re.compile(r"^(?:assshafter|asshafter|ass shafter)\W?$"), "soundbank/assshafterloud.ogg"]
-            self.soundDictionaries[1]["babydoll"] = [re.compile(r"^babydoll\W?$"), "soundbank/babydoll.ogg"]
-            self.soundDictionaries[1]["barelymissed"] = [re.compile(r"^(?:barelymissed|barely)\W?$"), "soundbank/barelymissed.ogg"]
-            self.soundDictionaries[1]["belly"] = [re.compile(r"^belly\W?$"), "soundbank/belly.ogg"]
-            self.soundDictionaries[1]["bitch"] = [re.compile(r"^bitch\W?$"), "soundbank/bitch.ogg"]
-            self.soundDictionaries[1]["blud"] = [re.compile(r"^(?:dtblud|blud)\W?$"), "soundbank/dtblud.ogg"]
-            self.soundDictionaries[1]["boats"] = [re.compile(r"^boats\W?$"), "soundbank/boats.ogg"]
-            self.soundDictionaries[1]["bobg"] = [re.compile(r"^(?:bobg|bob)\W?$"), "soundbank/bobg.ogg"]
-            self.soundDictionaries[1]["bogdog"] = [re.compile(r"^bogdog\W?$"), "soundbank/bogdog.ogg"]
-            self.soundDictionaries[1]["boom"] = [re.compile(r"^boom\W?$"), "soundbank/boom.ogg"]
-            self.soundDictionaries[1]["boom2"] = [re.compile(r"^boom2\W?$"), "soundbank/boom2.ogg"]
-            self.soundDictionaries[1]["buk"] = [re.compile(r"^(?:buk|ibbukn)\W?$"), "soundbank/buk.ogg"]
-            self.soundDictionaries[1]["bullshit"] = [re.compile(r"^(?:bullshit|bull shit|bs)\W?$"), "soundbank/bullshit.ogg"]
-            self.soundDictionaries[1]["butthole"] = [re.compile(r"^butthole\W?$"), "soundbank/butthole.ogg"]
-            self.soundDictionaries[1]["buttsex"] = [re.compile(r"^buttsex\W?$"), "soundbank/buttsex.ogg"]
-            self.soundDictionaries[1]["cheeks"] = [re.compile(r"^cheeks\W?$"), "soundbank/cheeks.ogg"]
-            self.soundDictionaries[1]["cocksucker"] = [re.compile(r"^(?:cocksucker|cs)\W?$"), "soundbank/cocksucker.ogg"]
-            self.soundDictionaries[1]["conquer"] = [re.compile(r"^conquer\W?$"), "soundbank/conquer.ogg"]
-            self.soundDictionaries[1]["countdown"] = [re.compile(r"^countdown\W?$"), "soundbank/countdown.ogg"]
-            self.soundDictionaries[1]["cum"] = [re.compile(r"^cum\W?$"), "soundbank/cum.ogg"]
-            self.soundDictionaries[1]["cumming"] = [re.compile(r"^cumming\W?$"), "soundbank/cumming.ogg"]
-            self.soundDictionaries[1]["cunt"] = [re.compile(r"^cunt\W?$"), "soundbank/cunt.ogg"]
-            self.soundDictionaries[1]["dirkfunk"] = [re.compile(r"^(?:dirkfunk|dirk)\W?$"), "soundbank/dirkfunk.ogg"]
-            self.soundDictionaries[1]["disappointment"] = [re.compile(r"^disappointment\W?$"), "soundbank/disappointment.ogg"]
-            self.soundDictionaries[1]["doomsday"] = [re.compile(r"^(?:doom(sday)?)\W?$"), "soundbank/doom.ogg"]
-            self.soundDictionaries[1]["drumset"] = [re.compile(r"^drumset\W?$"), "soundbank/drumset.ogg"]
-            self.soundDictionaries[1]["eat"] = [re.compile(r"^eat\W?$"), "soundbank/eat.ogg"]
-            self.soundDictionaries[1]["eat me"] = [re.compile(r"^(?:eatme|eat me|byte me)\W?$"), "soundbank/eatme.ogg"]
-            self.soundDictionaries[1]["fag"] = [re.compile(r"^(?:fag|homo|homosexual)\W?$"), "soundbank/fag.ogg"]
-            self.soundDictionaries[1]["fingerass"] = [re.compile(r"^fingerass\W?$"), "soundbank/fingerass.ogg"]
-            self.soundDictionaries[1]["flash"] = [re.compile(r"^(?:flashsoul|flash)\W?$"), "soundbank/flash.ogg"]
-            self.soundDictionaries[1]["fuckface"] = [re.compile(r"^fuckface\W?$"), "soundbank/fuckface.ogg"]
-            self.soundDictionaries[1]["fuckyou"] = [re.compile(r"^fuckyou\W?$"), "soundbank/fuckyou.ogg"]
-            self.soundDictionaries[1]["get emm"] = [re.compile(r"^(?:getem+|get em+)\W?$"), "soundbank/getemm.ogg"]
-            self.soundDictionaries[1]["gonads"] = [re.compile(r"^(?:gonads|nads)\W?$"), "soundbank/gonads.ogg"]
-            self.soundDictionaries[1]["gtfo"] = [re.compile(r"^gtfo\W?$"), "soundbank/gtfo.ogg"]
-            self.soundDictionaries[1]["hug it out"] = [re.compile(r"^hug it out\W?$"), "soundbank/hugitout.ogg"]
-            self.soundDictionaries[1]["idiot"] = [re.compile(r"^(?:idiot|andycreep|d3phx|gladiat0r)\W?$"), "soundbank/idiot.ogg"]
-            self.soundDictionaries[1]["idiot2"] = [re.compile(r"^idiot2\W?$"), "soundbank/idiot2.ogg"]
-            self.soundDictionaries[1]["it?'s time"] = [re.compile(r"^it'?s time\W?$"), "soundbank/itstime.ogg"]
-            self.soundDictionaries[1]["jeopardy"] = [re.compile(r"^jeopardy\W?$"), "soundbank/jeopardy.ogg"]
-            self.soundDictionaries[1]["jerk off"] = [re.compile(r"^(?:jerk off|jerkoff)\W?$"), "soundbank/jerkoff.ogg"]
-            self.soundDictionaries[1]["killo"] = [re.compile(r"^killo\W?$"), "soundbank/killo.ogg"]
-            self.soundDictionaries[1]["knocked"] = [re.compile(r"^knocked\W?$"), "soundbank/knocked.ogg"]
-            self.soundDictionaries[1]["ld3"] = [re.compile(r"^(?:die|ld3)\W?$"), "soundbank/ld3.ogg"]
-            self.soundDictionaries[1]["liquidswords"] = [re.compile(r"^(?:liquidswords|liquid)\W?$"), "soundbank/liquid.ogg"]
-            self.soundDictionaries[1]["massacre"] = [re.compile(r"^massacre\W?$"), "soundbank/massacre.ogg"]
-            self.soundDictionaries[1]["mixer"] = [re.compile(r"^mixer\W?$"), "soundbank/mixer.ogg"]
-            self.soundDictionaries[1]["mjman"] = [re.compile(r"^(?:mjman|marijuanaman)\W?$"), "soundbank/mjman.ogg"]
-            self.soundDictionaries[1]["mmmm"] = [re.compile(r"^mmmm\W?$"), "soundbank/mmmm.ogg"]
-            self.soundDictionaries[1]["monty"] = [re.compile(r"^monty\W?$"), "soundbank/monty.ogg"]
-            self.soundDictionaries[1]["n8"] = [re.compile(r"^(?:n8|_n8)\W?$"), "soundbank/n8.ogg"]
-            self.soundDictionaries[1]["nikon"] = [re.compile(r"^(?:nikon|niko|nikonguru)\W?$"), "soundbank/nikon.ogg"]
-            self.soundDictionaries[1]["nina"] = [re.compile(r"^nina\W?$"), "soundbank/nina.ogg"]
-            self.soundDictionaries[1]["nthreem"] = [re.compile(r"^nthreem\W?$"), "sound/vo_female/impressive1.wav"]
-            self.soundDictionaries[1]["olhip"] = [re.compile(r"^(?:olhip|hip)\W?$"), "soundbank/hip.ogg"]
-            self.soundDictionaries[1]["organic"] = [re.compile(r"^(?:organic|org)\W?$"), "soundbank/organic.ogg"]
-            self.soundDictionaries[1]["paintball"] = [re.compile(r"^paintball\W?$"), "soundbank/paintball.ogg"]
-            self.soundDictionaries[1]["pigfucker"] = [re.compile(r"^(?:pigfucker|pig fucker|pf)\W?$"), "soundbank/pigfer.ogg"]
-            self.soundDictionaries[1]["popeye"] = [re.compile(r"^popeye\W?$"), "soundbank/popeye.ogg"]
-            self.soundDictionaries[1]["rosie"] = [re.compile(r"^rosie\W?$"), "soundbank/rosie.ogg"]
-            self.soundDictionaries[1]["seaweed"] = [re.compile(r"^seaweed\W?$"), "soundbank/seaweed.ogg"]
-            self.soundDictionaries[1]["shit"] = [re.compile(r"^shit\W?$"), "soundbank/shit.ogg"]
-            self.soundDictionaries[1]["sit"] = [re.compile(r"(^sit\W?$| sit | sit$)"), "soundbank/sit.ogg"]
-            self.soundDictionaries[1]["soulianis"] = [re.compile(r"^(?:soulianis|soul)\W?$"), "soundbank/soulianis.ogg"]
-            self.soundDictionaries[1]["spam"] = [re.compile(r"^spam\W?$"), "soundbank/spam3.ogg"]
-            self.soundDictionaries[1]["stalin"] = [re.compile(r"^stalin\W?$"), "soundbank/ussr.ogg"]
-            self.soundDictionaries[1]["stfu"] = [re.compile(r"^stfu\W?$"), "soundbank/stfu.ogg"]
-            self.soundDictionaries[1]["suck a dick"] = [re.compile(r"^suck a dick\W?$"), "soundbank/suckadick.ogg"]
-            self.soundDictionaries[1]["suckit"] = [re.compile(r"^suckit\W?$"), "soundbank/suckit.ogg"]
-            self.soundDictionaries[1]["suck my dick"] = [re.compile(r"^suck my dick\W?$"), "soundbank/suckmydick.ogg"]
-            self.soundDictionaries[1]["teapot"] = [re.compile(r"^teapot\W?$"), "soundbank/teapot.ogg"]
-            self.soundDictionaries[1]["thank god"] = [re.compile(r"^(?:thankgod|thank god)\W?$"), "soundbank/thankgod.ogg"]
-            self.soundDictionaries[1]["traxion"] = [re.compile(r"^traxion\W?$"), "soundbank/traxion.ogg"]
-            self.soundDictionaries[1]["trixy"] = [re.compile(r"^trixy\W?$"), "soundbank/trixy.ogg"]
-            self.soundDictionaries[1]["twoon"] = [re.compile(r"^(?:twoon|2pows)\W?$"), "soundbank/twoon.ogg"]
-            self.soundDictionaries[1]["ty"] = [re.compile(r"^(?:ty|thanks|thank you)\W?$"), "soundbank/thankyou.ogg"]
-            self.soundDictionaries[1]["venny"] = [re.compile(r"^venny\W?$"), "soundbank/venny.ogg"]
-            self.soundDictionaries[1]["viewaskewer"] = [re.compile(r"^(?:viewaskewer|view)\W?$"), "soundbank/view.ogg"]
-            self.soundDictionaries[1]["what's that"] = [re.compile(r"^what'?s that\W?$"), "soundbank/whatsthat.ogg"]
-            self.soundDictionaries[1]["who are you"] = [re.compile(r"^who are you\W?$"), "soundbank/whoareyou.ogg"]
+            self.db.set(SOUND_TRIGGERS.format(1, "assholes"), "^assholes\W?$, soundbank/assholes.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "assshafter"), "^(?:assshafter|asshafter|ass shafter)\W?$, soundbank/assshafterloud.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "babydoll"), "^babydoll\W?$, soundbank/babydoll.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "barelymissed"), "^(?:barelymissed|barely)\W?$, soundbank/barelymissed.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "belly"), "^belly\W?$, soundbank/belly.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "bitch"), "^bitch\W?$, soundbank/bitch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "blud"), "^(?:dtblud|blud)\W?$, soundbank/dtblud.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "boats"), "^boats\W?$, soundbank/boats.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "bobg"), "^(?:bobg|bob)\W?$, soundbank/bobg.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "bogdog"), "^bogdog\W?$, soundbank/bogdog.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "boom"), "^boom\W?$, soundbank/boom.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "boom2"), "^boom2\W?$, soundbank/boom2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "buk"), "^(?:buk|ibbukn)\W?$, soundbank/buk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "bullshit"), "^(?:bullshit|bull shit|bs)\W?$, soundbank/bullshit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "butthole"), "^butthole\W?$, soundbank/butthole.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "buttsex"), "^buttsex\W?$, soundbank/buttsex.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "cheeks"), "^cheeks\W?$, soundbank/cheeks.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "cocksucker"), "^(?:cocksucker|cs)\W?$, soundbank/cocksucker.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "conquer"), "^conquer\W?$, soundbank/conquer.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "countdown"), "^countdown\W?$, soundbank/countdown.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "cum"), "^cum\W?$, soundbank/cum.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "cumming"), "^cumming\W?$, soundbank/cumming.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "cunt"), "^cunt\W?$, soundbank/cunt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "dirkfunk"), "^(?:dirkfunk|dirk)\W?$, soundbank/dirkfunk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "disappointment"), "^disappointment\W?$, soundbank/disappointment.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "doomsday"), "^(?:doom(sday)?)\W?$, soundbank/doom.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "drumset"), "^drumset\W?$, soundbank/drumset.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "eat"), "^eat\W?$, soundbank/eat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "eat me"), "^(?:eatme|eat me|byte me)\W?$, soundbank/eatme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "fag"), "^(?:fag|homo|homosexual)\W?$, soundbank/fag.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "fingerass"), "^fingerass\W?$, soundbank/fingerass.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "flash"), "^(?:flashsoul|flash)\W?$, soundbank/flash.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "fuckface"), "^fuckface\W?$, soundbank/fuckface.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "fuckyou"), "^fuckyou\W?$, soundbank/fuckyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "get emm"), "^(?:getem+|get em+)\W?$, soundbank/getemm.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "gonads"), "^(?:gonads|nads)\W?$, soundbank/gonads.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "gtfo"), "^gtfo\W?$, soundbank/gtfo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "hug it out"), "^hug it out\W?$, soundbank/hugitout.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "idiot"), "^(?:idiot|andycreep|d3phx|gladiat0r)\W?$, soundbank/idiot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "idiot2"), "^idiot2\W?$, soundbank/idiot2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "it?'s time"), "^it'?s time\W?$, soundbank/itstime.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "jeopardy"), "^jeopardy\W?$, soundbank/jeopardy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "jerk off"), "^(?:jerk off|jerkoff)\W?$, soundbank/jerkoff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "killo"), "^killo\W?$, soundbank/killo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "knocked"), "^knocked\W?$, soundbank/knocked.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "ld3"), "^(?:die|ld3)\W?$, soundbank/ld3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "liquidswords"), "^(?:liquidswords|liquid)\W?$, soundbank/liquid.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "massacre"), "^massacre\W?$, soundbank/massacre.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "mixer"), "^mixer\W?$, soundbank/mixer.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "mjman"), "^(?:mjman|marijuanaman)\W?$, soundbank/mjman.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "mmmm"), "^mmmm\W?$, soundbank/mmmm.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "monty"), "^monty\W?$, soundbank/monty.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "n8"), "^(?:n8|_n8)\W?$, soundbank/n8.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "nikon"), "^(?:nikon|niko|nikonguru)\W?$, soundbank/nikon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "nina"), "^nina\W?$, soundbank/nina.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "nthreem"), "^nthreem\W?$, sound/vo_female/impressive1.wav")
+            self.db.set(SOUND_TRIGGERS.format(1, "olhip"), "^(?:olhip|hip)\W?$, soundbank/hip.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "organic"), "^(?:organic|org)\W?$, soundbank/organic.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "paintball"), "^paintball\W?$, soundbank/paintball.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "pigfucker"), "^(?:pigfucker|pig fucker|pf)\W?$, soundbank/pigfer.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "popeye"), "^popeye\W?$, soundbank/popeye.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "rosie"), "^rosie\W?$, soundbank/rosie.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "seaweed"), "^seaweed\W?$, soundbank/seaweed.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "shit"), "^shit\W?$, soundbank/shit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "sit"), "(^sit\W?$| sit | sit$), soundbank/sit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "soulianis"), "^(?:soulianis|soul)\W?$, soundbank/soulianis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "spam"), "^spam\W?$, soundbank/spam3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "stalin"), "^stalin\W?$, soundbank/ussr.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "stfu"), "^stfu\W?$, soundbank/stfu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "suck a dick"), "^suck a dick\W?$, soundbank/suckadick.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "suckit"), "^suckit\W?$, soundbank/suckit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "suck my dick"), "^suck my dick\W?$, soundbank/suckmydick.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "teapot"), "^teapot\W?$, soundbank/teapot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "thank god"), "^(?:thankgod|thank god)\W?$, soundbank/thankgod.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "traxion"), "^traxion\W?$, soundbank/traxion.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "trixy"), "^trixy\W?$, soundbank/trixy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "twoon"), "^(?:twoon|2pows)\W?$, soundbank/twoon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "ty"), "^(?:ty|thanks|thank you)\W?$, soundbank/thankyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "venny"), "^venny\W?$, soundbank/venny.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "viewaskewer"), "^(?:viewaskewer|view)\W?$, soundbank/view.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "what's that"), "^what'?s that\W?$, soundbank/whatsthat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "who are you"), "^who are you\W?$, soundbank/whoareyou.ogg")
 
         if self.Enabled_SoundPacks[2]:
-            self.soundDictionaries[2]["007"] = [re.compile(r"^007\W?$"), "sound/funnysounds/007.ogg"]
-            self.soundDictionaries[2]["A Scratch"] = [re.compile(r"^(?:(just )?(a )?scratch)\W?$"), "sound/funnysounds/AScratch.ogg"]
-            self.soundDictionaries[2]["adams family"] = [re.compile(r"^(?:adams ?family)\W?$"), "sound/funnysounds/adamsfamily.ogg"]
-            self.soundDictionaries[2]["All The Things"] = [re.compile(r"^all the things\W?$"), "sound/funnysounds/AllTheThings.ogg"]
-            self.soundDictionaries[2]["allahuakbar"] = [re.compile(r"^allahuakbar\W?$"), "sound/funnysounds/allahuakbar.ogg"]
-            self.soundDictionaries[2]["allstar"] = [re.compile(r"^allstar\W?$"), "sound/funnysounds/allstar.ogg"]
-            self.soundDictionaries[2]["Amazing"] = [re.compile(r"^amazing\W?$"), "sound/funnysounds/Amazing.ogg"]
-            self.soundDictionaries[2]["Ameno"] = [re.compile(r"^ameno\W?$"), "sound/funnysounds/Ameno.ogg"]
-            self.soundDictionaries[2]["America"] = [re.compile(r"^america\W?$"), "sound/funnysounds/America.ogg"]
-            self.soundDictionaries[2]["Amerika"] = [re.compile(r"^amerika\W?$"), "sound/funnysounds/Amerika.ogg"]
-            self.soundDictionaries[2]["And Nothing Else"] = [re.compile(r"^and nothing else\W?$"), "sound/funnysounds/AndNothingElse.ogg"]
-            self.soundDictionaries[2]["Animals"] = [re.compile(r"^animals\W?$"), "sound/funnysounds/Animals.ogg"]
-            self.soundDictionaries[2]["asskicking"] = [re.compile(r"^asskicking\W?$"), "sound/funnysounds/asskicking.ogg"]
-            self.soundDictionaries[2]["ave"] = [re.compile(r"^ave\W?$"), "sound/funnysounds/ave.ogg"]
-            self.soundDictionaries[2]["baby baby"] = [re.compile(r"^baby baby\W?$"), "sound/funnysounds/babybaby.ogg"]
-            self.soundDictionaries[2]["baby evil"] = [re.compile(r"^baby evil\W?$"), "sound/funnysounds/babyevillaugh.ogg"]
-            self.soundDictionaries[2]["baby laughing"] = [re.compile(r"^(?:babylaughing|baby laughing)\W?$"), "sound/funnysounds/babylaughing.ogg"]
-            self.soundDictionaries[2]["bad boys"] = [re.compile(r"^bad boys\W?$"), "sound/funnysounds/badboys.ogg"]
-            self.soundDictionaries[2]["Banana Boat"] = [re.compile(r"^banana boat\W?$"), "sound/funnysounds/BananaBoatSong.ogg"]
-            self.soundDictionaries[2]["benny hill"] = [re.compile(r"^benny hill\W?$"), "sound/funnysounds/bennyhill.ogg"]
-            self.soundDictionaries[2]["benzin"] = [re.compile(r"^benzin\W?$"), "sound/funnysounds/benzin.ogg"]
-            self.soundDictionaries[2]["blue wins"] = [re.compile(r"^blue ?wins\W?$"), "sound/funnysounds/bluewins.ogg"]
-            self.soundDictionaries[2]["bonkers"] = [re.compile(r"^bonkers\W?$"), "sound/funnysounds/bonkers.ogg"]
-            self.soundDictionaries[2]["boom headshot"] = [re.compile(r"^boom headshot\W?$"), "sound/funnysounds/boomheadshot.ogg"]
-            self.soundDictionaries[2]["booo"] = [re.compile(r"^booo?\W?$"), "sound/funnysounds/booo.ogg"]
-            self.soundDictionaries[2]["boring"] = [re.compile(r"^boring\W?$"), "sound/funnysounds/boring.ogg"]
-            self.soundDictionaries[2]["boze"] = [re.compile(r"^boze\W?$"), "sound/funnysounds/boze.ogg"]
-            self.soundDictionaries[2]["bright side of life"] = [re.compile(r"^(?:bright ?side ?of ?life)\W?$"), "sound/funnysounds/brightsideoflife.ogg"]
-            self.soundDictionaries[2]["buckdich"] = [re.compile(r"^buckdich\W?$"), "sound/funnysounds/buckdich.ogg"]
-            self.soundDictionaries[2]["bullshitter"] = [re.compile(r"^bullshitter\W?$"), "sound/funnysounds/bullshitter.ogg"]
-            self.soundDictionaries[2]["burns burns"] = [re.compile(r"^burns burns\W?$"), "sound/funnysounds/burnsburns.ogg"]
-            self.soundDictionaries[2]["camel toe"] = [re.compile(r"^camel toe\W?$"), "sound/funnysounds/cameltoe.ogg"]
-            self.soundDictionaries[2]["can't touch this"] = [re.compile(r"^can'?t touch this\W?$"), "sound/funnysounds/canttouchthis.ogg"]
-            self.soundDictionaries[2]["cccp"] = [re.compile(r"^(?:cccp|ussr)\W?$"), "sound/funnysounds/cccp.ogg"]
-            self.soundDictionaries[2]["champions"] = [re.compile(r"^champions\W?$"), "sound/funnysounds/champions.ogg"]
-            self.soundDictionaries[2]["chicken"] = [re.compile(r"^chicken\W?$"), "sound/funnysounds/chicken.ogg"]
-            self.soundDictionaries[2]["chocolate rain"] = [re.compile(r"^chocolate rain\W?$"), "sound/funnysounds/chocolaterain.ogg"]
-            self.soundDictionaries[2]["coin"] = [re.compile(r"^coin\W?$"), "sound/funnysounds/coin.ogg"]
-            self.soundDictionaries[2]["come"] = [re.compile(r"^come\W?$"), "sound/funnysounds/come.ogg"]
-            self.soundDictionaries[2]["Come With Me Now"] = [re.compile(r"^come with me now\W?$"), "sound/funnysounds/ComeWithMeNow.ogg"]
-            self.soundDictionaries[2]["Count down"] = [re.compile(r"^count down\W?$"), "sound/funnysounds/Countdown.ogg"]
-            self.soundDictionaries[2]["cowards"] = [re.compile(r"^cowards\W?$"), "sound/funnysounds/cowards.ogg"]
-            self.soundDictionaries[2]["crazy"] = [re.compile(r"^crazy\W?$"), "sound/funnysounds/crazy.ogg"]
-            self.soundDictionaries[2]["damnit"] = [re.compile(r"^damnit\W?$"), "sound/funnysounds/damnit.ogg"]
-            self.soundDictionaries[2]["Danger Zone"] = [re.compile(r"^danger zone\W?$"), "sound/funnysounds/DangerZone.ogg"]
-            self.soundDictionaries[2]["dead soon"] = [re.compile(r"^(?:deadsoon|dead soon)\W?$"), "sound/funnysounds/deadsoon.ogg"]
-            self.soundDictionaries[2]["defeated"] = [re.compile(r"^defeated\W?$"), "sound/funnysounds/defeated.ogg"]
-            self.soundDictionaries[2]["devil"] = [re.compile(r"^devil\W?$"), "sound/funnysounds/devil.ogg"]
-            self.soundDictionaries[2]["doesn't love you"] = [re.compile(r"^doesn'?t love you\W?$"), "sound/funnysounds/doesntloveyou.ogg"]
-            self.soundDictionaries[2]["du bist"] = [re.compile(r"^du bist\W?$"), "sound/funnysounds/dubist.ogg"]
-            self.soundDictionaries[2]["du hast"] = [re.compile(r"^du hast\W?$"), "sound/funnysounds/duhast.ogg"]
-            self.soundDictionaries[2]["dumb ways"] = [re.compile(r"^dumb ways\W?$"), "sound/funnysounds/dumbways.ogg"]
-            self.soundDictionaries[2]["Eat Pussy"] = [re.compile(r"^eat pussy\W?$"), "sound/funnysounds/EatPussy.ogg"]
-            self.soundDictionaries[2]["education"] = [re.compile(r"^education\W?$"), "sound/funnysounds/education.ogg"]
-            self.soundDictionaries[2]["einschrei"] = [re.compile(r"^einschrei\W?$"), "sound/funnysounds/einschrei.ogg"]
-            self.soundDictionaries[2]["Eins Zwei"] = [re.compile(r"^eins zwei\W?$"), "sound/funnysounds/EinsZwei.ogg"]
-            self.soundDictionaries[2]["electro"] = [re.compile(r"^electro\W?$"), "sound/funnysounds/electro.ogg"]
-            self.soundDictionaries[2]["elementary"] = [re.compile(r"^elementary\W?$"), "sound/funnysounds/elementary.ogg"]
-            self.soundDictionaries[2]["engel"] = [re.compile(r"^engel\W?$"), "sound/funnysounds/engel.ogg"]
-            self.soundDictionaries[2]["erstwenn"] = [re.compile(r"^erstwenn\W?$"), "sound/funnysounds/erstwenn.ogg"]
-            self.soundDictionaries[2]["exit light"] = [re.compile(r"^(?:exit ?light)\W?$"), "sound/funnysounds/exitlight.ogg"]
-            self.soundDictionaries[2]["faint"] = [re.compile(r"^faint\W?$"), "sound/funnysounds/faint.ogg"]
-            self.soundDictionaries[2]["fatality"] = [re.compile(r"^fatality\W?$"), "sound/funnysounds/fatality.ogg"]
-            self.soundDictionaries[2]["Feel Good"] = [re.compile(r"^feel good\W?$"), "sound/funnysounds/FeelGood.ogg"]
-            self.soundDictionaries[2]["flesh wound"] = [re.compile(r"^flesh wound\W?$"), "sound/funnysounds/fleshwound.ogg"]
-            self.soundDictionaries[2]["for you"] = [re.compile(r"^for you\W?$"), "sound/funnysounds/foryou.ogg"]
-            self.soundDictionaries[2]["freestyler"] = [re.compile(r"^freestyler\W?$"), "sound/funnysounds/freestyler.ogg"]
-            self.soundDictionaries[2]["fuckfuck"] = [re.compile(r"^fuckfuck\W?$"), "sound/funnysounds/fuckfuck.ogg"]
-            self.soundDictionaries[2]["fucking burger"] = [re.compile(r"^fucking burger\W?$"), "sound/funnysounds/fuckingburger.ogg"]
-            self.soundDictionaries[2]["fucking kids"] = [re.compile(r"^fucking kids\W?$"), "sound/funnysounds/fuckingkids.ogg"]
-            self.soundDictionaries[2]["gangnam"] = [re.compile(r"^gangnam\W?$"), "sound/funnysounds/gangnam.ogg"]
-            self.soundDictionaries[2]["ganjaman"] = [re.compile(r"^ganjaman\W?$"), "sound/funnysounds/ganjaman.ogg"]
-            self.soundDictionaries[2]["gay"] = [re.compile(r"^gay\W?$"), "sound/funnysounds/gay.ogg"]
-            self.soundDictionaries[2]["get crowbar"] = [re.compile(r"^get crowbar\W?$"), "sound/funnysounds/getcrowbar.ogg"]
-            self.soundDictionaries[2]["get out the way"] = [re.compile(r"^get out the way\W?$"), "sound/funnysounds/getouttheway.ogg"]
-            self.soundDictionaries[2]["ghostbusters"] = [re.compile(r"^ghostbusters\W?$"), "sound/funnysounds/ghostbusters.ogg"]
-            self.soundDictionaries[2]["girl look"] = [re.compile(r"^girl look\W?$"), "sound/funnysounds/girllook.ogg"]
-            self.soundDictionaries[2]["girly"] = [re.compile(r"^girly\W?$"), "sound/funnysounds/girly.ogg"]
-            self.soundDictionaries[2]["gnr guitar"] = [re.compile(r"^gnr guitar\W?$"), "sound/funnysounds/gnrguitar.ogg"]
-            self.soundDictionaries[2]["goddamn right"] = [re.compile(r"^goddamn right\W?$"), "sound/funnysounds/goddamnright.ogg"]
-            self.soundDictionaries[2]["goodbye andrea"] = [re.compile(r"^goodbye andrea\W?$"), "sound/funnysounds/goodbyeandrea.ogg"]
-            self.soundDictionaries[2]["goodbye sarah"] = [re.compile(r"^goodbye sarah\W?$"), "sound/funnysounds/goodbyesarah.ogg"]
-            self.soundDictionaries[2]["gotcha"] = [re.compile(r"^gotcha\W?$"), "sound/funnysounds/gotcha.ogg"]
-            self.soundDictionaries[2]["hakunamatata"] = [re.compile(r"^hakunamatata\W?$"), "sound/funnysounds/hakunamatata.ogg"]
-            self.soundDictionaries[2]["hammertime"] = [re.compile(r"^hammertime\W?$"), "sound/funnysounds/hammertime.ogg"]
-            self.soundDictionaries[2]["hello"] = [re.compile(r"^hello\W?$"), "sound/funnysounds/hello.ogg"]
-            self.soundDictionaries[2]["hellstestern"] = [re.compile(r"^hellstestern\W?$"), "sound/funnysounds/hellstestern.ogg"]
-            self.soundDictionaries[2]["holy"] = [re.compile(r"^holy\W?$"), "sound/funnysounds/holy.ogg"]
-            self.soundDictionaries[2]["hoppereiter"] = [re.compile(r"^hoppereiter\W?$"), "sound/funnysounds/hoppereiter.ogg"]
-            self.soundDictionaries[2]["how are you"] = [re.compile(r"^how are you\W?$"), "sound/funnysounds/howareyou.ogg"]
-            self.soundDictionaries[2]["hush"] = [re.compile(r"^hush\W?$"), "sound/funnysounds/hush.ogg"]
-            self.soundDictionaries[2]["i bet"] = [re.compile(r"^(?:i ?bet)\W?$"), "sound/funnysounds/ibet.ogg"]
-            self.soundDictionaries[2]["i can't believe"] = [re.compile(r"^i can'?t believe\W?$"), "sound/funnysounds/icantbelieve.ogg"]
-            self.soundDictionaries[2]["ichtuedieweh"] = [re.compile(r"^ichtuedieweh\W?$"), "sound/funnysounds/ichtuedieweh.ogg"]
-            self.soundDictionaries[2]["i do parkour"] = [re.compile(r"^i do parkour\W?$"), "sound/funnysounds/idoparkour.ogg"]
-            self.soundDictionaries[2]["i hate all"] = [re.compile(r"^i hate all\W?$"), "sound/funnysounds/ihateall.ogg"]
-            self.soundDictionaries[2]["ill be back"] = [re.compile(r"^i'?ll be back\W?$"), "sound/funnysounds/beback.ogg"]
-            self.soundDictionaries[2]["imperial"] = [re.compile(r"^imperial\W?$"), "sound/funnysounds/imperial.ogg"]
-            self.soundDictionaries[2]["i'm sexy"] = [re.compile(r"^i'?m sexy\W?$"), "sound/funnysounds/imsexy.ogg"]
-            self.soundDictionaries[2]["i'm your father"] = [re.compile(r"^i'?m your father\W?$"), "sound/funnysounds/imyourfather.ogg"]
-            self.soundDictionaries[2]["incoming"] = [re.compile(r"^incoming\W?$"), "sound/funnysounds/incoming.ogg"]
-            self.soundDictionaries[2]["indiana jones"] = [re.compile(r"^indiana jones\W?$"), "sound/funnysounds/indianajones.ogg"]
-            self.soundDictionaries[2]["in your head zombie"] = [re.compile(r"^in your head zombie\W?$"), "sound/funnysounds/inyourheadzombie.ogg"]
-            self.soundDictionaries[2]["i see assholes"] = [re.compile(r"^i see assholes\W?$"), "sound/funnysounds/iseeassholes.ogg"]
-            self.soundDictionaries[2]["i see dead people"] = [re.compile(r"^i see dead people\W?$"), "sound/funnysounds/iseedeadpeople.ogg"]
-            self.soundDictionaries[2]["it's my life"] = [re.compile(r"^it'?s my life\W?$"), "sound/funnysounds/itsmylife.ogg"]
-            self.soundDictionaries[2]["it's not"] = [re.compile(r"^it'?s not\W?$"), "sound/funnysounds/itsnot.ogg"]
-            self.soundDictionaries[2]["jackpot"] = [re.compile(r"^jackpot\W?$"), "sound/funnysounds/jackpot.ogg"]
-            self.soundDictionaries[2]["jesus"] = [re.compile(r"^jesus\W?$"), "sound/funnysounds/jesus.ogg"]
-            self.soundDictionaries[2]["Jesus Oh"] = [re.compile(r"^jesus Oh\W?$"), "sound/funnysounds/JesusOh.ogg"]
-            self.soundDictionaries[2]["john cena"] = [re.compile(r"^(?:john ?cena)\W?$"), "sound/funnysounds/johncena.ogg"]
-            self.soundDictionaries[2]["jump motherfucker"] = [re.compile(r"^jump motherfucker\W?$"), "sound/funnysounds/jumpmotherfucker.ogg"]
-            self.soundDictionaries[2]["just do it"] = [re.compile(r"^just do it\W?$"), "sound/funnysounds/justdoit.ogg"]
-            self.soundDictionaries[2]["kamehameha"] = [re.compile(r"^kamehameha\W?$"), "sound/funnysounds/kamehameha.ogg"]
-            self.soundDictionaries[2]["keep on fighting"] = [re.compile(r"^keep on fighting\W?$"), "sound/funnysounds/keeponfighting.ogg"]
-            self.soundDictionaries[2]["keep your shirt on"] = [re.compile(r"^keep your shirt on\W?$"), "sound/funnysounds/keepyourshirton.ogg"]
-            self.soundDictionaries[2]["Knocked Down"] = [re.compile(r"^knocked down\W?$"), "sound/funnysounds/KnockedDown.ogg"]
-            self.soundDictionaries[2]["kommtdiesonne"] = [re.compile(r"^kommtdiesonne\W?$"), "sound/funnysounds/kommtdiesonne.ogg"]
-            self.soundDictionaries[2]["kung fu"] = [re.compile(r"^(?:kung ?fu)\W?$"), "sound/funnysounds/kungfu.ogg"]
-            self.soundDictionaries[2]["lately"] = [re.compile(r"^lately\W?$"), "sound/funnysounds/lately.ogg"]
-            self.soundDictionaries[2]["Legitness"] = [re.compile(r"^legitness\W?$"), "sound/funnysounds/Legitness.ogg"]
-            self.soundDictionaries[2]["let's get ready"] = [re.compile(r"^let'?s get ready\W?$"), "sound/funnysounds/letsgetready.ogg"]
-            self.soundDictionaries[2]["let's put a smile"] = [re.compile(r"^let'?s put a smile\W?$"), "sound/funnysounds/letsputasmile.ogg"]
-            self.soundDictionaries[2]["lights out"] = [re.compile(r"^lights out\W?$"), "sound/funnysounds/lightsout.ogg"]
-            self.soundDictionaries[2]["lion king"] = [re.compile(r"^lion king\W?$"), "sound/funnysounds/lionking.ogg"]
-            self.soundDictionaries[2]["live to win"] = [re.compile(r"^live to win\W?$"), "sound/funnysounds/livetowin.ogg"]
-            self.soundDictionaries[2]["losing my religion"] = [re.compile(r"^losing my religion\W?$"), "sound/funnysounds/losingmyreligion.ogg"]
-            self.soundDictionaries[2]["love me"] = [re.compile(r"^(?:love ?me)\W?$"), "sound/funnysounds/loveme.ogg"]
-            self.soundDictionaries[2]["low"] = [re.compile(r"^low\W?$"), "sound/funnysounds/low.ogg"]
-            self.soundDictionaries[2]["luck"] = [re.compile(r"^luck\W?$"), "sound/funnysounds/luck.ogg"]
-            self.soundDictionaries[2]["lust"] = [re.compile(r"^lust\W?$"), "sound/funnysounds/lust.ogg"]
-            self.soundDictionaries[2]["mahnamahna"] = [re.compile(r"^mahnamahna\W?$"), "sound/funnysounds/mahnamahna.ogg"]
-            self.soundDictionaries[2]["mario"] = [re.compile(r"^mario\W?$"), "sound/funnysounds/mario.ogg"]
-            self.soundDictionaries[2]["Me"] = [re.compile(r"^me\W?$"), "sound/funnysounds/Me.ogg"]
-            self.soundDictionaries[2]["meinland"] = [re.compile(r"^meinland\W?$"), "sound/funnysounds/meinland.ogg"]
-            self.soundDictionaries[2]["message"] = [re.compile(r"^message\W?$"), "sound/funnysounds/message.ogg"]
-            self.soundDictionaries[2]["mimimi"] = [re.compile(r"^mimimi\W?$"), "sound/funnysounds/mimimi.ogg"]
-            self.soundDictionaries[2]["mission"] = [re.compile(r"^mission\W?$"), "sound/funnysounds/mission.ogg"]
-            self.soundDictionaries[2]["moan"] = [re.compile(r"^moan\W?$"), "sound/funnysounds/moan.ogg"]
-            self.soundDictionaries[2]["mortal kombat"] = [re.compile(r"^mortal kombat\W?$"), "sound/funnysounds/mortalkombat.ogg"]
-            self.soundDictionaries[2]["move ass"] = [re.compile(r"^move ass\W?$"), "sound/funnysounds/moveass.ogg"]
-            self.soundDictionaries[2]["muppet opening"] = [re.compile(r"^muppet opening\W?$"), "sound/funnysounds/muppetopening.ogg"]
-            self.soundDictionaries[2]["my little pony"] = [re.compile(r"^my little pony\W?$"), "sound/funnysounds/mylittlepony.ogg"]
-            self.soundDictionaries[2]["my name"] = [re.compile(r"^my name\W?$"), "sound/funnysounds/myname.ogg"]
-            self.soundDictionaries[2]["never seen"] = [re.compile(r"^never seen\W?$"), "sound/funnysounds/neverseen.ogg"]
-            self.soundDictionaries[2]["nightmare"] = [re.compile(r"^nightmare\W?$"), "sound/funnysounds/nightmare.ogg"]
-            self.soundDictionaries[2]["nobody likes you"] = [re.compile(r"^nobody likes you\W?$"), "sound/funnysounds/nobodylikesyou.ogg"]
-            self.soundDictionaries[2]["nonie"] = [re.compile(r"^nonie\W?$"), "sound/funnysounds/nonie.ogg"]
-            self.soundDictionaries[2]["nooo"] = [re.compile(r"^nooo+\W?$"), "sound/funnysounds/nooo.ogg"]
-            self.soundDictionaries[2]["no time for loosers"] = [re.compile(r"^no time for loosers\W?$"), "sound/funnysounds/notimeforloosers.ogg"]
-            self.soundDictionaries[2]["numanuma"] = [re.compile(r"^numanuma\W?$"), "sound/funnysounds/numanuma.ogg"]
-            self.soundDictionaries[2]["nyancat"] = [re.compile(r"^nyancat\W?$"), "sound/funnysounds/nyancat.ogg"]
-            self.soundDictionaries[2]["o fuck"] = [re.compile(r"^o fuck\W?$"), "sound/funnysounds/ofuck.ogg"]
-            self.soundDictionaries[2]["oh my god"] = [re.compile(r"^oh my god\W?$"), "sound/funnysounds/ohmygod.ogg"]
-            self.soundDictionaries[2]["Oh My Gosh"] = [re.compile(r"^oh my gosh\W?$"), "sound/funnysounds/OhMyGosh.ogg"]
-            self.soundDictionaries[2]["ohnedich"] = [re.compile(r"^ohnedich\W?$"), "sound/funnysounds/ohnedich.ogg"]
-            self.soundDictionaries[2]["oh no"] = [re.compile(r"^oh no\W?$"), "sound/funnysounds/ohno.ogg"]
-            self.soundDictionaries[2]["oh noe"] = [re.compile(r"^oh noe\W?$"), "sound/funnysounds/ohnoe.ogg"]
-            self.soundDictionaries[2]["pacman"] = [re.compile(r"^pacman\W?$"), "sound/funnysounds/pacman.ogg"]
-            self.soundDictionaries[2]["pick me up"] = [re.compile(r"^pick me up\W?$"), "sound/funnysounds/pickmeup.ogg"]
-            self.soundDictionaries[2]["pikachu"] = [re.compile(r"^pikachu\W?$"), "sound/funnysounds/pikachu.ogg"]
-            self.soundDictionaries[2]["pinkiepie"] = [re.compile(r"^pinkiepie\W?$"), "sound/funnysounds/pinkiepie.ogg"]
-            self.soundDictionaries[2]["Pink Panther"] = [re.compile(r"^pink panther\W?$"), "sound/funnysounds/PinkPanther.ogg"]
-            self.soundDictionaries[2]["pipe"] = [re.compile(r"^pipe\W?$"), "sound/funnysounds/pipe.ogg"]
-            self.soundDictionaries[2]["piss me off"] = [re.compile(r"^piss me off\W?$"), "sound/funnysounds/pissmeoff.ogg"]
-            self.soundDictionaries[2]["play a game"] = [re.compile(r"^play a game\W?$"), "sound/funnysounds/playagame.ogg"]
-            self.soundDictionaries[2]["pooping"] = [re.compile(r"^pooping\W?$"), "sound/funnysounds/pooping.ogg"]
-            self.soundDictionaries[2]["powerpuff"] = [re.compile(r"^powerpuff\W?$"), "sound/funnysounds/powerpuff.ogg"]
-            self.soundDictionaries[2]["radioactive"] = [re.compile(r"^radioactive\W?$"), "sound/funnysounds/radioactive.ogg"]
-            self.soundDictionaries[2]["rammsteinriff"] = [re.compile(r"^rammsteinriff\W?$"), "sound/funnysounds/rammsteinriff.ogg"]
-            self.soundDictionaries[2]["red wins"] = [re.compile(r"^red ?wins\W?$"), "sound/funnysounds/redwins.ogg"]
-            self.soundDictionaries[2]["renegade"] = [re.compile(r"^renegade\W?$"), "sound/funnysounds/renegade.ogg"]
-            self.soundDictionaries[2]["retard"] = [re.compile(r"^retard\W?$"), "sound/funnysounds/Retard.ogg"]
-            self.soundDictionaries[2]["rocky"] = [re.compile(r"^rocky\W?$"), "sound/funnysounds/rocky"]
-            self.soundDictionaries[2]["rock you guitar"] = [re.compile(r"^rock ?you ?guitar\W?$"), "sound/funnysounds/rockyouguitar.ogg"]
-            self.soundDictionaries[2]["sail"] = [re.compile(r"^sail\W?$"), "sound/funnysounds/sail.ogg"]
-            self.soundDictionaries[2]["Salil"] = [re.compile(r"^salil\W?$"), "sound/funnysounds/Salil.ogg"]
-            self.soundDictionaries[2]["samba"] = [re.compile(r"^samba\W?$"), "sound/funnysounds/samba.ogg"]
-            self.soundDictionaries[2]["sandstorm"] = [re.compile(r"^sandstorm\W?$"), "sound/funnysounds/sandstorm.ogg"]
-            self.soundDictionaries[2]["saymyname"] = [re.compile(r"^saymyname\W?$"), "sound/funnysounds/saymyname.ogg"]
-            self.soundDictionaries[2]["scatman"] = [re.compile(r"^scatman\W?$"), "sound/funnysounds/scatman.ogg"]
-            self.soundDictionaries[2]["sell you all"] = [re.compile(r"^sell you all\W?$"), "sound/funnysounds/sellyouall.ogg"]
-            self.soundDictionaries[2]["sense of humor"] = [re.compile(r"^sense of humor\W?$"), "sound/funnysounds/senseofhumor.ogg"]
-            self.soundDictionaries[2]["shakesenora"] = [re.compile(r"^shakesenora\W?$"), "sound/funnysounds/shakesenora.ogg"]
-            self.soundDictionaries[2]["shut the fuck up"] = [re.compile(r"^shut the fuck up\W?$"), "sound/funnysounds/shutthefuckup.ogg"]
-            self.soundDictionaries[2]["shut your fucking mouth"] = [re.compile(r"^shut your fucking mouth\W?$"), "sound/funnysounds/shutyourfuckingmouth.ogg"]
-            self.soundDictionaries[2]["silence"] = [re.compile(r"^silence\W?$"), "sound/funnysounds/silence.ogg"]
-            self.soundDictionaries[2]["Skeet Skeet"] = [re.compile(r"^(?:(all )?skeet skeet)\W?$"), "sound/funnysounds/AllSkeetSkeet.ogg"]
-            self.soundDictionaries[2]["smooth criminal"] = [re.compile(r"^smooth criminal\W?$"), "sound/funnysounds/smoothcriminal.ogg"]
-            self.soundDictionaries[2]["socobatevira"] = [re.compile(r"^socobatevira\W?$"), "sound/funnysounds/socobatevira.ogg"]
-            self.soundDictionaries[2]["socobatevira end"] = [re.compile(r"^socobatevira end\W?$"), "sound/funnysounds/socobateviraend.ogg"]
-            self.soundDictionaries[2]["socobatevira fast"] = [re.compile(r"^socobatevira fast\W?$"), "sound/funnysounds/socobatevirafast.ogg"]
-            self.soundDictionaries[2]["socobatevira slow"] = [re.compile(r"^socobatevira slow\W?$"), "sound/funnysounds/socobateviraslow.ogg"]
-            self.soundDictionaries[2]["sogivemereason"] = [re.compile(r"^sogivemereason\W?$"), "sound/funnysounds/sogivemereason.ogg"]
-            self.soundDictionaries[2]["so stupid"] = [re.compile(r"^so stupid\W?$"), "sound/funnysounds/sostupid.ogg"]
-            self.soundDictionaries[2]["Space Jam"] = [re.compile(r"^space jam\W?$"), "sound/funnysounds/SpaceJam.ogg"]
-            self.soundDictionaries[2]["space unicorn"] = [re.compile(r"^space unicorn\W?$"), "sound/funnysounds/spaceunicorn.ogg"]
-            self.soundDictionaries[2]["spierdalaj"] = [re.compile(r"^spierdalaj\W?$"), "sound/funnysounds/spierdalaj.ogg"]
-            self.soundDictionaries[2]["stamp on"] = [re.compile(r"^stamp on\W?$"), "sound/funnysounds/stampon.ogg"]
-            self.soundDictionaries[2]["star wars"] = [re.compile(r"^star wars\W?$"), "sound/funnysounds/starwars.ogg"]
-            self.soundDictionaries[2]["stayin alive"] = [re.compile(r"^stayin alive\W?$"), "sound/funnysounds/stayinalive.ogg"]
-            self.soundDictionaries[2]["stoning"] = [re.compile(r"^stoning\W?$"), "sound/funnysounds/stoning.ogg"]
-            self.soundDictionaries[2]["stop"] = [re.compile(r"^stop\W?$"), "sound/funnysounds/Stop.ogg"]
-            self.soundDictionaries[2]["story"] = [re.compile(r"^story\W?$"), "sound/funnysounds/story.ogg"]
-            self.soundDictionaries[2]["surprise"] = [re.compile(r"^surprise\W?$"), "sound/funnysounds/surprise.ogg"]
-            self.soundDictionaries[2]["swedish chef"] = [re.compile(r"^swedish chef\W?$"), "sound/funnysounds/swedishchef.ogg"]
-            self.soundDictionaries[2]["sweet dreams"] = [re.compile(r"^sweet dreams\W?$"), "sound/funnysounds/sweetdreams.ogg"]
-            self.soundDictionaries[2]["take me down"] = [re.compile(r"^take me down\W?$"), "sound/funnysounds/takemedown.ogg"]
-            self.soundDictionaries[2]["talk scotish"] = [re.compile(r"^talk scotish\W?$"), "sound/funnysounds/talkscotish.ogg"]
-            self.soundDictionaries[2]["teamwork"] = [re.compile(r"^teamwork\W?$"), "sound/funnysounds/teamwork.ogg"]
-            self.soundDictionaries[2]["technology"] = [re.compile(r"^technology\W?$"), "sound/funnysounds/technology.ogg"]
-            self.soundDictionaries[2]["this is sparta"] = [re.compile(r"^this is sparta\W?$"), "sound/funnysounds/thisissparta.ogg"]
-            self.soundDictionaries[2]["thunderstruck"] = [re.compile(r"^thunderstruck\W?$"), "sound/funnysounds/thunderstruck.ogg"]
-            self.soundDictionaries[2]["to church"] = [re.compile(r"^to church\W?$"), "sound/funnysounds/tochurch.ogg"]
-            self.soundDictionaries[2]["tsunami"] = [re.compile(r"^tsunami\W?$"), "sound/funnysounds/tsunami.ogg"]
-            self.soundDictionaries[2]["tuturu"] = [re.compile(r"^tuturu\W?$"), "sound/funnysounds/tuturu.ogg"]
-            self.soundDictionaries[2]["tututu"] = [re.compile(r"^tututu\W?$"), "sound/funnysounds/tututu.ogg"]
-            self.soundDictionaries[2]["unbelievable"] = [re.compile(r"^unbelievable\W?$"), "sound/funnysounds/unbelievable.ogg"]
-            self.soundDictionaries[2]["undderhaifisch"] = [re.compile(r"^undderhaifisch\W?$"), "sound/funnysounds/undderhaifisch.ogg"]
-            self.soundDictionaries[2]["up town girl"] = [re.compile(r"^up town girl\W?$"), "sound/funnysounds/uptowngirl.ogg"]
-            self.soundDictionaries[2]["valkyries"] = [re.compile(r"^valkyries\W?$"), "sound/funnysounds/valkyries.ogg"]
-            self.soundDictionaries[2]["wahwahwah"] = [re.compile(r"(?:wahwahwah|(dc)?mattic)"), "sound/funnysounds/wahwahwah.ogg"]
-            self.soundDictionaries[2]["want you"] = [re.compile(r"^want you\W?$"), "sound/funnysounds/wantyou.ogg"]
-            self.soundDictionaries[2]["wazzup"] = [re.compile(r"^wazzup\W?$"), "sound/funnysounds/wazzup.ogg"]
-            self.soundDictionaries[2]["wehmirohweh"] = [re.compile(r"^wehmirohweh\W?$"), "sound/funnysounds/wehmirohweh.ogg"]
-            self.soundDictionaries[2]["what is love"] = [re.compile(r"^what is love\W?$"), "sound/funnysounds/whatislove.ogg"]
-            self.soundDictionaries[2]["when angels"] = [re.compile(r"^when angels\W?$"), "sound/funnysounds/whenangels.ogg"]
-            self.soundDictionaries[2]["where are you"] = [re.compile(r"^where are you\W?$"), "sound/funnysounds/whereareyou.ogg"]
-            self.soundDictionaries[2]["whistle"] = [re.compile(r"^whistle\W?$"), "sound/funnysounds/whistle.ogg"]
-            self.soundDictionaries[2]["why mad"] = [re.compile(r"^why mad\W?$"), "sound/funnysounds/whymad.ogg"]
-            self.soundDictionaries[2]["Will Be Singing"] = [re.compile(r"^will be singing\W?$"), "sound/funnysounds/WillBeSinging.ogg"]
-            self.soundDictionaries[2]["wimbaway"] = [re.compile(r"^wimbaway\W?$"), "sound/funnysounds/wimbaway.ogg"]
-            self.soundDictionaries[2]["windows"] = [re.compile(r"^windows\W?$"), "sound/funnysounds/windows.ogg"]
-            self.soundDictionaries[2]["would you like"] = [re.compile(r"^would you like\W?$"), "sound/funnysounds/wouldyoulike.ogg"]
-            self.soundDictionaries[2]["wtf"] = [re.compile(r"^wtf\W?$"), "sound/funnysounds/wtf.ogg"]
-            self.soundDictionaries[2]["yeee"] = [re.compile(r"^yeee\W?$"), "sound/funnysounds/yeee.ogg"]
-            self.soundDictionaries[2]["yes master"] = [re.compile(r"^yes master\W?$"), "sound/funnysounds/yesmaster.ogg"]
-            self.soundDictionaries[2]["yhehehe"] = [re.compile(r"^yhehehe\W?$"), "sound/funnysounds/yhehehe.ogg"]
-            self.soundDictionaries[2]["ymca"] = [re.compile(r"^ymca\W?$"), "sound/funnysounds/ymca.ogg"]
-            self.soundDictionaries[2]["you"] = [re.compile(r"^you\W?$"), "sound/funnysounds/You.ogg"]
-            self.soundDictionaries[2]["you are a cunt"] = [re.compile(r"^you are a cunt\W?$"), "sound/funnysounds/cunt.ogg"]
-            self.soundDictionaries[2]["you fucked my wife"] = [re.compile(r"^(you fucked )?my wife\W?$"), "sound/funnysounds/youfuckedmywife.ogg"]
-            self.soundDictionaries[2]["You Realise"] = [re.compile(r"^you realise\W?$"), "sound/funnysounds/YouRealise.ogg"]
+            self.db.set(SOUND_TRIGGERS.format(2, "007"), "^007\W?$, sound/funnysounds/007.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "A Scratch"), "^(?:(just )?(a )?scratch)\W?$, sound/funnysounds/AScratch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "adams family"), "^(?:adams ?family)\W?$, sound/funnysounds/adamsfamily.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "All The Things"), "^all the things\W?$, sound/funnysounds/AllTheThings.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "allahuakbar"), "^allahuakbar\W?$, sound/funnysounds/allahuakbar.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "allstar"), "^allstar\W?$, sound/funnysounds/allstar.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Amazing"), "^amazing\W?$, sound/funnysounds/Amazing.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Ameno"), "^ameno\W?$, sound/funnysounds/Ameno.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "America"), "^america\W?$, sound/funnysounds/America.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Amerika"), "^amerika\W?$, sound/funnysounds/Amerika.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "And Nothing Else"), "^and nothing else\W?$, sound/funnysounds/AndNothingElse.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Animals"), "^animals\W?$, sound/funnysounds/Animals.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "asskicking"), "^asskicking\W?$, sound/funnysounds/asskicking.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "ave"), "^ave\W?$, sound/funnysounds/ave.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "baby baby"), "^baby baby\W?$, sound/funnysounds/babybaby.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "baby evil"), "^baby evil\W?$, sound/funnysounds/babyevillaugh.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "baby laughing"), "^(?:babylaughing|baby laughing)\W?$, sound/funnysounds/babylaughing.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "bad boys"), "^bad boys\W?$, sound/funnysounds/badboys.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Banana Boat"), "^banana boat\W?$, sound/funnysounds/BananaBoatSong.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "benny hill"), "^benny hill\W?$, sound/funnysounds/bennyhill.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "benzin"), "^benzin\W?$, sound/funnysounds/benzin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "blue wins"), "^blue ?wins\W?$, sound/funnysounds/bluewins.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "bonkers"), "^bonkers\W?$, sound/funnysounds/bonkers.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "boom headshot"), "^boom headshot\W?$, sound/funnysounds/boomheadshot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "booo"), "^booo?\W?$, sound/funnysounds/booo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "boring"), "^boring\W?$, sound/funnysounds/boring.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "boze"), "^boze\W?$, sound/funnysounds/boze.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "bright side of life"), "^(?:bright ?side ?of ?life)\W?$, sound/funnysounds/brightsideoflife.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "buckdich"), "^buckdich\W?$, sound/funnysounds/buckdich.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "bullshitter"), "^bullshitter\W?$, sound/funnysounds/bullshitter.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "burns burns"), "^burns burns\W?$, sound/funnysounds/burnsburns.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "camel toe"), "^camel toe\W?$, sound/funnysounds/cameltoe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "can't touch this"), "^can'?t touch this\W?$, sound/funnysounds/canttouchthis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "cccp"), "^(?:cccp|ussr)\W?$, sound/funnysounds/cccp.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "champions"), "^champions\W?$, sound/funnysounds/champions.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "chicken"), "^chicken\W?$, sound/funnysounds/chicken.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "chocolate rain"), "^chocolate rain\W?$, sound/funnysounds/chocolaterain.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "coin"), "^coin\W?$, sound/funnysounds/coin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "come"), "^come\W?$, sound/funnysounds/come.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Come With Me Now"), "^come with me now\W?$, sound/funnysounds/ComeWithMeNow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Count down"), "^count down\W?$, sound/funnysounds/Countdown.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "cowards"), "^cowards\W?$, sound/funnysounds/cowards.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "crazy"), "^crazy\W?$, sound/funnysounds/crazy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "damnit"), "^damnit\W?$, sound/funnysounds/damnit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Danger Zone"), "^danger zone\W?$, sound/funnysounds/DangerZone.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "dead soon"), "^(?:deadsoon|dead soon)\W?$, sound/funnysounds/deadsoon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "defeated"), "^defeated\W?$, sound/funnysounds/defeated.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "devil"), "^devil\W?$, sound/funnysounds/devil.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "doesn't love you"), "^doesn'?t love you\W?$, sound/funnysounds/doesntloveyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "du bist"), "^du bist\W?$, sound/funnysounds/dubist.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "du hast"), "^du hast\W?$, sound/funnysounds/duhast.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "dumb ways"), "^dumb ways\W?$, sound/funnysounds/dumbways.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Eat Pussy"), "^eat pussy\W?$, sound/funnysounds/EatPussy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "education"), "^education\W?$, sound/funnysounds/education.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "einschrei"), "^einschrei\W?$, sound/funnysounds/einschrei.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Eins Zwei"), "^eins zwei\W?$, sound/funnysounds/EinsZwei.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "electro"), "^electro\W?$, sound/funnysounds/electro.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "elementary"), "^elementary\W?$, sound/funnysounds/elementary.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "engel"), "^engel\W?$, sound/funnysounds/engel.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "erstwenn"), "^erstwenn\W?$, sound/funnysounds/erstwenn.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "exit light"), "^(?:exit ?light)\W?$, sound/funnysounds/exitlight.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "faint"), "^faint\W?$, sound/funnysounds/faint.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "fatality"), "^fatality\W?$, sound/funnysounds/fatality.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Feel Good"), "^feel good\W?$, sound/funnysounds/FeelGood.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "flesh wound"), "^flesh wound\W?$, sound/funnysounds/fleshwound.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "for you"), "^for you\W?$, sound/funnysounds/foryou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "freestyler"), "^freestyler\W?$, sound/funnysounds/freestyler.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "fuckfuck"), "^fuckfuck\W?$, sound/funnysounds/fuckfuck.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "fucking burger"), "^fucking burger\W?$, sound/funnysounds/fuckingburger.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "fucking kids"), "^fucking kids\W?$, sound/funnysounds/fuckingkids.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "gangnam"), "^gangnam\W?$, sound/funnysounds/gangnam.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "ganjaman"), "^ganjaman\W?$, sound/funnysounds/ganjaman.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "gay"), "^gay\W?$, sound/funnysounds/gay.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "get crowbar"), "^get crowbar\W?$, sound/funnysounds/getcrowbar.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "get out the way"), "^get out the way\W?$, sound/funnysounds/getouttheway.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "ghostbusters"), "^ghostbusters\W?$, sound/funnysounds/ghostbusters.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "girl look"), "^girl look\W?$, sound/funnysounds/girllook.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "girly"), "^girly\W?$, sound/funnysounds/girly.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "gnr guitar"), "^gnr guitar\W?$, sound/funnysounds/gnrguitar.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "goddamn right"), "^goddamn right\W?$, sound/funnysounds/goddamnright.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "goodbye andrea"), "^goodbye andrea\W?$, sound/funnysounds/goodbyeandrea.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "goodbye sarah"), "^goodbye sarah\W?$, sound/funnysounds/goodbyesarah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "gotcha"), "^gotcha\W?$, sound/funnysounds/gotcha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "hakunamatata"), "^hakunamatata\W?$, sound/funnysounds/hakunamatata.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "hammertime"), "^hammertime\W?$, sound/funnysounds/hammertime.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "hello"), "^hello\W?$, sound/funnysounds/hello.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "hellstestern"), "^hellstestern\W?$, sound/funnysounds/hellstestern.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "holy"), "^holy\W?$, sound/funnysounds/holy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "hoppereiter"), "^hoppereiter\W?$, sound/funnysounds/hoppereiter.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "how are you"), "^how are you\W?$, sound/funnysounds/howareyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "hush"), "^hush\W?$, sound/funnysounds/hush.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i bet"), "^(?:i ?bet)\W?$, sound/funnysounds/ibet.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i can't believe"), "^i can'?t believe\W?$, sound/funnysounds/icantbelieve.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "ichtuedieweh"), "^ichtuedieweh\W?$, sound/funnysounds/ichtuedieweh.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i do parkour"), "^i do parkour\W?$, sound/funnysounds/idoparkour.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i hate all"), "^i hate all\W?$, sound/funnysounds/ihateall.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "ill be back"), "^i'?ll be back\W?$, sound/funnysounds/beback.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "imperial"), "^imperial\W?$, sound/funnysounds/imperial.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i'm sexy"), "^i'?m sexy\W?$, sound/funnysounds/imsexy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i'm your father"), "^i'?m your father\W?$, sound/funnysounds/imyourfather.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "incoming"), "^incoming\W?$, sound/funnysounds/incoming.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "indiana jones"), "^indiana jones\W?$, sound/funnysounds/indianajones.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "in your head zombie"), "^in your head zombie\W?$, sound/funnysounds/inyourheadzombie.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i see assholes"), "^i see assholes\W?$, sound/funnysounds/iseeassholes.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i see dead people"), "^i see dead people\W?$, sound/funnysounds/iseedeadpeople.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "it's my life"), "^it'?s my life\W?$, sound/funnysounds/itsmylife.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "it's not"), "^it'?s not\W?$, sound/funnysounds/itsnot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "jackpot"), "^jackpot\W?$, sound/funnysounds/jackpot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "jesus"), "^jesus\W?$, sound/funnysounds/jesus.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Jesus Oh"), "^jesus Oh\W?$, sound/funnysounds/JesusOh.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "john cena"), "^(?:john ?cena)\W?$, sound/funnysounds/johncena.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "jump motherfucker"), "^jump motherfucker\W?$, sound/funnysounds/jumpmotherfucker.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "just do it"), "^just do it\W?$, sound/funnysounds/justdoit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "kamehameha"), "^kamehameha\W?$, sound/funnysounds/kamehameha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "keep on fighting"), "^keep on fighting\W?$, sound/funnysounds/keeponfighting.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "keep your shirt on"), "^keep your shirt on\W?$, sound/funnysounds/keepyourshirton.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Knocked Down"), "^knocked down\W?$, sound/funnysounds/KnockedDown.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "kommtdiesonne"), "^kommtdiesonne\W?$, sound/funnysounds/kommtdiesonne.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "kung fu"), "^(?:kung ?fu)\W?$, sound/funnysounds/kungfu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "lately"), "^lately\W?$, sound/funnysounds/lately.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Legitness"), "^legitness\W?$, sound/funnysounds/Legitness.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "let's get ready"), "^let'?s get ready\W?$, sound/funnysounds/letsgetready.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "let's put a smile"), "^let'?s put a smile\W?$, sound/funnysounds/letsputasmile.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "lights out"), "^lights out\W?$, sound/funnysounds/lightsout.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "lion king"), "^lion king\W?$, sound/funnysounds/lionking.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "live to win"), "^live to win\W?$, sound/funnysounds/livetowin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "losing my religion"), "^losing my religion\W?$, sound/funnysounds/losingmyreligion.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "love me"), "^(?:love ?me)\W?$, sound/funnysounds/loveme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "low"), "^low\W?$, sound/funnysounds/low.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "luck"), "^luck\W?$, sound/funnysounds/luck.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "lust"), "^lust\W?$, sound/funnysounds/lust.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "mahnamahna"), "^mahnamahna\W?$, sound/funnysounds/mahnamahna.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "mario"), "^mario\W?$, sound/funnysounds/mario.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Me"), "^me\W?$, sound/funnysounds/Me.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "meinland"), "^meinland\W?$, sound/funnysounds/meinland.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "message"), "^message\W?$, sound/funnysounds/message.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "mimimi"), "^mimimi\W?$, sound/funnysounds/mimimi.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "mission"), "^mission\W?$, sound/funnysounds/mission.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "moan"), "^moan\W?$, sound/funnysounds/moan.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "mortal kombat"), "^mortal kombat\W?$, sound/funnysounds/mortalkombat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "move ass"), "^move ass\W?$, sound/funnysounds/moveass.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "muppet opening"), "^muppet opening\W?$, sound/funnysounds/muppetopening.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "my little pony"), "^my little pony\W?$, sound/funnysounds/mylittlepony.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "my name"), "^my name\W?$, sound/funnysounds/myname.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "never seen"), "^never seen\W?$, sound/funnysounds/neverseen.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "nightmare"), "^nightmare\W?$, sound/funnysounds/nightmare.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "nobody likes you"), "^nobody likes you\W?$, sound/funnysounds/nobodylikesyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "nonie"), "^nonie\W?$, sound/funnysounds/nonie.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "nooo"), "^nooo+\W?$, sound/funnysounds/nooo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "no time for loosers"), "^no time for loosers\W?$, sound/funnysounds/notimeforloosers.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "numanuma"), "^numanuma\W?$, sound/funnysounds/numanuma.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "nyancat"), "^nyancat\W?$, sound/funnysounds/nyancat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "o fuck"), "^o fuck\W?$, sound/funnysounds/ofuck.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "oh my god"), "^oh my god\W?$, sound/funnysounds/ohmygod.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Oh My Gosh"), "^oh my gosh\W?$, sound/funnysounds/OhMyGosh.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "ohnedich"), "^ohnedich\W?$, sound/funnysounds/ohnedich.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "oh no"), "^oh no\W?$, sound/funnysounds/ohno.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "oh noe"), "^oh noe\W?$, sound/funnysounds/ohnoe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "pacman"), "^pacman\W?$, sound/funnysounds/pacman.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "pick me up"), "^pick me up\W?$, sound/funnysounds/pickmeup.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "pikachu"), "^pikachu\W?$, sound/funnysounds/pikachu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "pinkiepie"), "^pinkiepie\W?$, sound/funnysounds/pinkiepie.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Pink Panther"), "^pink panther\W?$, sound/funnysounds/PinkPanther.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "pipe"), "^pipe\W?$, sound/funnysounds/pipe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "piss me off"), "^piss me off\W?$, sound/funnysounds/pissmeoff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "play a game"), "^play a game\W?$, sound/funnysounds/playagame.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "pooping"), "^pooping\W?$, sound/funnysounds/pooping.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "powerpuff"), "^powerpuff\W?$, sound/funnysounds/powerpuff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "radioactive"), "^radioactive\W?$, sound/funnysounds/radioactive.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "rammsteinriff"), "^rammsteinriff\W?$, sound/funnysounds/rammsteinriff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "red wins"), "^red ?wins\W?$, sound/funnysounds/redwins.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "renegade"), "^renegade\W?$, sound/funnysounds/renegade.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "retard"), "^retard\W?$, sound/funnysounds/Retard.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "rocky"), "^rocky\W?$, sound/funnysounds/rocky")
+            self.db.set(SOUND_TRIGGERS.format(2, "rock you guitar"), "^rock ?you ?guitar\W?$, sound/funnysounds/rockyouguitar.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "sail"), "^sail\W?$, sound/funnysounds/sail.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Salil"), "^salil\W?$, sound/funnysounds/Salil.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "samba"), "^samba\W?$, sound/funnysounds/samba.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "sandstorm"), "^sandstorm\W?$, sound/funnysounds/sandstorm.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "saymyname"), "^saymyname\W?$, sound/funnysounds/saymyname.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "scatman"), "^scatman\W?$, sound/funnysounds/scatman.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "sell you all"), "^sell you all\W?$, sound/funnysounds/sellyouall.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "sense of humor"), "^sense of humor\W?$, sound/funnysounds/senseofhumor.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "shakesenora"), "^shakesenora\W?$, sound/funnysounds/shakesenora.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "shut the fuck up"), "^shut the fuck up\W?$, sound/funnysounds/shutthefuckup.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "shut your fucking mouth"), "^shut your fucking mouth\W?$, sound/funnysounds/shutyourfuckingmouth.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "silence"), "^silence\W?$, sound/funnysounds/silence.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Skeet Skeet"), "^(?:(all )?skeet skeet)\W?$, sound/funnysounds/AllSkeetSkeet.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "smooth criminal"), "^smooth criminal\W?$, sound/funnysounds/smoothcriminal.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "socobatevira"), "^socobatevira\W?$, sound/funnysounds/socobatevira.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "socobatevira end"), "^socobatevira end\W?$, sound/funnysounds/socobateviraend.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "socobatevira fast"), "^socobatevira fast\W?$, sound/funnysounds/socobatevirafast.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "socobatevira slow"), "^socobatevira slow\W?$, sound/funnysounds/socobateviraslow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "sogivemereason"), "^sogivemereason\W?$, sound/funnysounds/sogivemereason.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "so stupid"), "^so stupid\W?$, sound/funnysounds/sostupid.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Space Jam"), "^space jam\W?$, sound/funnysounds/SpaceJam.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "space unicorn"), "^space unicorn\W?$, sound/funnysounds/spaceunicorn.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "spierdalaj"), "^spierdalaj\W?$, sound/funnysounds/spierdalaj.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "stamp on"), "^stamp on\W?$, sound/funnysounds/stampon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "star wars"), "^star wars\W?$, sound/funnysounds/starwars.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "stayin alive"), "^stayin alive\W?$, sound/funnysounds/stayinalive.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "stoning"), "^stoning\W?$, sound/funnysounds/stoning.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "stop"), "^stop\W?$, sound/funnysounds/Stop.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "story"), "^story\W?$, sound/funnysounds/story.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "surprise"), "^surprise\W?$, sound/funnysounds/surprise.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "swedish chef"), "^swedish chef\W?$, sound/funnysounds/swedishchef.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "sweet dreams"), "^sweet dreams\W?$, sound/funnysounds/sweetdreams.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "take me down"), "^take me down\W?$, sound/funnysounds/takemedown.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "talk scotish"), "^talk scotish\W?$, sound/funnysounds/talkscotish.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "teamwork"), "^teamwork\W?$, sound/funnysounds/teamwork.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "technology"), "^technology\W?$, sound/funnysounds/technology.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "this is sparta"), "^this is sparta\W?$, sound/funnysounds/thisissparta.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "thunderstruck"), "^thunderstruck\W?$, sound/funnysounds/thunderstruck.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "to church"), "^to church\W?$, sound/funnysounds/tochurch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "tsunami"), "^tsunami\W?$, sound/funnysounds/tsunami.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "tuturu"), "^tuturu\W?$, sound/funnysounds/tuturu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "tututu"), "^tututu\W?$, sound/funnysounds/tututu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "unbelievable"), "^unbelievable\W?$, sound/funnysounds/unbelievable.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "undderhaifisch"), "^undderhaifisch\W?$, sound/funnysounds/undderhaifisch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "up town girl"), "^up town girl\W?$, sound/funnysounds/uptowngirl.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "valkyries"), "^valkyries\W?$, sound/funnysounds/valkyries.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "wahwahwah"), "(?:wahwahwah|(dc)?mattic), sound/funnysounds/wahwahwah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "want you"), "^want you\W?$, sound/funnysounds/wantyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "wazzup"), "^wazzup\W?$, sound/funnysounds/wazzup.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "wehmirohweh"), "^wehmirohweh\W?$, sound/funnysounds/wehmirohweh.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "what is love"), "^what is love\W?$, sound/funnysounds/whatislove.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "when angels"), "^when angels\W?$, sound/funnysounds/whenangels.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "where are you"), "^where are you\W?$, sound/funnysounds/whereareyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "whistle"), "^whistle\W?$, sound/funnysounds/whistle.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "why mad"), "^why mad\W?$, sound/funnysounds/whymad.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Will Be Singing"), "^will be singing\W?$, sound/funnysounds/WillBeSinging.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "wimbaway"), "^wimbaway\W?$, sound/funnysounds/wimbaway.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "windows"), "^windows\W?$, sound/funnysounds/windows.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "would you like"), "^would you like\W?$, sound/funnysounds/wouldyoulike.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "wtf"), "^wtf\W?$, sound/funnysounds/wtf.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "yeee"), "^yeee\W?$, sound/funnysounds/yeee.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "yes master"), "^yes master\W?$, sound/funnysounds/yesmaster.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "yhehehe"), "^yhehehe\W?$, sound/funnysounds/yhehehe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "ymca"), "^ymca\W?$, sound/funnysounds/ymca.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "you"), "^you\W?$, sound/funnysounds/You.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "you are a cunt"), "^you are a cunt\W?$, sound/funnysounds/cunt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "you fucked my wife"), "^(you fucked )?my wife\W?$, sound/funnysounds/youfuckedmywife.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "You Realise"), "^you realise\W?$, sound/funnysounds/YouRealise.ogg")
 
         if self.Enabled_SoundPacks[3]:
-            self.soundDictionaries[3]["my ride"] = [re.compile(r"^my ride\W?$"), "sound/duke/2ride06.wav"]
-            self.soundDictionaries[3]["abort"] = [re.compile(r"^abort\W?$"), "sound/duke/abort01.wav"]
-            self.soundDictionaries[3]["ahhh"] = [re.compile(r"^ahhh\W?$"), "sound/duke/ahh04.wav"]
-            self.soundDictionaries[3]["much better"] = [re.compile(r"^much better\W?$"), "sound/duke/ahmuch03.wav"]
-            self.soundDictionaries[3]["aisle4"] = [re.compile(r"^aisle 4\W?$"), "sound/duke/aisle402.wav"]
-            self.soundDictionaries[3]["a mess"] = [re.compile(r"^a mess\W?$"), "sound/duke/amess06.wav"]
-            self.soundDictionaries[3]["annoying"] = [re.compile(r"^annoying\W?$"), "sound/duke/annoy03.wav"]
-            self.soundDictionaries[3]["bitchin"] = [re.compile(r"^bitchin\W?$"), "sound/duke/bitchn04.wav"]
-            self.soundDictionaries[3]["blow it out"] = [re.compile(r"^blow it out\W?$"), "sound/duke/blowit01.wav"]
-            self.soundDictionaries[3]["booby trap"] = [re.compile(r"^booby trap\W?$"), "sound/duke/booby04.wav"]
-            self.soundDictionaries[3]["bookem"] = [re.compile(r"^bookem\W?$"), "sound/duke/bookem03.wav"]
-            self.soundDictionaries[3]["born to be wild"] = [re.compile(r"^born to be wild\W?$"), "sound/duke/born01.wav"]
-            self.soundDictionaries[3]["chew gum"] = [re.compile(r"^chew gum\W?$"), "sound/duke/chew05.wav"]
-            self.soundDictionaries[3]["come on"] = [re.compile(r"^come on\W?$"), "sound/duke/comeon02.wav"]
-            self.soundDictionaries[3]["the con"] = [re.compile(r"^the con\W?$"), "sound/duke/con03.wav"]
-            self.soundDictionaries[3]["cool"] = [re.compile(r"^cool\W?$"), "sound/duke/cool01.wav"]
-            self.soundDictionaries[3]["not crying"] = [re.compile(r"^not crying\W?$"), "sound/duke/cry01.wav"]
-            self.soundDictionaries[3]["daamn"] = [re.compile(r"^daa?mn\W?$"), "sound/duke/damn03.wav"]
-            self.soundDictionaries[3]["damit"] = [re.compile(r"^damit\W?$"), "sound/duke/damnit04.wav"]
-            self.soundDictionaries[3]["dance"] = [re.compile(r"^dance\W?$"), "sound/duke/dance01.wav"]
-            self.soundDictionaries[3]["diesob"] = [re.compile(r"^diesob\W?$"), "sound/duke/diesob03.wav"]
-            self.soundDictionaries[3]["doomed"] = [re.compile(r"^doomed\W?$"), "sound/duke/doomed16.wav"]
-            self.soundDictionaries[3]["eyye"] = [re.compile(r"^eyye\W?$"), "sound/duke/dscrem38.wav"]
-            self.soundDictionaries[3]["duke nukem"] = [re.compile(r"^duke nukem\W?$"), "sound/duke/duknuk14.wav"]
-            self.soundDictionaries[3]["no way"] = [re.compile(r"^no way\W?$"), "sound/duke/eat08.wav"]
-            self.soundDictionaries[3]["eat shit"] = [re.compile(r"^eat shit\W?$"), "sound/duke/eatsht01.wav"]
-            self.soundDictionaries[3]["escape"] = [re.compile(r"^escape\W?$"), "sound/duke/escape01.wav"]
-            self.soundDictionaries[3]["face ass"] = [re.compile(r"^face ass\W?$"), "sound/duke/face01.wav"]
-            self.soundDictionaries[3]["a force"] = [re.compile(r"^a force\W?$"), "sound/duke/force01.wav"]
-            self.soundDictionaries[3]["get that crap"] = [re.compile(r"^get that crap\W?$"), "sound/duke/getcrap1.wav"]
-            self.soundDictionaries[3]["get some"] = [re.compile(r"^get some\W?$"), "sound/duke/getsom1a.wav"]
-            self.soundDictionaries[3]["game over"] = [re.compile(r"^game over\W?$"), "sound/duke/gmeovr05.wav"]
-            self.soundDictionaries[3]["gotta hurt"] = [re.compile(r"^gotta hurt\W?$"), "sound/duke/gothrt01.wav"]
-            self.soundDictionaries[3]["groovy"] = [re.compile(r"^groovy\W?$"), "sound/duke/groovy02.wav"]
-            self.soundDictionaries[3]["you guys suck"] = [re.compile(r"^you guys suck\W?$"), "sound/duke/guysuk01.wav"]
-            self.soundDictionaries[3]["hail king"] = [re.compile(r"^hail king\W?$"), "sound/duke/hail01.wav"]
-            self.soundDictionaries[3]["shit happens"] = [re.compile(r"^shit happens\W?$"), "sound/duke/happen01.wav"]
-            self.soundDictionaries[3]["holy cow"] = [re.compile(r"^holy cow\W?$"), "sound/duke/holycw01.wav"]
-            self.soundDictionaries[3]["holy shit"] = [re.compile(r"^holy shit\W?$"), "sound/duke/holysh02.wav"]
-            self.soundDictionaries[3]["im good"] = [re.compile(r"^im good\W?$"), "sound/duke/imgood12.wav"]
-            self.soundDictionaries[3]["independence"] = [re.compile(r"^independence\W?$"), "sound/duke/indpnc01.wav"]
-            self.soundDictionaries[3]["in hell"] = [re.compile(r"^in ?hell\W?$"), "sound/duke/inhell01.wav"]
-            self.soundDictionaries[3]["going in"] = [re.compile(r"^going ?in\W?$"), "sound/duke/introc.wav"]
-            self.soundDictionaries[3]["dr jones"] = [re.compile(r"^dr jones\W?$"), "sound/duke/jones04.wav"]
-            self.soundDictionaries[3]["kick your ass"] = [re.compile(r"^(kick )?your ass\W?$"), "sound/duke/kick01-i.wav"]
-            self.soundDictionaries[3]["ktit"] = [re.compile(r"^ktit\W?$"), "sound/duke/ktitx.wav"]
-            self.soundDictionaries[3]["let god"] = [re.compile(r"^let god\W?$"), "sound/duke/letgod01.wav"]
-            self.soundDictionaries[3]["let's rock"] = [re.compile(r"^let'?s rock\W?$"), "sound/duke/letsrk03.wav"]
-            self.soundDictionaries[3]["lookin' good"] = [re.compile(r"^lookin'? good\W?$"), "sound/duke/lookin01.wav"]
-            self.soundDictionaries[3]["make my day"] = [re.compile(r"^make my day\W?$"), "sound/duke/makeday1.wav"]
-            self.soundDictionaries[3]["midevil"] = [re.compile(r"^midevil\W?$"), "sound/duke/mdevl01.wav"]
-            self.soundDictionaries[3]["my meat"] = [re.compile(r"^my meat\W?$"), "sound/duke/meat04-n.wav"]
-            self.soundDictionaries[3]["no time"] = [re.compile(r"^no time\W?$"), "sound/duke/myself3a.wav"]
-            self.soundDictionaries[3]["i needed that"] = [re.compile(r"^i needed that\W?$"), "sound/duke/needed03.wav"]
-            self.soundDictionaries[3]["nobody"] = [re.compile(r"^nobody\W?$"), "sound/duke/nobody01.wav"]
-            self.soundDictionaries[3]["only one"] = [re.compile(r"^only one\W?$"), "sound/duke/onlyon03.wav"]
-            self.soundDictionaries[3]["my kinda party"] = [re.compile(r"^my kinda party\W?$"), "sound/duke/party03.wav"]
-            self.soundDictionaries[3]["gonna pay"] = [re.compile(r"^gonna pay\W?$"), "sound/duke/pay02.wav"]
-            self.soundDictionaries[3]["pisses me off"] = [re.compile(r"^pisses me off\W?$"), "sound/duke/pisses01.wav"]
-            self.soundDictionaries[3]["pissin me off"] = [re.compile(r"^pissin me off\W?$"), "sound/duke/pissin01.wav"]
-            self.soundDictionaries[3]["postal"] = [re.compile(r"^postal\W?$"), "sound/duke/postal01.wav"]
-            self.soundDictionaries[3]["aint afraid"] = [re.compile(r"^aint ?afraid\W?$"), "sound/duke/quake06.wav"]
-            self.soundDictionaries[3]["r and r"] = [re.compile(r"^r and r\W?$"), "sound/duke/r&r01.wav"]
-            self.soundDictionaries[3]["ready for action"] = [re.compile(r"^ready for action\W?$"), "sound/duke/ready2a.wav"]
-            self.soundDictionaries[3]["rip your head off"] = [re.compile(r"^rip your head off\W?$"), "sound/duke/rip01.wav"]
-            self.soundDictionaries[3]["rip em"] = [re.compile(r"^rip em\W?$"), "sound/duke/ripem08.wav"]
-            self.soundDictionaries[3]["rockin"] = [re.compile(r"^rockin\W?$"), "sound/duke/rockin02.wav"]
-            self.soundDictionaries[3]["shake it"] = [re.compile(r"^shake ?it\W?$"), "sound/duke/shake2a.wav"]
-            self.soundDictionaries[3]["slacker"] = [re.compile(r"^slacker\W?$"), "sound/duke/slacker1.wav"]
-            self.soundDictionaries[3]["smack dab"] = [re.compile(r"^smack dab\W?$"), "sound/duke/smack02.wav"]
-            self.soundDictionaries[3]["so help me"] = [re.compile(r"^so help me\W?$"), "sound/duke/sohelp02.wav"]
-            self.soundDictionaries[3]["suck it down"] = [re.compile(r"^suck it down\W?$"), "sound/duke/sukit01.wav"]
-            self.soundDictionaries[3]["terminated"] = [re.compile(r"^terminated\W?$"), "sound/duke/termin01.wav"]
-            self.soundDictionaries[3]["this sucks"] = [re.compile(r"^this sucks\W?$"), "sound/duke/thsuk13a.wav"]
-            self.soundDictionaries[3]["vacation"] = [re.compile(r"^vacation\W?$"), "sound/duke/vacatn01.wav"]
-            self.soundDictionaries[3]["christmas"] = [re.compile(r"^christmas\W?$"), "sound/duke/waitin03.wav"]
-            self.soundDictionaries[3]["wants some"] = [re.compile(r"^wants some\W?$"), "sound/duke/wansom4a.wav"]
-            self.soundDictionaries[3]["you and me"] = [re.compile(r"^you and me\W?$"), "sound/duke/whipyu01.wav"]
-            self.soundDictionaries[3]["where"] = [re.compile(r"^where\W?$"), "sound/duke/whrsit05.wav"]
-            self.soundDictionaries[3]["yippie kai yay"] = [re.compile(r"^yippie kai yay\W?$"), "sound/duke/yippie01.wav"]
-            self.soundDictionaries[3]["bottle of jack"] = [re.compile(r"^bottle of jack\W?$"), "sound/duke/yohoho01.wav"]
-            self.soundDictionaries[3]["long walk"] = [re.compile(r"^long walk\W?$"), "sound/duke/yohoho09.wav"]
+            self.db.set(SOUND_TRIGGERS.format(3, "my ride"), "^my ride\W?$, sound/duke/2ride06.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "abort"), "^abort\W?$, sound/duke/abort01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "ahhh"), "^ahhh\W?$, sound/duke/ahh04.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "much better"), "^much better\W?$, sound/duke/ahmuch03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "aisle4"), "^aisle 4\W?$, sound/duke/aisle402.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "a mess"), "^a mess\W?$, sound/duke/amess06.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "annoying"), "^annoying\W?$, sound/duke/annoy03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "bitchin"), "^bitchin\W?$, sound/duke/bitchn04.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "blow it out"), "^blow it out\W?$, sound/duke/blowit01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "booby trap"), "^booby trap\W?$, sound/duke/booby04.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "bookem"), "^bookem\W?$, sound/duke/bookem03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "born to be wild"), "^born to be wild\W?$, sound/duke/born01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "chew gum"), "^chew gum\W?$, sound/duke/chew05.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "come on"), "^come on\W?$, sound/duke/comeon02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "the con"), "^the con\W?$, sound/duke/con03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "cool"), "^cool\W?$, sound/duke/cool01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "not crying"), "^not crying\W?$, sound/duke/cry01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "daamn"), "^daa?mn\W?$, sound/duke/damn03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "damit"), "^damit\W?$, sound/duke/damnit04.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "dance"), "^dance\W?$, sound/duke/dance01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "diesob"), "^diesob\W?$, sound/duke/diesob03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "doomed"), "^doomed\W?$, sound/duke/doomed16.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "eyye"), "^eyye\W?$, sound/duke/dscrem38.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "duke nukem"), "^duke nukem\W?$, sound/duke/duknuk14.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "no way"), "^no way\W?$, sound/duke/eat08.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "eat shit"), "^eat shit\W?$, sound/duke/eatsht01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "escape"), "^escape\W?$, sound/duke/escape01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "face ass"), "^face ass\W?$, sound/duke/face01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "a force"), "^a force\W?$, sound/duke/force01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "get that crap"), "^get that crap\W?$, sound/duke/getcrap1.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "get some"), "^get some\W?$, sound/duke/getsom1a.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "game over"), "^game over\W?$, sound/duke/gmeovr05.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "gotta hurt"), "^gotta hurt\W?$, sound/duke/gothrt01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "groovy"), "^groovy\W?$, sound/duke/groovy02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "you guys suck"), "^you guys suck\W?$, sound/duke/guysuk01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "hail king"), "^hail king\W?$, sound/duke/hail01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "shit happens"), "^shit happens\W?$, sound/duke/happen01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "holy cow"), "^holy cow\W?$, sound/duke/holycw01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "holy shit"), "^holy shit\W?$, sound/duke/holysh02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "im good"), "^im good\W?$, sound/duke/imgood12.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "independence"), "^independence\W?$, sound/duke/indpnc01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "in hell"), "^in ?hell\W?$, sound/duke/inhell01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "going in"), "^going ?in\W?$, sound/duke/introc.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "dr jones"), "^dr jones\W?$, sound/duke/jones04.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "kick your ass"), "^(kick )?your ass\W?$, sound/duke/kick01-i.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "ktit"), "^ktit\W?$, sound/duke/ktitx.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "let god"), "^let god\W?$, sound/duke/letgod01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "let's rock"), "^let'?s rock\W?$, sound/duke/letsrk03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "lookin' good"), "^lookin'? good\W?$, sound/duke/lookin01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "make my day"), "^make my day\W?$, sound/duke/makeday1.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "midevil"), "^midevil\W?$, sound/duke/mdevl01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "my meat"), "^my meat\W?$, sound/duke/meat04-n.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "no time"), "^no time\W?$, sound/duke/myself3a.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "i needed that"), "^i needed that\W?$, sound/duke/needed03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "nobody"), "^nobody\W?$, sound/duke/nobody01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "only one"), "^only one\W?$, sound/duke/onlyon03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "my kinda party"), "^my kinda party\W?$, sound/duke/party03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "gonna pay"), "^gonna pay\W?$, sound/duke/pay02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "pisses me off"), "^pisses me off\W?$, sound/duke/pisses01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "pissin me off"), "^pissin me off\W?$, sound/duke/pissin01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "postal"), "^postal\W?$, sound/duke/postal01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "aint afraid"), "^aint ?afraid\W?$, sound/duke/quake06.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "r and r"), "^r and r\W?$, sound/duke/r&r01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "ready for action"), "^ready for action\W?$, sound/duke/ready2a.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "rip your head off"), "^rip your head off\W?$, sound/duke/rip01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "rip em"), "^rip em\W?$, sound/duke/ripem08.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "rockin"), "^rockin\W?$, sound/duke/rockin02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "shake it"), "^shake ?it\W?$, sound/duke/shake2a.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "slacker"), "^slacker\W?$, sound/duke/slacker1.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "smack dab"), "^smack dab\W?$, sound/duke/smack02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "so help me"), "^so help me\W?$, sound/duke/sohelp02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "suck it down"), "^suck it down\W?$, sound/duke/sukit01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "terminated"), "^terminated\W?$, sound/duke/termin01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "this sucks"), "^this sucks\W?$, sound/duke/thsuk13a.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "vacation"), "^vacation\W?$, sound/duke/vacatn01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "christmas"), "^christmas\W?$, sound/duke/waitin03.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "wants some"), "^wants some\W?$, sound/duke/wansom4a.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "you and me"), "^you and me\W?$, sound/duke/whipyu01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "where"), "^where\W?$, sound/duke/whrsit05.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "yippie kai yay"), "^yippie kai yay\W?$, sound/duke/yippie01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "bottle of jack"), "^bottle of jack\W?$, sound/duke/yohoho01.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "long walk"), "^long walk\W?$, sound/duke/yohoho09.wav")
 
         if self.Enabled_SoundPacks[4]:
-            self.soundDictionaries[4]["aiming"] = [re.compile(r"^aiming\W?$"), "sound/warp/aiming.ogg"]
-            self.soundDictionaries[4]["always open cat"] = [re.compile(r"^always open\W?$"), "sound/warp/always_open.ogg"]
-            self.soundDictionaries[4]["thanks for the advice"] = [re.compile(r"^thanks for the advice\W?$"), "sound/warp/ash_advice.ogg"]
-            self.soundDictionaries[4]["angry cat"] = [re.compile(r"^angry cat\W?$"), "sound/warp/angry_cat.ogg"]
-            self.soundDictionaries[4]["appreciate"] = [re.compile(r"^appreciate\W?$"), "sound/warp/ash_appreciate.ogg"]
-            self.soundDictionaries[4]["looking forward to it"] = [re.compile(r"^looking forward to it\W?$"), "sound/warp/ash_lookingforwardtoit.ogg"]
-            self.soundDictionaries[4]["make me"] = [re.compile(r"^make me\W?$"), "sound/warp/ash_makeme.ogg"]
-            self.soundDictionaries[4]["pessimist"] = [re.compile(r"^pessimist\W?$"), "sound/warp/ash_pessimist.ogg"]
-            self.soundDictionaries[4]["shoot me now"] = [re.compile(r"^shoot me now\W?$"), "sound/warp/ash_shootmenow.ogg"]
-            self.soundDictionaries[4]["shoot on sight"] = [re.compile(r"^shoot on sight\W?$"), "sound/warp/ash_shootonsight.ogg"]
-            self.soundDictionaries[4]["won't happen again"] = [re.compile(r"^won'?t happen again\W?$"), "sound/warp/ash_wonthappenagain.ogg"]
-            self.soundDictionaries[4]["attractive"] = [re.compile(r"^attractive\W?$"), "sound/warp/attractive.ogg"]
-            self.soundDictionaries[4]["awesome"] = [re.compile(r"^awesome\W?$"), "sound/warp/awesome.ogg"]
-            self.soundDictionaries[4]["awkward"] = [re.compile(r"^awkward\W?$"), "sound/warp/awkward.ogg"]
-            self.soundDictionaries[4]["bad feeling"] = [re.compile(r"^bad feeling\W?$"), "sound/warp/badfeeling.ogg"]
-            self.soundDictionaries[4]["bad idea"] = [re.compile(r"^bad idea\W?$"), "sound/warp/badidea.ogg"]
-            self.soundDictionaries[4]["ballbag"] = [re.compile(r"^ballbag\W?$"), "sound/warp/ballbag.ogg"]
-            self.soundDictionaries[4]["bburp"] = [re.compile(r"^bburp\W?$"), "sound/warp/bburp.ogg"]
-            self.soundDictionaries[4]["bburpp"] = [re.compile(r"^bburpp\W?$"), "sound/warp/bburpp.ogg"]
-            self.soundDictionaries[4]["believe"] = [re.compile(r"^believe\W?$"), "sound/warp/believe.ogg"]
-            self.soundDictionaries[4]["bend me over"] = [re.compile(r"^bend me over\W?$"), "sound/warp/bend_me_over.ogg"]
-            self.soundDictionaries[4]["big leagues"] = [re.compile(r"^big leagues\W?$"), "sound/warp/bigleagues.ogg"]
-            self.soundDictionaries[4]["bike horn"] = [re.compile(r"^bike horn\W?$"), "sound/warp/bike_horn.ogg"]
-            self.soundDictionaries[4]["bj"] = [re.compile(r"^bj\W?$"), "sound/warp/bj.ogg"]
-            self.soundDictionaries[4]["kill you with my brain"] = [re.compile(r"^kill you with my brain\W?$"), "sound/warp/brain.ogg"]
-            self.soundDictionaries[4]["bravery"] = [re.compile(r"^bravery\W?$"), "sound/warp/bravery.ogg"]
-            self.soundDictionaries[4]["broke"] = [re.compile(r"^broke\W?$"), "sound/warp/broke.ogg"]
-            self.soundDictionaries[4]["space bugs"] = [re.compile(r"^space bugs\W?$"), "sound/warp/bugs.ogg"]
-            self.soundDictionaries[4]["bunk"] = [re.compile(r"^bunk\W?$"), "sound/warp/bunk.ogg"]
-            self.soundDictionaries[4]["burp"] = [re.compile(r"^burp\W?$"), "sound/warp/burp.ogg"]
-            self.soundDictionaries[4]["burpp"] = [re.compile(r"^burpp\W?$"), "sound/warp/burpp.ogg"]
-            self.soundDictionaries[4]["cover your butt"] = [re.compile(r"^cover your butt\W?$"), "sound/warp/butt.ogg"]
-            self.soundDictionaries[4]["came out"] = [re.compile(r"^came out\W?$"), "sound/warp/cameout.ogg"]
-            self.soundDictionaries[4]["anybody care"] = [re.compile(r"^anybody care\W?$"), "sound/warp/care.ogg"]
-            self.soundDictionaries[4]["catch"] = [re.compile(r"^catch\W?$"), "sound/warp/catch.ogg"]
-            self.soundDictionaries[4]["castrate"] = [re.compile(r"^castrate\W?$"), "sound/warp/castrate.ogg"]
-            self.soundDictionaries[4]["cat scream"] = [re.compile(r"^cat scream\W?$"), "sound/warp/cat_scream.ogg"]
-            self.soundDictionaries[4]["hello2"] = [re.compile(r"^hello2\W?$"), "sound/warp/coach_hello.ogg"]
-            self.soundDictionaries[4]["corny"] = [re.compile(r"^corny\W?$"), "sound/warp/corny.ogg"]
-            self.soundDictionaries[4]["cock push ups"] = [re.compile(r"^(?:(cock )?push ups)\W?$"), "sound/warp/cockpushups.ogg"]
-            self.soundDictionaries[4]["code"] = [re.compile(r"^code\W?$"), "sound/warp/code.ogg"]
-            self.soundDictionaries[4]["cold"] = [re.compile(r"^cold\W?$"), "sound/warp/cold.ogg"]
-            self.soundDictionaries[4]["college student"] = [re.compile(r"^college student\W?$"), "sound/warp/college.ogg"]
-            self.soundDictionaries[4]["crush your enemies"] = [re.compile(r"^(?:crush( your enemies)?|conana(palooza)?)\W?$"), "sound/warp/conana.ogg"]
-            self.soundDictionaries[4]["confident"] = [re.compile(r"^confident\W?$"), "sound/warp/confident.ogg"]
-            self.soundDictionaries[4]["cooperation"] = [re.compile(r"^cooperation\W?$"), "sound/warp/cooperation.ogg"]
-            self.soundDictionaries[4]["cow dick"] = [re.compile(r"^cow dick\W?$"), "sound/warp/cowdick.ogg"]
-            self.soundDictionaries[4]["go crazy"] = [re.compile(r"^go crazy\W?$"), "sound/warp/crazy.ogg"]
-            self.soundDictionaries[4]["crowded"] = [re.compile(r"^crowded\W?$"), "sound/warp/crowded.ogg"]
-            self.soundDictionaries[4]["dance off"] = [re.compile(r"^dance off\W?$"), "sound/warp/danceoff.ogg"]
-            self.soundDictionaries[4]["dead"] = [re.compile(r"^dead\W?$"), "sound/warp/dead.ogg"]
-            self.soundDictionaries[4]["dead guy"] = [re.compile(r"^dead guy\W?$"), "sound/warp/deadguy.ogg"]
-            self.soundDictionaries[4]["dick message"] = [re.compile(r"^dick message\W?$"), "sound/warp/dickmessage.ogg"]
-            self.soundDictionaries[4]["dick slip"] = [re.compile(r"^dick slip\W?$"), "sound/warp/dick_slip.ogg"]
-            self.soundDictionaries[4]["dink bag"] = [re.compile(r"^dink bag\W?$"), "sound/warp/dinkbag.ogg"]
-            self.soundDictionaries[4]["dirty"] = [re.compile(r"^dirty\W?$"), "sound/warp/dirty.ogg"]
-            self.soundDictionaries[4]["do as you're told"] = [re.compile(r"^do as you'?re told\W?$"), "sound/warp/doasyouretold.ogg"]
-            self.soundDictionaries[4]["what have we done"] = [re.compile(r"^what have we done\W?$"), "sound/warp/done.ogg"]
-            self.soundDictionaries[4]["done for the day"] = [re.compile(r"^(?:done( for the)?( day)?)\W?$"), "sound/warp/done_for_the_day.ogg"]
-            self.soundDictionaries[4]["done it"] = [re.compile(r"^done it\W?$"), "sound/warp/doneit.ogg"]
-            self.soundDictionaries[4]["do now"] = [re.compile(r"^do now\W?$"), "sound/warp/donow.ogg"]
-            self.soundDictionaries[4]["don't like vaginas"] = [re.compile(r"^don'?t like vaginas\W?$"), "sound/warp/dontlikevaginas.ogg"]
-            self.soundDictionaries[4]["drawing"] = [re.compile(r"^drawing\W?$"), "sound/warp/drawing.ogg"]
-            self.soundDictionaries[4]["eat it"] = [re.compile(r"^eat it\W?$"), "sound/warp/eat_it.ogg"]
-            self.soundDictionaries[4]["eat my grenade"] = [re.compile(r"^(?:(eat my )?grenade)\W?$"), "sound/warp/eatmygrenade.ogg"]
-            self.soundDictionaries[4]["eat my"] = [re.compile(r"^eat my\W?$"), "sound/warp/eatmytits.ogg"]
-            self.soundDictionaries[4]["electricity"] = [re.compile(r"^electricity\W?$"), "sound/warp/electricity.ogg"]
-            self.soundDictionaries[4]["enima"] = [re.compile(r"^enima\W?$"), "sound/warp/enima.ogg"]
-            self.soundDictionaries[4]["face"] = [re.compile(r"^face\W?$"), "sound/warp/face.ogg"]
-            self.soundDictionaries[4]["face2"] = [re.compile(r"^face2\W?$"), "sound/warp/face2.ogg"]
-            self.soundDictionaries[4]["fart"] = [re.compile(r"^fart\W?$"), "sound/warp/fart.ogg"]
-            self.soundDictionaries[4]["fartt"] = [re.compile(r"^fartt\W?$"), "sound/warp/fartt.ogg"]
-            self.soundDictionaries[4]["farttt"] = [re.compile(r"^farttt\W?$"), "sound/warp/farttt.ogg"]
-            self.soundDictionaries[4]["ffart"] = [re.compile(r"^ffart\W?$"), "sound/warp/ffart.ogg"]
-            self.soundDictionaries[4]["ffartt"] = [re.compile(r"^ffartt\W?$"), "sound/warp/ffartt.ogg"]
-            self.soundDictionaries[4]["ffarttt"] = [re.compile(r"^ffarttt\W?$"), "sound/warp/ffarttt.ogg"]
-            self.soundDictionaries[4]["fffartt"] = [re.compile(r"^fffartt\W?$"), "sound/warp/fffartt.ogg"]
-            self.soundDictionaries[4]["fffarttt"] = [re.compile(r"^fffarttt\W?$"), "sound/warp/fffarttt.ogg"]
-            self.soundDictionaries[4]["not fair"] = [re.compile(r"^not fair\W?$"), "sound/warp/fair.ogg"]
-            self.soundDictionaries[4]["falcon pawnch"] = [re.compile(r"^falcon pawnch\W?$"), "sound/warp/falcon_pawnch.ogg"]
-            self.soundDictionaries[4]["fall"] = [re.compile(r"^fall\W?$"), "sound/warp/fall.ogg"]
-            self.soundDictionaries[4]["favor"] = [re.compile(r"^favor\W?$"), "sound/warp/favor.ogg"]
-            self.soundDictionaries[4]["feel"] = [re.compile(r"^feel\W?$"), "sound/warp/feel.ogg"]
-            self.soundDictionaries[4]["feels"] = [re.compile(r"^feels\W?$"), "sound/warp/feels.ogg"]
-            self.soundDictionaries[4]["something wrong"] = [re.compile(r"^something wrong\??\W?$"), "sound/warp/femaleshepherd_somethingwrong.ogg"]
-            self.soundDictionaries[4]["suspense"] = [re.compile(r"^suspense\W?$"), "sound/warp/femaleshepherd_suspense.ogg"]
-            self.soundDictionaries[4]["fog horn"] = [re.compile(r"^fog horn\W?$"), "sound/warp/fog_horn.ogg"]
-            self.soundDictionaries[4]["found them"] = [re.compile(r"^found them\W?$"), "sound/warp/found_them.ogg"]
-            self.soundDictionaries[4]["fuku"] = [re.compile(r"^fuku\W?$"), "sound/warp/fuku.ogg"]
-            self.soundDictionaries[4]["fuck me"] = [re.compile(r"^fuck me\W?$"), "sound/warp/fuck_me.ogg"]
-            self.soundDictionaries[4]["fuck ugly"] = [re.compile(r"^fuck ugly\W?$"), "sound/warp/fuck_ugly.ogg"]
-            self.soundDictionaries[4]["awaiting orders"] = [re.compile(r"^awaiting orders\W?$"), "sound/warp/garrus_awaitingorders.ogg"]
-            self.soundDictionaries[4]["got your back"] = [re.compile(r"^got your back\W?$"), "sound/warp/garrus_gotyourback.ogg"]
-            self.soundDictionaries[4]["keep moving"] = [re.compile(r"^keep moving\W?$"), "sound/warp/garrus_keepmoving.ogg"]
-            self.soundDictionaries[4]["nice work"] = [re.compile(r"^nice work\W?$"), "sound/warp/garrus_nicework.ogg"]
-            self.soundDictionaries[4]["get away cat"] = [re.compile(r"^(?:(get away )?cat)\W?$"), "sound/warp/getawaycat.ogg"]
-            self.soundDictionaries[4]["get off"] = [re.compile(r"^get off\W?$"), "sound/warp/getoff.ogg"]
-            self.soundDictionaries[4]["wasting my time"] = [re.compile(r"^wasting my time\W?$"), "sound/warp/glados_wasting.ogg"]
-            self.soundDictionaries[4]["just go crazy"] = [re.compile(r"^just go crazy\W?$"), "sound/warp/go_crazy.ogg"]
-            self.soundDictionaries[4]["grows"] = [re.compile(r"^grows\W?$"), "sound/warp/grows.ogg"]
-            self.soundDictionaries[4]["ha ha"] = [re.compile(r"^ha ha\W?$"), "sound/warp/haha.ogg"]
-            self.soundDictionaries[4]["heroics"] = [re.compile(r"^heroics\W?$"), "sound/warp/heroics.ogg"]
-            self.soundDictionaries[4]["hop"] = [re.compile(r"^hop\W?$"), "sound/warp/hop.ogg"]
-            self.soundDictionaries[4]["horrible"] = [re.compile(r"^horrible\W?$"), "sound/warp/horrible.ogg"]
-            self.soundDictionaries[4]["huge vagina"] = [re.compile(r"^huge vagina\W?$"), "sound/warp/hugevagina.ogg"]
-            self.soundDictionaries[4]["hunting"] = [re.compile(r"^hunting\W?$"), "sound/warp/hunting.ogg"]
-            self.soundDictionaries[4]["i am the law"] = [re.compile(r"^i am the law\W?$"), "sound/warp/iamthelaw.ogg"]
-            self.soundDictionaries[4]["implied"] = [re.compile(r"^implied\W?$"), "sound/warp/implied.ogg"]
-            self.soundDictionaries[4]["i died"] = [re.compile(r"^i died\W?$"), "sound/warp/i_died.ogg"]
-            self.soundDictionaries[4]["i farted"] = [re.compile(r"^i farted\W?$"), "sound/warp/i_farted.ogg"]
-            self.soundDictionaries[4]["i don't trust you"] = [re.compile(r"^(?:(i don'?t )?trust you|leaf(green)?)\W?$"), "sound/warp/idonttrustyou.ogg"]
-            self.soundDictionaries[4]["i have a plan"] = [re.compile(r"^i have a plan\W?$"), "sound/warp/ihaveaplan.ogg"]
-            self.soundDictionaries[4]["i like you"] = [re.compile(r"^i like you\W?$"), "sound/warp/ilikeyou.ogg"]
-            self.soundDictionaries[4]["intensify"] = [re.compile(r"^intensify\W?"), "sound/warp/intensify.ogg"]
-            self.soundDictionaries[4]["in the ass"] = [re.compile(r"^in ?the ?ass\W?"), "sound/warp/intheass.ogg"]
-            self.soundDictionaries[4]["i will eat"] = [re.compile(r"^i will eat( your)?\W?$"), "sound/warp/iwilleatyour.ogg"]
-            self.soundDictionaries[4]["jail"] = [re.compile(r"^jail\W?$"), "sound/warp/jail.ogg"]
-            self.soundDictionaries[4]["jump pad"] = [re.compile(r"^jump pad\W?$"), "sound/warp/jump_pad.ogg"]
-            self.soundDictionaries[4]["just the tip"] = [re.compile(r"^(?:just the tip|tippy(touch)?)\W?$"), "sound/warp/just_the_tip.ogg"]
-            self.soundDictionaries[4]["kevin bacon"] = [re.compile(r"^kevin bacon\W?$"), "sound/warp/kevinbacon.ogg"]
-            self.soundDictionaries[4]["kill"] = [re.compile(r"^kill\W?$"), "sound/warp/kill.ogg"]
-            self.soundDictionaries[4]["kizuna"] = [re.compile(r"^kizuna\W?$"), "sound/warp/kizuna.ogg"]
-            self.soundDictionaries[4]["need to kill"] = [re.compile(r"^need to kill\W?$"), "sound/warp/krogan_kill.ogg"]
-            self.soundDictionaries[4]["ladybug"] = [re.compile(r"^ladybug\W?$"), "sound/warp/ladybug.ogg"]
-            self.soundDictionaries[4]["legend"] = [re.compile(r"^(?:legend|ere(?:bux)?)\W?$"), "sound/warp/legend.ogg"]
-            self.soundDictionaries[4]["lego maniac"] = [re.compile(r"^(?:lego maniac|zach|stukey)\W?$"), "sound/warp/lego_maniac.ogg"]
-            self.soundDictionaries[4]["human relationships"] = [re.compile(r"^human relationships?\W?$"), "sound/warp/liara_humanrelationships.ogg"]
-            self.soundDictionaries[4]["incredible"] = [re.compile(r"^incredible\W?$"), "sound/warp/liara_incredible.ogg"]
-            self.soundDictionaries[4]["never happened"] = [re.compile(r"^never happened\W?$"), "sound/warp/liara_neverhappened.ogg"]
-            self.soundDictionaries[4]["lick me"] = [re.compile(r"^lick me\W?$"), "sound/warp/lick_me.ogg"]
-            self.soundDictionaries[4]["like this thing"] = [re.compile(r"^like this thing\W?$"), "sound/warp/like.ogg"]
-            self.soundDictionaries[4]["wasn't listening"] = [re.compile(r"^wasn'?t listening\W?$"), "sound/warp/listening.ogg"]
-            self.soundDictionaries[4]["listen up"] = [re.compile(r"^listen( up)?\W?$"), "sound/warp/listenup.ogg"]
-            self.soundDictionaries[4]["look fine"] = [re.compile(r"^look fine\W?$"), "sound/warp/lookfine.ogg"]
-            self.soundDictionaries[4]["lovely"] = [re.compile(r"^lovely\W?$"), "sound/warp/lovely.ogg"]
-            self.soundDictionaries[4]["your luck"] = [re.compile(r"^your luck\W?$"), "sound/warp/luck.ogg"]
-            self.soundDictionaries[4]["maggot"] = [re.compile(r"^maggot\W?$"), "sound/warp/maggot.ogg"]
-            self.soundDictionaries[4]["like an idiot"] = [re.compile(r"^like an idiot\W?$"), "sound/warp/makes_you_look_like_idiot.ogg"]
-            self.soundDictionaries[4]["this beat"] = [re.compile(r"^this beat\W?$"), "sound/warp/marg_tongue.ogg"]
-            self.soundDictionaries[4]["killed with math"] = [re.compile(r"^(killed )?(with )?math\W?$"), "sound/warp/math.ogg"]
-            self.soundDictionaries[4]["me me me"] = [re.compile(r"^me me(?: me)?\W?$"), "sound/warp/mememe.ogg"]
-            self.soundDictionaries[4]["metaphor"] = [re.compile(r"^metaphor\W?$"), "sound/warp/metaphor.ogg"]
-            self.soundDictionaries[4]["misdirection"] = [re.compile(r"^misdirection\W?$"), "sound/warp/misdirection.ogg"]
-            self.soundDictionaries[4]["nobody move"] = [re.compile(r"^nobody move\W?$"), "sound/warp/move.ogg"]
-            self.soundDictionaries[4]["my friends"] = [re.compile(r"^my friends\W?$"), "sound/warp/my_friends.ogg"]
-            self.soundDictionaries[4]["mwahaha"] = [re.compile(r"^mwahaha\W?$"), "sound/warp/mwahaha.ogg"]
-            self.soundDictionaries[4]["my gun's bigger"] = [re.compile(r"^my gun'?s bigger\W?$"), "sound/warp/mygunsbigger.ogg"]
-            self.soundDictionaries[4]["nades"] = [re.compile(r"^nades\W?$"), "sound/warp/nades.ogg"]
-            self.soundDictionaries[4]["never look back"] = [re.compile(r"^(?:never look back|muddy(?:creek)?)\W?$"), "sound/warp/neverlookback.ogg"]
-            self.soundDictionaries[4]["nonono"] = [re.compile(r"^no( )?no( )?no\W?$"), "sound/warp/nonono.ogg"]
-            self.soundDictionaries[4]["nutsack"] = [re.compile(r"^nutsack\W?$"), "sound/warp/nutsack.ogg"]
-            self.soundDictionaries[4]["my god"] = [re.compile(r"^my god\W?$"), "sound/warp/oh_my_god.ogg"]
-            self.soundDictionaries[4]["on me"] = [re.compile(r"^on me\W?$"), "sound/warp/onme.ogg"]
-            self.soundDictionaries[4]["on my mom"] = [re.compile(r"^(?:on my mom)\W?|\( ͡° ͜ʖ ͡°\)$"), "sound/warp/onmymom.ogg"]
-            self.soundDictionaries[4]["ow what the"] = [re.compile(r"^(ow )?what the\W?"), "sound/warp/owwhatthe.ogg"]
-            self.soundDictionaries[4]["pain in the ass"] = [re.compile(r"^pain in the ass\W?$"), "sound/warp/pain.ogg"]
-            self.soundDictionaries[4]["pan out"] = [re.compile(r"^pan out\W?$"), "sound/warp/panout.ogg"]
-            self.soundDictionaries[4]["pee bad"] = [re.compile(r"^pee bad\W?$"), "sound/warp/pee_bad.ogg"]
-            self.soundDictionaries[4]["pee myself"] = [re.compile(r"^pee myself\W?$"), "sound/warp/pee_myself.ogg"]
-            self.soundDictionaries[4]["petty"] = [re.compile(r"^petty\W?$"), "sound/warp/petty.ogg"]
-            self.soundDictionaries[4]["pie intro"] = [re.compile(r"^pie intro\W?$"), "sound/warp/pie_intro4.ogg"]
-            self.soundDictionaries[4]["pile of shit"] = [re.compile(r"^pile( of shit)?\W?$"), "sound/warp/pile.ogg"]
-            self.soundDictionaries[4]["pizza time"] = [re.compile(r"^pizza time\W?$"), "sound/warp/pizza_time.ogg"]
-            self.soundDictionaries[4]["plasma"] = [re.compile(r"^(?:(respect )?(the )?plasma)\W?"), "sound/warp/plasma.ogg"]
-            self.soundDictionaries[4]["plus back"] = [re.compile(r"^plus back\W?$"), "sound/warp/plus_back.ogg"]
-            self.soundDictionaries[4]["poop myself"] = [re.compile(r"^poop myself\W?$"), "sound/warp/poop_myself.ogg"]
-            self.soundDictionaries[4]["good point"] = [re.compile(r"^good point\W?$"), "sound/warp/point.ogg"]
-            self.soundDictionaries[4]["quarter"] = [re.compile(r"^quarter\W?$"), "sound/warp/quarter.ogg"]
-            self.soundDictionaries[4]["question"] = [re.compile(r"^question\W?$"), "sound/warp/question.ogg"]
-            self.soundDictionaries[4]["rage"] = [re.compile(r"^rage\W?$"), "sound/warp/rage.ogg"]
-            self.soundDictionaries[4]["real me"] = [re.compile(r"^real me\W?$"), "sound/warp/realme.ogg"]
-            self.soundDictionaries[4]["roll with"] = [re.compile(r"^roll with\W?$"), "sound/warp/roll_with.ogg"]
-            self.soundDictionaries[4]["no longer require"] = [re.compile(r"^no longer require\W?$"), "sound/warp/require.ogg"]
-            self.soundDictionaries[4]["ready for this"] = [re.compile(r"^ready for this\W?$"), "sound/warp/rochelle_ready.ogg"]
-            self.soundDictionaries[4]["rock this"] = [re.compile(r"^rock this\W?$"), "sound/warp/rockthis.ogg"]
-            self.soundDictionaries[4]["santa"] = [re.compile(r"^santa\W?$"), "sound/warp/santa.ogg"]
-            self.soundDictionaries[4]["say my name"] = [re.compile(r"^say my name\W?$"), "sound/warp/saymyname.ogg"]
-            self.soundDictionaries[4]["you can scream"] = [re.compile(r"^you can scream\W?$"), "sound/warp/scream.ogg"]
-            self.soundDictionaries[4]["shart"] = [re.compile(r"^shart\W?$"), "sound/warp/shart.ogg"]
-            self.soundDictionaries[4]["shartt"] = [re.compile(r"^shartt\W?$"), "sound/warp/shartt.ogg"]
-            self.soundDictionaries[4]["skullcrusher"] = [re.compile(r"^skull|skullcrusher\W?$"), "sound/warp/skull.ogg"]
-            self.soundDictionaries[4]["smiley face"] = [re.compile(r"^(?:smiley face\W?)|:\)|:-\)|:\]|\(:$"), "sound/warp/smileyface.ogg"]
-            self.soundDictionaries[4]["oh snap"] = [re.compile(r"^(oh )?snap\W?$"), "sound/warp/snap.ogg"]
-            self.soundDictionaries[4]["sneezed"] = [re.compile(r"^sneezed\W?$"), "sound/warp/sneezed.ogg"]
-            self.soundDictionaries[4]["solitude"] = [re.compile(r"^solitude\W?$"), "sound/warp/solitude.ogg"]
-            self.soundDictionaries[4]["sorry"] = [re.compile(r"^sorry\W?$"), "sound/warp/sorry.ogg"]
-            self.soundDictionaries[4]["spagetti"] = [re.compile(r"^spagetti\W?$"), "sound/warp/spagetti.ogg"]
-            self.soundDictionaries[4]["human speech"] = [re.compile(r"^(human )?speech\W?$"), "sound/warp/speech.ogg"]
-            self.soundDictionaries[4]["sprechen sie dick"] = [re.compile(r"^sprechen sie dick\W?$"), "sound/warp/sprechensiedick.ogg"]
-            self.soundDictionaries[4]["start over"] = [re.compile(r"^start over\W?$"), "sound/warp/startover.ogg"]
-            self.soundDictionaries[4]["stfu cunt"] = [re.compile(r"^stfu cunt\W?$"), "sound/warp/stfu.ogg"]
-            self.soundDictionaries[4]["study harder"] = [re.compile(r"^study harder\W?$"), "sound/warp/study_harder.ogg"]
-            self.soundDictionaries[4]["stunned our ride"] = [re.compile(r"^stunned our ride\W?$"), "sound/warp/stunned.ogg"]
-            self.soundDictionaries[4]["sure"] = [re.compile(r"^sure\W?$"), "sound/warp/sure.ogg"]
-            self.soundDictionaries[4]["swallow"] = [re.compile(r"^swallow\W?$"), "sound/warp/swallow.ogg"]
-            self.soundDictionaries[4]["take a break"] = [re.compile(r"^take a break|wally\W?$"), "sound/warp/takeabreaknow.ogg"]
-            self.soundDictionaries[4]["take down"] = [re.compile(r"^take down\W?$"), "sound/warp/takedown.ogg"]
-            self.soundDictionaries[4]["the creeps"] = [re.compile(r"^the creeps\W?$"), "sound/warp/tali_creeps.ogg"]
-            self.soundDictionaries[4]["used to living"] = [re.compile(r"^used to living\W?$"), "sound/warp/tali_usedtoliving.ogg"]
-            self.soundDictionaries[4]["talk to me"] = [re.compile(r"^talk to me\W?$"), "sound/warp/talk.ogg"]
-            self.soundDictionaries[4]["asshole"] = [re.compile(r"^asshole\W?$"), "sound/warp/tastless_asshole.ogg"]
-            self.soundDictionaries[4]["tears"] = [re.compile(r"^tears\W?$"), "sound/warp/tears.ogg"]
-            self.soundDictionaries[4]["that's right"] = [re.compile(r"^that'?s right\W?$"), "sound/warp/thatsright.ogg"]
-            self.soundDictionaries[4]["the talk"] = [re.compile(r"^the talk\W?$"), "sound/warp/the_talk.ogg"]
-            self.soundDictionaries[4]["think"] = [re.compile(r"^think\W?$"), "sound/warp/think.ogg"]
-            self.soundDictionaries[4]["tricked"] = [re.compile(r"^tricked\W?$"), "sound/warp/tricked.ogg"]
-            self.soundDictionaries[4]["trusted"] = [re.compile(r"^trusted\W?$"), "sound/warp/trusted.ogg"]
-            self.soundDictionaries[4]["trust me"] = [re.compile(r"^trust me\W?$"), "sound/warp/trustme.ogg"]
-            self.soundDictionaries[4]["target"] = [re.compile(r"^target\W?$"), "sound/warp/turret_target.ogg"]
-            self.soundDictionaries[4]["ugly stick"] = [re.compile(r"^ugly stick\W?$"), "sound/warp/ugly.ogg"]
-            self.soundDictionaries[4]["unfair"] = [re.compile(r"^unfair\W?$"), "sound/warp/unfair.ogg"]
-            self.soundDictionaries[4]["unicorn"] = [re.compile(r"^unicorn\W?$"), "sound/warp/unicorn.ogg"]
-            self.soundDictionaries[4]["v3"] = [re.compile(r"^(?:v3|vestek)\W?$"), "sound/warp/v3.ogg"]
-            self.soundDictionaries[4]["valid"] = [re.compile(r"^valid\W?$"), "sound/warp/valid.ogg"]
-            self.soundDictionaries[4]["very nice"] = [re.compile(r"^very nice\W?$"), "sound/warp/very_nice.ogg"]
-            self.soundDictionaries[4]["vewy angwy"] = [re.compile(r"^vewy angwy\W?$"), "sound/warp/vewy_angwy.ogg"]
-            self.soundDictionaries[4]["volunteer"] = [re.compile(r"^volunteer\W?$"), "sound/warp/volunteer.ogg"]
-            self.soundDictionaries[4]["waiting"] = [re.compile(r"^waiting\W?$"), "sound/warp/waiting.ogg"]
-            self.soundDictionaries[4]["walk"] = [re.compile(r"^walk\W?$"), "sound/warp/walk.ogg"]
-            self.soundDictionaries[4]["what i want"] = [re.compile(r"^what i want\W?$"), "sound/warp/want.ogg"]
-            self.soundDictionaries[4]["at war"] = [re.compile(r"^at war\W?$"), "sound/warp/war.ogg"]
-            self.soundDictionaries[4]["warp server intro"] = [re.compile(r"^(warp server intro)|(quality)\W?$"), "sound/warp/warpserverintro.ogg"]
-            self.soundDictionaries[4]["wednesday"] = [re.compile(r"^wednesday\W?$"), "sound/warp/wednesday.ogg"]
-            self.soundDictionaries[4]["wee lamb"] = [re.compile(r"^wee lamb\W?$"), "sound/warp/weelamb.ogg"]
-            self.soundDictionaries[4]["well"] = [re.compile(r"^well\W?$"), "sound/warp/well.ogg"]
-            self.soundDictionaries[4]["we're grownups"] = [re.compile(r"^we'?re grownups\W?$"), "sound/warp/weregrownups.ogg"]
-            self.soundDictionaries[4]["what happened"] = [re.compile(r"^what happened\W?$"), "sound/warp/whathappened.ogg"]
-            self.soundDictionaries[4]["what is this"] = [re.compile(r"^what is this\W?$"), "sound/warp/whatisthis.ogg"]
-            self.soundDictionaries[4]["what now"] = [re.compile(r"^what now\W?$"), "sound/warp/whatnow.ogg"]
-            self.soundDictionaries[4]["what the"] = [re.compile(r"^what the\W?$"), "sound/warp/whatthe.ogg"]
-            self.soundDictionaries[4]["where the fuck"] = [re.compile(r"^where the( fuck)?\W?$"), "sound/warp/where_the_fuck.ogg"]
-            self.soundDictionaries[4]["winnie the pew"] = [re.compile(r"^winnie( the pew)?\W?$"), "sound/warp/winnie_the_pew.ogg"]
-            self.soundDictionaries[4]["with my fist"] = [re.compile(r"^(?:(with )?my fist|strat0?)\W?$"), "sound/warp/withmyfist.ogg"]
-            self.soundDictionaries[4]["busy"] = [re.compile(r"^busy\W?$"), "sound/warp/wrex_busy.ogg"]
-            self.soundDictionaries[4]["sometimes crazy"] = [re.compile(r"^sometimes crazy\W?$"), "sound/warp/wrex_crazy.ogg"]
-            self.soundDictionaries[4]["i like"] = [re.compile(r"^i like\W?$"), "sound/warp/wrex_like.ogg"]
-            self.soundDictionaries[4]["orders"] = [re.compile(r"^orders\W?$"), "sound/warp/wrex_orders.ogg"]
-            self.soundDictionaries[4]["right behind you"] = [re.compile(r"^right behind you\W?$"), "sound/warp/wrex_rightbehindyou.ogg"]
-            self.soundDictionaries[4]["what can i do"] = [re.compile(r"^what can i do\W?$"), "sound/warp/wrex_whatcanido.ogg"]
-            self.soundDictionaries[4]["your mom"] = [re.compile(r"^(?:your mom|pug(ster)?)\W?$"), "sound/warp/yourmom.ogg"]
-            self.soundDictionaries[4]["zooma"] = [re.compile(r"^(?:zooma?|xuma)\W?$"), "sound/warp/zooma.ogg"]
+            self.db.set(SOUND_TRIGGERS.format(4, "aiming"), "^aiming\W?$, sound/warp/aiming.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "always open cat"), "^always open\W?$, sound/warp/always_open.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "thanks for the advice"), "^thanks for the advice\W?$, sound/warp/ash_advice.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "angry cat"), "^angry cat\W?$, sound/warp/angry_cat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "appreciate"), "^appreciate\W?$, sound/warp/ash_appreciate.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "looking forward to it"), "^looking forward to it\W?$, sound/warp/ash_lookingforwardtoit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "make me"), "^make me\W?$, sound/warp/ash_makeme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pessimist"), "^pessimist\W?$, sound/warp/ash_pessimist.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "shoot me now"), "^shoot me now\W?$, sound/warp/ash_shootmenow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "shoot on sight"), "^shoot on sight\W?$, sound/warp/ash_shootonsight.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "won't happen again"), "^won'?t happen again\W?$, sound/warp/ash_wonthappenagain.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "attractive"), "^attractive\W?$, sound/warp/attractive.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "awesome"), "^awesome\W?$, sound/warp/awesome.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "awkward"), "^awkward\W?$, sound/warp/awkward.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bad feeling"), "^bad feeling\W?$, sound/warp/badfeeling.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bad idea"), "^bad idea\W?$, sound/warp/badidea.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ballbag"), "^ballbag\W?$, sound/warp/ballbag.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bburp"), "^bburp\W?$, sound/warp/bburp.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bburpp"), "^bburpp\W?$, sound/warp/bburpp.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "believe"), "^believe\W?$, sound/warp/believe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bend me over"), "^bend me over\W?$, sound/warp/bend_me_over.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "big leagues"), "^big leagues\W?$, sound/warp/bigleagues.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bike horn"), "^bike horn\W?$, sound/warp/bike_horn.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bj"), "^bj\W?$, sound/warp/bj.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "kill you with my brain"), "^kill you with my brain\W?$, sound/warp/brain.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bravery"), "^bravery\W?$, sound/warp/bravery.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "broke"), "^broke\W?$, sound/warp/broke.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "space bugs"), "^space bugs\W?$, sound/warp/bugs.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "bunk"), "^bunk\W?$, sound/warp/bunk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "burp"), "^burp\W?$, sound/warp/burp.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "burpp"), "^burpp\W?$, sound/warp/burpp.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "cover your butt"), "^cover your butt\W?$, sound/warp/butt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "came out"), "^came out\W?$, sound/warp/cameout.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "anybody care"), "^anybody care\W?$, sound/warp/care.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "catch"), "^catch\W?$, sound/warp/catch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "castrate"), "^castrate\W?$, sound/warp/castrate.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "cat scream"), "^cat scream\W?$, sound/warp/cat_scream.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "hello2"), "^hello2\W?$, sound/warp/coach_hello.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "corny"), "^corny\W?$, sound/warp/corny.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "cock push ups"), "^(?:(cock )?push ups)\W?$, sound/warp/cockpushups.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "code"), "^code\W?$, sound/warp/code.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "cold"), "^cold\W?$, sound/warp/cold.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "college student"), "^college student\W?$, sound/warp/college.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "crush your enemies"), "^(?:crush( your enemies)?|conana(palooza)?)\W?$, sound/warp/conana.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "confident"), "^confident\W?$, sound/warp/confident.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "cooperation"), "^cooperation\W?$, sound/warp/cooperation.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "cow dick"), "^cow dick\W?$, sound/warp/cowdick.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "go crazy"), "^go crazy\W?$, sound/warp/crazy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "crowded"), "^crowded\W?$, sound/warp/crowded.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "dance off"), "^dance off\W?$, sound/warp/danceoff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "dead"), "^dead\W?$, sound/warp/dead.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "dead guy"), "^dead guy\W?$, sound/warp/deadguy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "dick message"), "^dick message\W?$, sound/warp/dickmessage.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "dick slip"), "^dick slip\W?$, sound/warp/dick_slip.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "dink bag"), "^dink bag\W?$, sound/warp/dinkbag.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "dirty"), "^dirty\W?$, sound/warp/dirty.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "do as you're told"), "^do as you'?re told\W?$, sound/warp/doasyouretold.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "what have we done"), "^what have we done\W?$, sound/warp/done.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "done for the day"), "^(?:done( for the)?( day)?)\W?$, sound/warp/done_for_the_day.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "done it"), "^done it\W?$, sound/warp/doneit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "do now"), "^do now\W?$, sound/warp/donow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "don't like vaginas"), "^don'?t like vaginas\W?$, sound/warp/dontlikevaginas.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "drawing"), "^drawing\W?$, sound/warp/drawing.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "eat it"), "^eat it\W?$, sound/warp/eat_it.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "eat my grenade"), "^(?:(eat my )?grenade)\W?$, sound/warp/eatmygrenade.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "eat my"), "^eat my\W?$, sound/warp/eatmytits.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "electricity"), "^electricity\W?$, sound/warp/electricity.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "enima"), "^enima\W?$, sound/warp/enima.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "face"), "^face\W?$, sound/warp/face.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "face2"), "^face2\W?$, sound/warp/face2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fart"), "^fart\W?$, sound/warp/fart.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fartt"), "^fartt\W?$, sound/warp/fartt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "farttt"), "^farttt\W?$, sound/warp/farttt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ffart"), "^ffart\W?$, sound/warp/ffart.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ffartt"), "^ffartt\W?$, sound/warp/ffartt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ffarttt"), "^ffarttt\W?$, sound/warp/ffarttt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fffartt"), "^fffartt\W?$, sound/warp/fffartt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fffarttt"), "^fffarttt\W?$, sound/warp/fffarttt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "not fair"), "^not fair\W?$, sound/warp/fair.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "falcon pawnch"), "^falcon pawnch\W?$, sound/warp/falcon_pawnch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fall"), "^fall\W?$, sound/warp/fall.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "favor"), "^favor\W?$, sound/warp/favor.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "feel"), "^feel\W?$, sound/warp/feel.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "feels"), "^feels\W?$, sound/warp/feels.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "something wrong"), "^something wrong\??\W?$, sound/warp/femaleshepherd_somethingwrong.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "suspense"), "^suspense\W?$, sound/warp/femaleshepherd_suspense.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fog horn"), "^fog horn\W?$, sound/warp/fog_horn.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "found them"), "^found them\W?$, sound/warp/found_them.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fuku"), "^fuku\W?$, sound/warp/fuku.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fuck me"), "^fuck me\W?$, sound/warp/fuck_me.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "fuck ugly"), "^fuck ugly\W?$, sound/warp/fuck_ugly.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "awaiting orders"), "^awaiting orders\W?$, sound/warp/garrus_awaitingorders.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "got your back"), "^got your back\W?$, sound/warp/garrus_gotyourback.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "keep moving"), "^keep moving\W?$, sound/warp/garrus_keepmoving.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "nice work"), "^nice work\W?$, sound/warp/garrus_nicework.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "get away cat"), "^(?:(get away )?cat)\W?$, sound/warp/getawaycat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "get off"), "^get off\W?$, sound/warp/getoff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "wasting my time"), "^wasting my time\W?$, sound/warp/glados_wasting.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "just go crazy"), "^just go crazy\W?$, sound/warp/go_crazy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "grows"), "^grows\W?$, sound/warp/grows.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ha ha"), "^ha ha\W?$, sound/warp/haha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "heroics"), "^heroics\W?$, sound/warp/heroics.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "hop"), "^hop\W?$, sound/warp/hop.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "horrible"), "^horrible\W?$, sound/warp/horrible.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "huge vagina"), "^huge vagina\W?$, sound/warp/hugevagina.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "hunting"), "^hunting\W?$, sound/warp/hunting.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i am the law"), "^i am the law\W?$, sound/warp/iamthelaw.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "implied"), "^implied\W?$, sound/warp/implied.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i died"), "^i died\W?$, sound/warp/i_died.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i farted"), "^i farted\W?$, sound/warp/i_farted.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i don't trust you"), "^(?:(i don'?t )?trust you|leaf(green)?)\W?$, sound/warp/idonttrustyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i have a plan"), "^i have a plan\W?$, sound/warp/ihaveaplan.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i like you"), "^i like you\W?$, sound/warp/ilikeyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "intensify"), "^intensify\W?, sound/warp/intensify.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "in the ass"), "^in ?the ?ass\W?, sound/warp/intheass.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i will eat"), "^i will eat( your)?\W?$, sound/warp/iwilleatyour.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "jail"), "^jail\W?$, sound/warp/jail.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "jump pad"), "^jump pad\W?$, sound/warp/jump_pad.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "just the tip"), "^(?:just the tip|tippy(touch)?)\W?$, sound/warp/just_the_tip.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "kevin bacon"), "^kevin bacon\W?$, sound/warp/kevinbacon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "kill"), "^kill\W?$, sound/warp/kill.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "kizuna"), "^kizuna\W?$, sound/warp/kizuna.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "need to kill"), "^need to kill\W?$, sound/warp/krogan_kill.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ladybug"), "^ladybug\W?$, sound/warp/ladybug.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "legend"), "^(?:legend|ere(?:bux)?)\W?$, sound/warp/legend.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "lego maniac"), "^(?:lego maniac|zach|stukey)\W?$, sound/warp/lego_maniac.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "human relationships"), "^human relationships?\W?$, sound/warp/liara_humanrelationships.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "incredible"), "^incredible\W?$, sound/warp/liara_incredible.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "never happened"), "^never happened\W?$, sound/warp/liara_neverhappened.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "lick me"), "^lick me\W?$, sound/warp/lick_me.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "like this thing"), "^like this thing\W?$, sound/warp/like.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "wasn't listening"), "^wasn'?t listening\W?$, sound/warp/listening.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "listen up"), "^listen( up)?\W?$, sound/warp/listenup.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "look fine"), "^look fine\W?$, sound/warp/lookfine.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "lovely"), "^lovely\W?$, sound/warp/lovely.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "your luck"), "^your luck\W?$, sound/warp/luck.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "maggot"), "^maggot\W?$, sound/warp/maggot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "like an idiot"), "^like an idiot\W?$, sound/warp/makes_you_look_like_idiot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "this beat"), "^this beat\W?$, sound/warp/marg_tongue.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "killed with math"), "^(killed )?(with )?math\W?$, sound/warp/math.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "me me me"), "^me me(?: me)?\W?$, sound/warp/mememe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "metaphor"), "^metaphor\W?$, sound/warp/metaphor.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "misdirection"), "^misdirection\W?$, sound/warp/misdirection.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "nobody move"), "^nobody move\W?$, sound/warp/move.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "my friends"), "^my friends\W?$, sound/warp/my_friends.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "mwahaha"), "^mwahaha\W?$, sound/warp/mwahaha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "my gun's bigger"), "^my gun'?s bigger\W?$, sound/warp/mygunsbigger.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "nades"), "^nades\W?$, sound/warp/nades.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "never look back"), "^(?:never look back|muddy(?:creek)?)\W?$, sound/warp/neverlookback.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "nonono"), "^no( )?no( )?no\W?$, sound/warp/nonono.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "nutsack"), "^nutsack\W?$, sound/warp/nutsack.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "my god"), "^my god\W?$, sound/warp/oh_my_god.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "on me"), "^on me\W?$, sound/warp/onme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "on my mom"), "^(?:on my mom)\W?|\( ͡° ͜ʖ ͡°\)$, sound/warp/onmymom.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ow what the"), "^(ow )?what the\W?, sound/warp/owwhatthe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pain in the ass"), "^pain in the ass\W?$, sound/warp/pain.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pan out"), "^pan out\W?$, sound/warp/panout.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pee bad"), "^pee bad\W?$, sound/warp/pee_bad.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pee myself"), "^pee myself\W?$, sound/warp/pee_myself.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "petty"), "^petty\W?$, sound/warp/petty.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pie intro"), "^pie intro\W?$, sound/warp/pie_intro4.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pile of shit"), "^pile( of shit)?\W?$, sound/warp/pile.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "pizza time"), "^pizza time\W?$, sound/warp/pizza_time.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "plasma"), "^(?:(respect )?(the )?plasma)\W?, sound/warp/plasma.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "plus back"), "^plus back\W?$, sound/warp/plus_back.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "poop myself"), "^poop myself\W?$, sound/warp/poop_myself.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "good point"), "^good point\W?$, sound/warp/point.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "quarter"), "^quarter\W?$, sound/warp/quarter.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "question"), "^question\W?$, sound/warp/question.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "rage"), "^rage\W?$, sound/warp/rage.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "real me"), "^real me\W?$, sound/warp/realme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "roll with"), "^roll with\W?$, sound/warp/roll_with.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "no longer require"), "^no longer require\W?$, sound/warp/require.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ready for this"), "^ready for this\W?$, sound/warp/rochelle_ready.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "rock this"), "^rock this\W?$, sound/warp/rockthis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "santa"), "^santa\W?$, sound/warp/santa.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "say my name"), "^say my name\W?$, sound/warp/saymyname.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "you can scream"), "^you can scream\W?$, sound/warp/scream.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "shart"), "^shart\W?$, sound/warp/shart.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "shartt"), "^shartt\W?$, sound/warp/shartt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "skullcrusher"), "^skull|skullcrusher\W?$, sound/warp/skull.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "smiley face"), "^(?:smiley face\W?)|:\)|:-\)|:\]|\(:$, sound/warp/smileyface.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "oh snap"), "^(oh )?snap\W?$, sound/warp/snap.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "sneezed"), "^sneezed\W?$, sound/warp/sneezed.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "solitude"), "^solitude\W?$, sound/warp/solitude.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "sorry"), "^sorry\W?$, sound/warp/sorry.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "spagetti"), "^spagetti\W?$, sound/warp/spagetti.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "human speech"), "^(human )?speech\W?$, sound/warp/speech.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "sprechen sie dick"), "^sprechen sie dick\W?$, sound/warp/sprechensiedick.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "start over"), "^start over\W?$, sound/warp/startover.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "stfu cunt"), "^stfu cunt\W?$, sound/warp/stfu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "study harder"), "^study harder\W?$, sound/warp/study_harder.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "stunned our ride"), "^stunned our ride\W?$, sound/warp/stunned.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "sure"), "^sure\W?$, sound/warp/sure.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "swallow"), "^swallow\W?$, sound/warp/swallow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "take a break"), "^take a break|wally\W?$, sound/warp/takeabreaknow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "take down"), "^take down\W?$, sound/warp/takedown.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "the creeps"), "^the creeps\W?$, sound/warp/tali_creeps.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "used to living"), "^used to living\W?$, sound/warp/tali_usedtoliving.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "talk to me"), "^talk to me\W?$, sound/warp/talk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "asshole"), "^asshole\W?$, sound/warp/tastless_asshole.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "tears"), "^tears\W?$, sound/warp/tears.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "that's right"), "^that'?s right\W?$, sound/warp/thatsright.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "the talk"), "^the talk\W?$, sound/warp/the_talk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "think"), "^think\W?$, sound/warp/think.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "tricked"), "^tricked\W?$, sound/warp/tricked.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "trusted"), "^trusted\W?$, sound/warp/trusted.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "trust me"), "^trust me\W?$, sound/warp/trustme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "target"), "^target\W?$, sound/warp/turret_target.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "ugly stick"), "^ugly stick\W?$, sound/warp/ugly.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "unfair"), "^unfair\W?$, sound/warp/unfair.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "unicorn"), "^unicorn\W?$, sound/warp/unicorn.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "v3"), "^(?:v3|vestek)\W?$, sound/warp/v3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "valid"), "^valid\W?$, sound/warp/valid.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "very nice"), "^very nice\W?$, sound/warp/very_nice.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "vewy angwy"), "^vewy angwy\W?$, sound/warp/vewy_angwy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "volunteer"), "^volunteer\W?$, sound/warp/volunteer.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "waiting"), "^waiting\W?$, sound/warp/waiting.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "walk"), "^walk\W?$, sound/warp/walk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "what i want"), "^what i want\W?$, sound/warp/want.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "at war"), "^at war\W?$, sound/warp/war.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "warp server intro"), "^(warp server intro)|(quality)\W?$, sound/warp/warpserverintro.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "wednesday"), "^wednesday\W?$, sound/warp/wednesday.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "wee lamb"), "^wee lamb\W?$, sound/warp/weelamb.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "well"), "^well\W?$, sound/warp/well.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "we're grownups"), "^we'?re grownups\W?$, sound/warp/weregrownups.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "what happened"), "^what happened\W?$, sound/warp/whathappened.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "what is this"), "^what is this\W?$, sound/warp/whatisthis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "what now"), "^what now\W?$, sound/warp/whatnow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "what the"), "^what the\W?$, sound/warp/whatthe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "where the fuck"), "^where the( fuck)?\W?$, sound/warp/where_the_fuck.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "winnie the pew"), "^winnie( the pew)?\W?$, sound/warp/winnie_the_pew.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "with my fist"), "^(?:(with )?my fist|strat0?)\W?$, sound/warp/withmyfist.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "busy"), "^busy\W?$, sound/warp/wrex_busy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "sometimes crazy"), "^sometimes crazy\W?$, sound/warp/wrex_crazy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "i like"), "^i like\W?$, sound/warp/wrex_like.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "orders"), "^orders\W?$, sound/warp/wrex_orders.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "right behind you"), "^right behind you\W?$, sound/warp/wrex_rightbehindyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "what can i do"), "^what can i do\W?$, sound/warp/wrex_whatcanido.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "your mom"), "^(?:your mom|pug(ster)?)\W?$, sound/warp/yourmom.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "zooma"), "^(?:zooma?|xuma)\W?$, sound/warp/zooma.ogg")
 
         if self.Enabled_SoundPacks[5]:
-            self.soundDictionaries[5]["2ez"] = [re.compile(r"(?:2ez|too easy)\W?"), "sound/westcoastcrew/2ez.ogg"]
-            self.soundDictionaries[5]["ability"] = [re.compile(r"ability\W?"), "sound/westcoastcrew/ability.ogg"]
-            self.soundDictionaries[5]["ahsi"] = [re.compile(r"^ahsi\W?$"), "sound/westcoastcrew/ahsi.ogg"]
-            self.soundDictionaries[5]["all dead"] = [re.compile(r"^all( )?dead\W?$"), "sound/westcoastcrew/alldead.ogg"]
-            self.soundDictionaries[5]["kinrazed"] = [re.compile(r"kinrazed\W?"), "sound/westcoastcrew/alright.ogg"]
-            self.soundDictionaries[5]["another one bites the dustt"] = [re.compile(r"(another one )?bites the dustt\W?$"), "sound/westcoastcrew/anotherbitesdust.ogg"]
-            self.soundDictionaries[5]["another one bites the dust"] = [re.compile(r"(another one )?bites the dust\W?$"), "sound/westcoastcrew/anotheronebitesthedust.ogg"]
-            self.soundDictionaries[5]["and another one gone"] = [re.compile(r"and another one gone\W?"), "sound/westcoastcrew/anotheronegone.ogg"]
-            self.soundDictionaries[5]["atustamena"] = [re.compile(r"atustamena\W?"), "sound/westcoastcrew/atustamena.ogg"]
-            self.soundDictionaries[5]["ay caramba"] = [re.compile(r"^ay caramba\W?"), "sound/westcoastcrew/aycaramba.ogg"]
-            self.soundDictionaries[5]["baby back"] = [re.compile(r"^baby( )?back\W?$"), "sound/westcoastcrew/babyback.ogg"]
-            self.soundDictionaries[5]["badabababa"] = [re.compile(r"^badababa(ba)?\W?$"), "sound/westcoastcrew/badabababa.ogg"]
-            self.soundDictionaries[5]["baiting"] = [re.compile(r"baitin\W?"), "sound/westcoastcrew/baiting.ogg"]
-            self.soundDictionaries[5]["ballin"] = [re.compile(r"^ballin\W?$"), "sound/westcoastcrew/ballin.ogg"]
-            self.soundDictionaries[5]["bender"] = [re.compile(r"^bender\W?$"), "sound/westcoastcrew/bender.ogg"]
-            self.soundDictionaries[5]["biff"] = [re.compile(r"biff\W?"), "sound/westcoastcrew/biff.ogg"]
-            self.soundDictionaries[5]["outro"] = [re.compile(r"outro\W?"), "sound/westcoastcrew/biggerlove.ogg"]
-            self.soundDictionaries[5]["bigpippin"] = [re.compile(r"^bigpippin\W?$"), "sound/westcoastcrew/bigpippin.ogg"]
-            self.soundDictionaries[5]["big whoop"] = [re.compile(r"(?:big wh?oop)\W?$"), "sound/westcoastcrew/bigwhoop.ogg"]
-            self.soundDictionaries[5]["bite my shiny metal ass"] = [re.compile(r"^bite my shiny metal ass\W?"), "sound/westcoastcrew/bitemyshinymetalass.ogg"]
-            self.soundDictionaries[5]["bofumballs"] = [re.compile(r"^bofumb(alls)?\W?$"), "sound/westcoastcrew/bofumballs.ogg"]
-            self.soundDictionaries[5]["boomshakalaka"] = [re.compile(r"boomshakalaka\W?"), "sound/westcoastcrew/boomshakalaka.ogg"]
-            self.soundDictionaries[5]["borracho"] = [re.compile(r"^borracho\W?$"), "sound/westcoastcrew/borracho.ogg"]
-            self.soundDictionaries[5]["bumblebee tuna"] = [re.compile(r"(?:your balls are showing|bumblebee tuna)\W?"), "sound/westcoastcrew/bumblebeetuna.ogg"]
-            self.soundDictionaries[5]["bum bum"] = [re.compile(r"^bum( )?bum\W?$"), "sound/westcoastcrew/bumbum.ogg"]
-            self.soundDictionaries[5]["bweenabwaana"] = [re.compile(r"^bweena(bwaana)?\W?$"), "sound/westcoastcrew/bweenabwaana.ogg"]
-            self.soundDictionaries[5]["c3"] = [re.compile(r"^c3\W?$"), "sound/westcoastcrew/c3.ogg"]
-            self.soundDictionaries[5]["campingtroll"] = [re.compile(r"(?:campingtroll|baby got back)\W?"), "sound/westcoastcrew/campingtroll.ogg"]
-            self.soundDictionaries[5]["cann"] = [re.compile(r"^cann\W?$"), "sound/westcoastcrew/cann.ogg"]
+            self.db.set(SOUND_TRIGGERS.format(5, "2ez"), "(?:2ez|too easy)\W?, sound/westcoastcrew/2ez.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ability"), "ability\W?, sound/westcoastcrew/ability.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ahsi"), "^ahsi\W?$, sound/westcoastcrew/ahsi.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "all dead"), "^all( )?dead\W?$, sound/westcoastcrew/alldead.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "kinrazed"), "kinrazed\W?, sound/westcoastcrew/alright.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "another one bites the dustt"), "(another one )?bites the dustt\W?$, sound/westcoastcrew/anotherbitesdust.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "another one bites the dust"), "(another one )?bites the dust\W?$, sound/westcoastcrew/anotheronebitesthedust.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "and another one gone"), "and another one gone\W?, sound/westcoastcrew/anotheronegone.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "atustamena"), "atustamena\W?, sound/westcoastcrew/atustamena.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ay caramba"), "^ay caramba\W?, sound/westcoastcrew/aycaramba.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "baby back"), "^baby( )?back\W?$, sound/westcoastcrew/babyback.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "badabababa"), "^badababa(ba)?\W?$, sound/westcoastcrew/badabababa.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "baiting"), "baitin\W?, sound/westcoastcrew/baiting.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ballin"), "^ballin\W?$, sound/westcoastcrew/ballin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bender"), "^bender\W?$, sound/westcoastcrew/bender.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "biff"), "biff\W?, sound/westcoastcrew/biff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "outro"), "outro\W?, sound/westcoastcrew/biggerlove.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bigpippin"), "^bigpippin\W?$, sound/westcoastcrew/bigpippin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "big whoop"), "(?:big wh?oop)\W?$, sound/westcoastcrew/bigwhoop.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bite my shiny metal ass"), "^bite my shiny metal ass\W?, sound/westcoastcrew/bitemyshinymetalass.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bofumballs"), "^bofumb(alls)?\W?$, sound/westcoastcrew/bofumballs.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "boomshakalaka"), "boomshakalaka\W?, sound/westcoastcrew/boomshakalaka.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "borracho"), "^borracho\W?$, sound/westcoastcrew/borracho.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bumblebee tuna"), "(?:your balls are showing|bumblebee tuna)\W?, sound/westcoastcrew/bumblebeetuna.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bum bum"), "^bum( )?bum\W?$, sound/westcoastcrew/bumbum.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bweenabwaana"), "^bweena(bwaana)?\W?$, sound/westcoastcrew/bweenabwaana.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "c3"), "^c3\W?$, sound/westcoastcrew/c3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "campingtroll"), "(?:campingtroll|baby got back)\W?, sound/westcoastcrew/campingtroll.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "cann"), "^cann\W?$, sound/westcoastcrew/cann.ogg")
             # repeat of FunnySounds
-            #self.soundDictionaries[5]["can't touch this"] = [re.compile(r"^can'?t touch this\W?$"), "sound/westcoastcrew/CantTouchThis.ogg"]
-            self.soundDictionaries[5]["captains draft"] = [re.compile(r"^captains( )?draft\W?$"), "sound/westcoastcrew/captainsdraft.ogg"]
-            self.soundDictionaries[5]["cheers"] = [re.compile(r"^cheers\W?$"), "sound/westcoastcrew/cheers.ogg"]
-            self.soundDictionaries[5]["cheers2"] = [re.compile(r"^cheers2\W?$"), "sound/westcoastcrew/cheers2.ogg"]
-            self.soundDictionaries[5]["chocosaurus"] = [re.compile(r"^chocosaurus\W?$"), "sound/westcoastcrew/chocosaurus.ogg"]
-            self.soundDictionaries[5]["clear"] = [re.compile(r"^clear\W?$"), "sound/westcoastcrew/clear.ogg"]
-            self.soundDictionaries[5]["clever girl"] = [re.compile(r"^clever girl\W?"), "sound/westcoastcrew/clevergirl.ogg"]
-            self.soundDictionaries[5]["clr"] = [re.compile(r"^clr\W?$"), "sound/westcoastcrew/clr.ogg"]
-            self.soundDictionaries[5]["clr2"] = [re.compile(r"^clr2\W?"), "sound/westcoastcrew/clr2.ogg"]
-            self.soundDictionaries[5]["counting on you"] = [re.compile(r"^counting on you\W?"), "sound/westcoastcrew/countingonyou.ogg"]
-            self.soundDictionaries[5]["g1bbles"] = [re.compile(r"^g1bbles\W?"), "sound/westcoastcrew/crymeariver.ogg"]
-            self.soundDictionaries[5]["cry me a river"] = [re.compile(r"^cry me a river\W?$"), "sound/westcoastcrew/crymeariver1.ogg"]
-            self.soundDictionaries[5]["cry me a riverr"] = [re.compile(r"^cry me a riverr\W?$"), "sound/westcoastcrew/crymeariver2.ogg"]
-            self.soundDictionaries[5]["cthree"] = [re.compile(r"^cthree\W?$"), "sound/westcoastcrew/cuttingedge.ogg"]
-            self.soundDictionaries[5]["damn im good"] = [re.compile(r"^damn i'?m good\W?"), "sound/westcoastcrew/damnimgood.ogg"]
-            self.soundDictionaries[5]["dead last"] = [re.compile(r"(?:yeah,? how'?d he finish again|dead ?last)\W?"), "sound/westcoastcrew/deadlast.ogg"]
-            self.soundDictionaries[5]["did i do that"] = [re.compile(r"^did i do that\W?"), "sound/westcoastcrew/dididothat.ogg"]
-            self.soundDictionaries[5]["DDDid i do that"] = [re.compile(r"^DDDid i do that\W?"), "sound/westcoastcrew/dididothat2.ogg"]
+            #self.db.set(SOUND_TRIGGERS.format(5, "can't touch this"), "^can'?t touch this\W?$, sound/westcoastcrew/CantTouchThis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "captains draft"), "^captains( )?draft\W?$, sound/westcoastcrew/captainsdraft.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "cheers"), "^cheers\W?$, sound/westcoastcrew/cheers.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "cheers2"), "^cheers2\W?$, sound/westcoastcrew/cheers2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "chocosaurus"), "^chocosaurus\W?$, sound/westcoastcrew/chocosaurus.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "clear"), "^clear\W?$, sound/westcoastcrew/clear.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "clever girl"), "^clever girl\W?, sound/westcoastcrew/clevergirl.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "clr"), "^clr\W?$, sound/westcoastcrew/clr.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "clr2"), "^clr2\W?, sound/westcoastcrew/clr2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "counting on you"), "^counting on you\W?, sound/westcoastcrew/countingonyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "g1bbles"), "^g1bbles\W?, sound/westcoastcrew/crymeariver.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "cry me a river"), "^cry me a river\W?$, sound/westcoastcrew/crymeariver1.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "cry me a riverr"), "^cry me a riverr\W?$, sound/westcoastcrew/crymeariver2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "cthree"), "^cthree\W?$, sound/westcoastcrew/cuttingedge.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "damn im good"), "^damn i'?m good\W?, sound/westcoastcrew/damnimgood.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dead last"), "(?:yeah,? how'?d he finish again|dead ?last)\W?, sound/westcoastcrew/deadlast.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "did i do that"), "^did i do that\W?, sound/westcoastcrew/dididothat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "DDDid i do that"), "^DDDid i do that\W?, sound/westcoastcrew/dididothat2.ogg")
             # repeat of Prestige Sounds
-            # self.soundDictionaries[5]["die"] = [re.compile(r"^die$"), "sound/westcoastcrew/die.ogg"]
-            self.soundDictionaries[5]["die already"] = [re.compile(r"^die already\W?$"), "sound/westcoastcrew/diealready.ogg"]
-            self.soundDictionaries[5]["die mothafuckas"] = [re.compile(r"^die mothafuckas\W?"), "sound/westcoastcrew/diemothafuckas.ogg"]
-            self.soundDictionaries[5]["die motherfucker"] = [re.compile(r"^die motherfucker\W?"), "sound/westcoastcrew/diemotherfucker.ogg"]
-            self.soundDictionaries[5]["it's a disastah"] = [re.compile(r"(?:(it'?s a )?disast(ah)?)\W?"), "sound/westcoastcrew/disastah.ogg"]
-            self.soundDictionaries[5]["dominating"] = [re.compile(r"dominating\W?"), "sound/westcoastcrew/dominating.ogg"]
-            self.soundDictionaries[5]["your'e doomed"] = [re.compile(r"(?:your'?e doome?'?d)"), "sound/westcoastcrew/doomed.ogg"]
-            self.soundDictionaries[5]["dr1nya"] = [re.compile(r"^dr1nya\W?$"), "sound/westcoastcrew/dr1nya.ogg"]
-            self.soundDictionaries[5]["drunk"] = [re.compile(r"(?:^drunk|always smokin' blunts|gettin' drunk)\W?"), "sound/westcoastcrew/drunk.ogg"]
-            self.soundDictionaries[5]["dundun"] = [re.compile(r"^(?:dun ?dun)\W?$"), "sound/westcoastcrew/dundun.ogg"]
-            self.soundDictionaries[5]["dundundun"] = [re.compile(r"^(?:dun dun dun|dundundun)\W?$"), "sound/westcoastcrew/dundundun.ogg"]
-            self.soundDictionaries[5]["dundundundun"] = [re.compile(r"^(?:dun dun dun dun|dundundundun)\W?$"), "sound/westcoastcrew/dundundundun.ogg"]
-            self.soundDictionaries[5]["easy as 123"] = [re.compile(r"(?:easy as|ABC)\W?"), "sound/westcoastcrew/easyas.ogg"]
-            self.soundDictionaries[5]["easy come easy go"] = [re.compile(r"easy come easy go\W?"), "sound/westcoastcrew/easycomeeasygo.ogg"]
-            self.soundDictionaries[5]["ehtogg"] = [re.compile(r"^ehtogg\W?$"), "sound/westcoastcrew/ehtogg.ogg"]
-            self.soundDictionaries[5]["elo"] = [re.compile(r"^elo\W?"), "sound/westcoastcrew/elo.ogg"]
-            self.soundDictionaries[5]["enemy pick"] = [re.compile(r"^enemy( )?pick\W?$"), "sound/westcoastcrew/enemypick.ogg"]
-            self.soundDictionaries[5]["ez"] = [re.compile(r"(?:^ez|^easy$|so easy|that was easy|that was ez)"), "sound/westcoastcrew/ez.ogg"]
-            self.soundDictionaries[5]["f33"] = [re.compile(r"f33\W?"), "sound/westcoastcrew/f3.ogg"]
-            self.soundDictionaries[5]["facial"] = [re.compile(r"facial\W?"), "sound/westcoastcrew/facial.ogg"]
-            self.soundDictionaries[5]["feroz"] = [re.compile(r"feroz\W?"), "sound/westcoastcrew/feroz.ogg"]
-            self.soundDictionaries[5]["filthy zealot"] = [re.compile(r"(?:keep the change|filthy zealot)\W?"), "sound/westcoastcrew/filthyzealot.ogg"]
-            self.soundDictionaries[5]["flush"] = [re.compile(r"flush\W?"), "sound/westcoastcrew/flush.ogg"]
-            self.soundDictionaries[5]["fox"] = [re.compile(r"^fox\W?$"), "sound/westcoastcrew/fox.ogg"]
-            self.soundDictionaries[5]["fuckin bitch"] = [re.compile(r"^fuckin bitch"), "sound/westcoastcrew/fuckinbitch.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "die"), "^die$, sound/westcoastcrew/die.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "die already"), "^die already\W?$, sound/westcoastcrew/diealready.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "die mothafuckas"), "^die mothafuckas\W?, sound/westcoastcrew/diemothafuckas.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "die motherfucker"), "^die motherfucker\W?, sound/westcoastcrew/diemotherfucker.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "it's a disastah"), "(?:(it'?s a )?disast(ah)?)\W?, sound/westcoastcrew/disastah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dominating"), "dominating\W?, sound/westcoastcrew/dominating.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "your'e doomed"), "(?:your'?e doome?'?d), sound/westcoastcrew/doomed.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dr1nya"), "^dr1nya\W?$, sound/westcoastcrew/dr1nya.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "drunk"), "(?:^drunk|always smokin' blunts|gettin' drunk)\W?, sound/westcoastcrew/drunk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dundun"), "^(?:dun ?dun)\W?$, sound/westcoastcrew/dundun.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dundundun"), "^(?:dun dun dun|dundundun)\W?$, sound/westcoastcrew/dundundun.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dundundundun"), "^(?:dun dun dun dun|dundundundun)\W?$, sound/westcoastcrew/dundundundun.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "easy as 123"), "(?:easy as|ABC)\W?, sound/westcoastcrew/easyas.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "easy come easy go"), "easy come easy go\W?, sound/westcoastcrew/easycomeeasygo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ehtogg"), "^ehtogg\W?$, sound/westcoastcrew/ehtogg.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "elo"), "^elo\W?, sound/westcoastcrew/elo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "enemy pick"), "^enemy( )?pick\W?$, sound/westcoastcrew/enemypick.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ez"), "(?:^ez|^easy$|so easy|that was easy|that was ez), sound/westcoastcrew/ez.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "f33"), "f33\W?, sound/westcoastcrew/f3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "facial"), "facial\W?, sound/westcoastcrew/facial.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "feroz"), "feroz\W?, sound/westcoastcrew/feroz.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "filthy zealot"), "(?:keep the change|filthy zealot)\W?, sound/westcoastcrew/filthyzealot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "flush"), "flush\W?, sound/westcoastcrew/flush.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "fox"), "^fox\W?$, sound/westcoastcrew/fox.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "fuckin bitch"), "^fuckin bitch, sound/westcoastcrew/fuckinbitch.ogg")
             # repeat of FunnySounds
-            # self.soundDictionaries[5]["Gay"] = [re.compile(r"^Gay\W?$"), "sound/westcoastcrew/Gay.ogg"]
-            self.soundDictionaries[5]["get outta here"] = [re.compile(r"^get outta here\W?"), "sound/westcoastcrew/getouttahere.ogg"]
-            self.soundDictionaries[5]["gibbles"] = [re.compile(r"^gibbles\W?$"), "sound/westcoastcrew/gibbles.ogg"]
-            self.soundDictionaries[5]["giggs"] = [re.compile(r"giggs\W?"), "sound/westcoastcrew/giggs.ogg"]
-            self.soundDictionaries[5]["gimme a break"] = [re.compile(r"gimme a break\W?"), "sound/westcoastcrew/gimmeabreak.ogg"]
-            self.soundDictionaries[5]["give up and die"] = [re.compile(r"^give up and die\W?"), "sound/westcoastcrew/giveupanddie.ogg"]
-            self.soundDictionaries[5]["godlike"] = [re.compile(r"godlike\W?"), "sound/westcoastcrew/godlike.ogg"]
-            self.soundDictionaries[5]["gojira"] = [re.compile(r"gojira\W?"), "sound/westcoastcrew/gojira.ogg"]
-            self.soundDictionaries[5]["great shot"] = [re.compile(r"great shot\W?"), "sound/westcoastcrew/greatshot.ogg"]
-            self.soundDictionaries[5]["gs"] = [re.compile(r"^gs\W?$"), "sound/westcoastcrew/gs.ogg"]
-            self.soundDictionaries[5]["h2o"] = [re.compile(r"^h2o\W?$"), "sound/westcoastcrew/h2o.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "Gay"), "^Gay\W?$, sound/westcoastcrew/Gay.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "get outta here"), "^get outta here\W?, sound/westcoastcrew/getouttahere.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "gibbles"), "^gibbles\W?$, sound/westcoastcrew/gibbles.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "giggs"), "giggs\W?, sound/westcoastcrew/giggs.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "gimme a break"), "gimme a break\W?, sound/westcoastcrew/gimmeabreak.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "give up and die"), "^give up and die\W?, sound/westcoastcrew/giveupanddie.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "godlike"), "godlike\W?, sound/westcoastcrew/godlike.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "gojira"), "gojira\W?, sound/westcoastcrew/gojira.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "great shot"), "great shot\W?, sound/westcoastcrew/greatshot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "gs"), "^gs\W?$, sound/westcoastcrew/gs.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "h2o"), "^h2o\W?$, sound/westcoastcrew/h2o.ogg")
             # repeat of Warp Sounds for Quake Live
-            # self.soundDictionaries[5]["haha"] = [re.compile(r"^haha\W?$"), "sound/westcoastcrew/haha.ogg"]
-            self.soundDictionaries[5]["hahaha2"] = [re.compile(r"hahaha2\W?$"), "sound/westcoastcrew/hahaha.ogg"]
-            self.soundDictionaries[5]["hahahaha"] = [re.compile(r"^hahahaha\W?$"), "sound/westcoastcrew/hahahaha.ogg"]
-            self.soundDictionaries[5]["happy hour"] = [re.compile(r"(:?happy hour|it?'s happy hour)\W?"), "sound/westcoastcrew/happyhour.ogg"]
-            self.soundDictionaries[5]["he's heating up"] = [re.compile(r"he'?s heating up\W?"), "sound/westcoastcrew/heatingup.ogg"]
-            self.soundDictionaries[5]["hehe"] = [re.compile(r"^hehe\W?$"), "sound/westcoastcrew/hehe.ogg"]
-            self.soundDictionaries[5]["hehehe"] = [re.compile(r"^hehehe\W?"), "sound/westcoastcrew/hehehe.ogg"]
-            self.soundDictionaries[5]["hehe yeah"] = [re.compile(r"hehe yeah\W?"), "sound/westcoastcrew/heheyeah.ogg"]
-            self.soundDictionaries[5]["hot steppah"] = [re.compile(r"^hot( )?steppah\W?$"), "sound/westcoastcrew/hotsteppah.ogg"]
-            self.soundDictionaries[5]["i'm lovin it"] = [re.compile(r"^i'?mlovin( )?it\W?$"), "sound/westcoastcrew/imlovinit.ogg"]
-            self.soundDictionaries[5]["im on fire"] = [re.compile(r"i'?m on fire\W?"), "sound/westcoastcrew/imonfire.ogg"]
-            self.soundDictionaries[5]["im stephan"] = [re.compile(r"^i'?m stephan\W?"), "sound/westcoastcrew/imstephan.ogg"]
-            self.soundDictionaries[5]["inspector norse"] = [re.compile(r"inspector\W?"), "sound/westcoastcrew/inspectornorse.ogg"]
-            self.soundDictionaries[5]["it's in the bag"] = [re.compile(r"it'?s in the bag\W?"), "sound/westcoastcrew/inthebag1.ogg"]
-            self.soundDictionaries[5]["in the bag"] = [re.compile(r"in the bag\W?"), "sound/westcoastcrew/inthebag2.ogg"]
-            self.soundDictionaries[5]["in the bagg"] = [re.compile(r"in the bagg\W?"), "sound/westcoastcrew/inthebag3.ogg"]
-            self.soundDictionaries[5]["in the baggg"] = [re.compile(r"in the baggg\W?"), "sound/westcoastcrew/inthebag4.ogg"]
-            self.soundDictionaries[5]["in the face"] = [re.compile(r"in the face\W?"), "sound/westcoastcrew/intheface.ogg"]
-            self.soundDictionaries[5]["in the zone"] = [re.compile(r"^(?:(i'?m )?in the zone)\W?$"), "sound/westcoastcrew/inthezone.ogg"]
-            self.soundDictionaries[5]["doom2"] = [re.compile(r"(?:doom2$|tell me what you came here for)\W?"), "sound/westcoastcrew/intoyou.ogg"]
-            self.soundDictionaries[5]["introtoo"] = [re.compile(r"^introtoo\W?$"), "sound/westcoastcrew/intro2.ogg"]
-            self.soundDictionaries[5]["isabadmutha"] = [re.compile(r"^isabadmutha\W?$"), "sound/westcoastcrew/isabadmutha.ogg"]
-            self.soundDictionaries[5]["jdub"] = [re.compile(r"^jdub\W?$"), "sound/westcoastcrew/jdub.ogg"]
-            self.soundDictionaries[5]["jsss"] = [re.compile(r"^jsss\W?$"), "sound/westcoastcrew/jsss.ogg"]
-            self.soundDictionaries[5]["killswitch"] = [re.compile(r"killswitch\W?"), "sound/westcoastcrew/killswitch.ogg"]
-            self.soundDictionaries[5]["kinraze"] = [re.compile(r"^kinraze\W?$"), "sound/westcoastcrew/kinraze.ogg"]
-            self.soundDictionaries[5]["lakad"] = [re.compile(r"^lakad\W?$"), "sound/westcoastcrew/lakad.ogg"]
-            self.soundDictionaries[5]["lg"] = [re.compile(r"lg\W?"), "sound/westcoastcrew/lg.ogg"]
-            self.soundDictionaries[5]["lol loser"] = [re.compile(r"(?:(lol )?loser)\W?"), "sound/westcoastcrew/lolloser.ogg"]
-            self.soundDictionaries[5]["look what you did"] = [re.compile(r"^look what you did\W?"), "sound/westcoastcrew/lookwhatyoudid.ogg"]
-            self.soundDictionaries[5]["look what you've done"] = [re.compile(r"look what you'?ve done\W?"), "sound/westcoastcrew/lookwhatyouvedone.ogg"]
-            self.soundDictionaries[5]["los"] = [re.compile(r"^los$"), "sound/westcoastcrew/los.ogg"]
-            self.soundDictionaries[5]["lovin' it"] = [re.compile(r"lovin'? it\W?"), "sound/westcoastcrew/lovinit.ogg"]
-            self.soundDictionaries[5]["makaveli"] = [re.compile(r"(?:makaveli)\W?$"), "sound/westcoastcrew/makaveli.ogg"]
-            self.soundDictionaries[5]["martin"] = [re.compile(r"martin\W?"), "sound/westcoastcrew/martin.ogg"]
-            self.soundDictionaries[5]["pizza pizza"] = [re.compile(r"(?:pizza pizza|meetzah meetzah|heetzah peetzah)\W?"), "sound/westcoastcrew/meetzah.ogg"]
-            self.soundDictionaries[5]["mirai"] = [re.compile(r"mirai\W?"), "sound/westcoastcrew/mirai.ogg"]
-            self.soundDictionaries[5]["did you miss me"] = [re.compile(r"did you miss me\W?"), "sound/westcoastcrew/missme.ogg"]
-            self.soundDictionaries[5]["mobil"] = [re.compile(r"mobil\W?"), "sound/westcoastcrew/mobil.ogg"]
-            self.soundDictionaries[5]["i'm a motherfuckin monster"] = [re.compile(r"i'?m a motherfuckin monst(er)?\W?"), "sound/westcoastcrew/monster.ogg"]
-            self.soundDictionaries[5]["monster kill"] = [re.compile(r"monster kill\W?"), "sound/westcoastcrew/monsterkill.ogg"]
-            self.soundDictionaries[5]["muthafucka"] = [re.compile(r"^muthafucka\W?$"), "sound/westcoastcrew/muthafucka.ogg"]
-            self.soundDictionaries[5]["nanana"] = [re.compile(r"^nanana\W?$"), "sound/westcoastcrew/nanana.ogg"]
-            self.soundDictionaries[5]["next level"] = [re.compile(r"^next( )?level\W?$"), "sound/westcoastcrew/nextlevel.ogg"]
-            self.soundDictionaries[5]["no no no no no"] = [re.compile(r"^no no no no no\W?"), "sound/westcoastcrew/nonononono.ogg"]
-            self.soundDictionaries[5]["nonsense"] = [re.compile(r"^nonsense\W?"), "sound/westcoastcrew/nonsense.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "haha"), "^haha\W?$, sound/westcoastcrew/haha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "hahaha2"), "hahaha2\W?$, sound/westcoastcrew/hahaha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "hahahaha"), "^hahahaha\W?$, sound/westcoastcrew/hahahaha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "happy hour"), "(:?happy hour|it?'s happy hour)\W?, sound/westcoastcrew/happyhour.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "he's heating up"), "he'?s heating up\W?, sound/westcoastcrew/heatingup.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "hehe"), "^hehe\W?$, sound/westcoastcrew/hehe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "hehehe"), "^hehehe\W?, sound/westcoastcrew/hehehe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "hehe yeah"), "hehe yeah\W?, sound/westcoastcrew/heheyeah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "hot steppah"), "^hot( )?steppah\W?$, sound/westcoastcrew/hotsteppah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "i'm lovin it"), "^i'?mlovin( )?it\W?$, sound/westcoastcrew/imlovinit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "im on fire"), "i'?m on fire\W?, sound/westcoastcrew/imonfire.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "im stephan"), "^i'?m stephan\W?, sound/westcoastcrew/imstephan.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "inspector norse"), "inspector\W?, sound/westcoastcrew/inspectornorse.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "it's in the bag"), "it'?s in the bag\W?, sound/westcoastcrew/inthebag1.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "in the bag"), "in the bag\W?, sound/westcoastcrew/inthebag2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "in the bagg"), "in the bagg\W?, sound/westcoastcrew/inthebag3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "in the baggg"), "in the baggg\W?, sound/westcoastcrew/inthebag4.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "in the face"), "in the face\W?, sound/westcoastcrew/intheface.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "in the zone"), "^(?:(i'?m )?in the zone)\W?$, sound/westcoastcrew/inthezone.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "doom2"), "(?:doom2$|tell me what you came here for)\W?, sound/westcoastcrew/intoyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "introtoo"), "^introtoo\W?$, sound/westcoastcrew/intro2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "isabadmutha"), "^isabadmutha\W?$, sound/westcoastcrew/isabadmutha.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "jdub"), "^jdub\W?$, sound/westcoastcrew/jdub.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "jsss"), "^jsss\W?$, sound/westcoastcrew/jsss.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "killswitch"), "killswitch\W?, sound/westcoastcrew/killswitch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "kinraze"), "^kinraze\W?$, sound/westcoastcrew/kinraze.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "lakad"), "^lakad\W?$, sound/westcoastcrew/lakad.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "lg"), "lg\W?, sound/westcoastcrew/lg.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "lol loser"), "(?:(lol )?loser)\W?, sound/westcoastcrew/lolloser.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "look what you did"), "^look what you did\W?, sound/westcoastcrew/lookwhatyoudid.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "look what you've done"), "look what you'?ve done\W?, sound/westcoastcrew/lookwhatyouvedone.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "los"), "^los$, sound/westcoastcrew/los.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "lovin' it"), "lovin'? it\W?, sound/westcoastcrew/lovinit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "makaveli"), "(?:makaveli)\W?$, sound/westcoastcrew/makaveli.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "martin"), "martin\W?, sound/westcoastcrew/martin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "pizza pizza"), "(?:pizza pizza|meetzah meetzah|heetzah peetzah)\W?, sound/westcoastcrew/meetzah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "mirai"), "mirai\W?, sound/westcoastcrew/mirai.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "did you miss me"), "did you miss me\W?, sound/westcoastcrew/missme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "mobil"), "mobil\W?, sound/westcoastcrew/mobil.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "i'm a motherfuckin monster"), "i'?m a motherfuckin monst(er)?\W?, sound/westcoastcrew/monster.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "monster kill"), "monster kill\W?, sound/westcoastcrew/monsterkill.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "muthafucka"), "^muthafucka\W?$, sound/westcoastcrew/muthafucka.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "nanana"), "^nanana\W?$, sound/westcoastcrew/nanana.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "next level"), "^next( )?level\W?$, sound/westcoastcrew/nextlevel.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "no no no no no"), "^no no no no no\W?, sound/westcoastcrew/nonononono.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "nonsense"), "^nonsense\W?, sound/westcoastcrew/nonsense.ogg")
             # repeat of FunnySounds
-            # self.soundDictionaries[5]["nooo"] = [re.compile(r"^nooo\W?$"), "sound/westcoastcrew/Nooo.ogg"]
-            self.soundDictionaries[5]["not tonight"] = [re.compile(r"^not( )?tonight\W?$"), "sound/westcoastcrew/nottonight.ogg"]
-            self.soundDictionaries[5]["no way"] = [re.compile(r"^no( )?way\W?$"), "sound/westcoastcrew/noway.ogg"]
-            self.soundDictionaries[5]["oblivion"] = [re.compile(r"oblivion\W?"), "sound/westcoastcrew/obliv.ogg"]
-            self.soundDictionaries[5]["obliv"] = [re.compile(r"^(?:obliv(ious)?)\W?$"), "sound/westcoastcrew/obliv2.ogg"]
-            self.soundDictionaries[5]["oh boy"] = [re.compile(r"^oh boy\W?$"), "sound/westcoastcrew/ohboy.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "nooo"), "^nooo\W?$, sound/westcoastcrew/Nooo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "not tonight"), "^not( )?tonight\W?$, sound/westcoastcrew/nottonight.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "no way"), "^no( )?way\W?$, sound/westcoastcrew/noway.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "oblivion"), "oblivion\W?, sound/westcoastcrew/obliv.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "obliv"), "^(?:obliv(ious)?)\W?$, sound/westcoastcrew/obliv2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "oh boy"), "^oh boy\W?$, sound/westcoastcrew/ohboy.ogg")
             # repeat of FunnySounds
-            # self.soundDictionaries[5]["oh no"] = [re.compile(r"^oh no\W?$"), "sound/westcoastcrew/OhNo.ogg"]
-            self.soundDictionaries[5]["he's on fire"] = [re.compile(r"he'?s on fire\W?"), "sound/westcoastcrew/onfire.ogg"]
-            self.soundDictionaries[5]["ooom"] = [re.compile(r"ooom\W?"), "sound/westcoastcrew/oomwhatyousay.ogg"]
-            self.soundDictionaries[5]["opinion"] = [re.compile(r"(?:opinion|well, you know, that's)\W?"), "sound/westcoastcrew/opinion.ogg"]
-            self.soundDictionaries[5]["oshikia"] = [re.compile(r"^oshikia\W?$"), "sound/westcoastcrew/oshikia.ogg"]
-            self.soundDictionaries[5]["oy"] = [re.compile(r"^oy\W?$"), "sound/westcoastcrew/oy.ogg"]
-            self.soundDictionaries[5]["papabalyo"] = [re.compile(r"papabalyo\W?"), "sound/westcoastcrew/papabaylo.ogg"]
-            self.soundDictionaries[5]["gotta pay the troll"] = [re.compile(r"gotta pay the troll\W?"), "sound/westcoastcrew/paytrolltoll.ogg"]
-            self.soundDictionaries[5]["pick music"] = [re.compile(r"^pick( )?music\W?$"), "sound/westcoastcrew/pickmusic.ogg"]
-            self.soundDictionaries[5]["littlemeezers"] = [re.compile(r"littlemeezers\W?"), "sound/westcoastcrew/pizzaguy.ogg"]
-            self.soundDictionaries[5]["psygib"] = [re.compile(r"psygib\W?"), "sound/westcoastcrew/psygib.ogg"]
-            self.soundDictionaries[5]["puff"] = [re.compile(r"puff\W?"), "sound/westcoastcrew/puff.ogg"]
-            self.soundDictionaries[5]["qaaq"] = [re.compile(r"^qaaq\W?$"), "sound/westcoastcrew/qaaq.ogg"]
-            self.soundDictionaries[5]["qibuqi"] = [re.compile(r"^qibuqi\W?$"), "sound/westcoastcrew/qibuqi.ogg"]
-            self.soundDictionaries[5]["qqaaq"] = [re.compile(r"^qqaaq\W?$"), "sound/westcoastcrew/qqaaq.ogg"]
-            self.soundDictionaries[5]["questionable"] = [re.compile(r"^questionable\W?$"), "sound/westcoastcrew/questionable.ogg"]
-            self.soundDictionaries[5]["rage quit"] = [re.compile(r"rage quit\W?"), "sound/westcoastcrew/ragequit.ogg"]
-            self.soundDictionaries[5]["let's get ready to rumble"] = [re.compile(r"let'?s get ready to rumble\W?"), "sound/westcoastcrew/readytorumble.ogg"]
-            self.soundDictionaries[5]["really"] = [re.compile(r"^really\W?"), "sound/westcoastcrew/really.ogg"]
-            self.soundDictionaries[5]["reflexes"] = [re.compile(r"(?:reflexes|it'?s all in the reflexes)"), "sound/westcoastcrew/reflexes.ogg"]
-            self.soundDictionaries[5]["rekt"] = [re.compile(r"rekt\W?"), "sound/westcoastcrew/rekt.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "oh no"), "^oh no\W?$, sound/westcoastcrew/OhNo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "he's on fire"), "he'?s on fire\W?, sound/westcoastcrew/onfire.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ooom"), "ooom\W?, sound/westcoastcrew/oomwhatyousay.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "opinion"), "(?:opinion|well, you know, that's)\W?, sound/westcoastcrew/opinion.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "oshikia"), "^oshikia\W?$, sound/westcoastcrew/oshikia.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "oy"), "^oy\W?$, sound/westcoastcrew/oy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "papabalyo"), "papabalyo\W?, sound/westcoastcrew/papabaylo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "gotta pay the troll"), "gotta pay the troll\W?, sound/westcoastcrew/paytrolltoll.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "pick music"), "^pick( )?music\W?$, sound/westcoastcrew/pickmusic.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "littlemeezers"), "littlemeezers\W?, sound/westcoastcrew/pizzaguy.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "psygib"), "psygib\W?, sound/westcoastcrew/psygib.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "puff"), "puff\W?, sound/westcoastcrew/puff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "qaaq"), "^qaaq\W?$, sound/westcoastcrew/qaaq.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "qibuqi"), "^qibuqi\W?$, sound/westcoastcrew/qibuqi.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "qqaaq"), "^qqaaq\W?$, sound/westcoastcrew/qqaaq.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "questionable"), "^questionable\W?$, sound/westcoastcrew/questionable.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "rage quit"), "rage quit\W?, sound/westcoastcrew/ragequit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "let's get ready to rumble"), "let'?s get ready to rumble\W?, sound/westcoastcrew/readytorumble.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "really"), "^really\W?, sound/westcoastcrew/really.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "reflexes"), "(?:reflexes|it'?s all in the reflexes), sound/westcoastcrew/reflexes.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "rekt"), "rekt\W?, sound/westcoastcrew/rekt.ogg")
             # repeat of FunnySounds
-            # self.soundDictionaries[5]["retard"] = [re.compile(r"retard"), "sound/westcoastcrew/Retard.ogg"]
-            #self.soundDictionaries[5]["rockyouguitar"] = [re.compile(r"^rockyouguitar\W?$"), "sound/westcoastcrew/RockYouGuitar.ogg"]
-            self.soundDictionaries[5]["rothkoo"] = [re.compile(r"^rothkoo\W?$"), "sound/westcoastcrew/rothko.ogg"]
-            self.soundDictionaries[5]["rothko"] = [re.compile(r"^rothko\W?$"), "sound/westcoastcrew/rothko_theme.ogg"]
-            self.soundDictionaries[5]["rugged"] = [re.compile(r"(?:rugged\W?$|like a rock)"), "sound/westcoastcrew/rugged.ogg"]
-            self.soundDictionaries[5]["santa town"] = [re.compile(r"santa( )?town\W?"), "sound/westcoastcrew/santatown.ogg"]
-            self.soundDictionaries[5]["saved"] = [re.compile(r"saved\W?"), "sound/westcoastcrew/saved.ogg"]
-            self.soundDictionaries[5]["scrub"] = [re.compile(r"scrub\W?"), "sound/westcoastcrew/scrub.ogg"]
-            self.soundDictionaries[5]["senth"] = [re.compile(r"^senth\W?$"), "sound/westcoastcrew/senth.ogg"]
-            self.soundDictionaries[5]["shaft"] = [re.compile(r"^shaft\W?$"), "sound/westcoastcrew/shaft.ogg"]
-            self.soundDictionaries[5]["shenookies cookies"] = [re.compile(r"shenookie'?s cookies\W?$"), "sound/westcoastcrew/shenook.ogg"]
-            self.soundDictionaries[5]["shenookie"] = [re.compile(r"shenookie\W?$"), "sound/westcoastcrew/shenookies.ogg"]
-            self.soundDictionaries[5]["you show that turd"] = [re.compile(r"(?:turd|(you )?show that turd)\W?$"), "sound/westcoastcrew/showthatturd.ogg"]
-            self.soundDictionaries[5]["shufflenufiguess"] = [re.compile(r"shufflenufiguess\W?"), "sound/westcoastcrew/shufflenufflegus.ogg"]
-            self.soundDictionaries[5]["skadoosh"] = [re.compile(r"skadoosh\W?"), "sound/westcoastcrew/skadoosh.ogg"]
-            self.soundDictionaries[5]["slime"] = [re.compile(r"slime\W?"), "sound/westcoastcrew/slime.ogg"]
-            self.soundDictionaries[5]["snort"] = [re.compile(r"^snort\W?$"), "sound/westcoastcrew/snort.ogg"]
-            self.soundDictionaries[5]["snpete"] = [re.compile(r"^snpete\W?$"), "sound/westcoastcrew/SNpete.ogg"]
-            self.soundDictionaries[5]["snpete2"] = [re.compile(r"(?:snpete2|chick chicky boom)\W?"), "sound/westcoastcrew/SNpete2.ogg"]
-            self.soundDictionaries[5]["so is your face"] = [re.compile(r"so is your face\W?"), "sound/westcoastcrew/soisyourface.ogg"]
-            self.soundDictionaries[5]["solis"] = [re.compile(r"solis\W?$"), "sound/westcoastcrew/solis.ogg"]
-            self.soundDictionaries[5]["spank you"] = [re.compile(r"spank you\W?"), "sound/westcoastcrew/spankyou.ogg"]
-            self.soundDictionaries[5]["stfu2"] = [re.compile(r"^stfu2"), "sound/westcoastcrew/stfu.ogg"]
-            self.soundDictionaries[5]["still feel like you're mad"] = [re.compile(r"still feel like you'?re mad\W?"), "sound/westcoastcrew/stillmad.ogg"]
-            self.soundDictionaries[5]["stitch"] = [re.compile(r"stitch\W?"), "sound/westcoastcrew/stitch.ogg"]
-            self.soundDictionaries[5]["somebody stop me"] = [re.compile(r"somebody stop me\W?"), "sound/westcoastcrew/stopme.ogg"]
-            self.soundDictionaries[5]["survey said"] = [re.compile(r"^survey said\W?"), "sound/westcoastcrew/surveysaid.ogg"]
-            self.soundDictionaries[5]["swish"] = [re.compile(r"swish\W?"), "sound/westcoastcrew/swish.ogg"]
-            self.soundDictionaries[5]["team complete"] = [re.compile(r"^team( )?complete\W?$"), "sound/westcoastcrew/teamcomplete2.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "retard"), "retard, sound/westcoastcrew/Retard.ogg")
+            #self.db.set(SOUND_TRIGGERS.format(5, "rockyouguitar"), "^rockyouguitar\W?$, sound/westcoastcrew/RockYouGuitar.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "rothkoo"), "^rothkoo\W?$, sound/westcoastcrew/rothko.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "rothko"), "^rothko\W?$, sound/westcoastcrew/rothko_theme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "rugged"), "(?:rugged\W?$|like a rock), sound/westcoastcrew/rugged.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "santa town"), "santa( )?town\W?, sound/westcoastcrew/santatown.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "saved"), "saved\W?, sound/westcoastcrew/saved.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "scrub"), "scrub\W?, sound/westcoastcrew/scrub.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "senth"), "^senth\W?$, sound/westcoastcrew/senth.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "shaft"), "^shaft\W?$, sound/westcoastcrew/shaft.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "shenookies cookies"), "shenookie'?s cookies\W?$, sound/westcoastcrew/shenook.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "shenookie"), "shenookie\W?$, sound/westcoastcrew/shenookies.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "you show that turd"), "(?:turd|(you )?show that turd)\W?$, sound/westcoastcrew/showthatturd.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "shufflenufiguess"), "shufflenufiguess\W?, sound/westcoastcrew/shufflenufflegus.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "skadoosh"), "skadoosh\W?, sound/westcoastcrew/skadoosh.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "slime"), "slime\W?, sound/westcoastcrew/slime.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "snort"), "^snort\W?$, sound/westcoastcrew/snort.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "snpete"), "^snpete\W?$, sound/westcoastcrew/SNpete.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "snpete2"), "(?:snpete2|chick chicky boom)\W?, sound/westcoastcrew/SNpete2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "so is your face"), "so is your face\W?, sound/westcoastcrew/soisyourface.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "solis"), "solis\W?$, sound/westcoastcrew/solis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "spank you"), "spank you\W?, sound/westcoastcrew/spankyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "stfu2"), "^stfu2, sound/westcoastcrew/stfu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "still feel like you're mad"), "still feel like you'?re mad\W?, sound/westcoastcrew/stillmad.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "stitch"), "stitch\W?, sound/westcoastcrew/stitch.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "somebody stop me"), "somebody stop me\W?, sound/westcoastcrew/stopme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "survey said"), "^survey said\W?, sound/westcoastcrew/surveysaid.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "swish"), "swish\W?, sound/westcoastcrew/swish.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "team complete"), "^team( )?complete\W?$, sound/westcoastcrew/teamcomplete2.ogg")
             # repeat of FunnySounds
-            # self.soundDictionaries[5]["teamwork"] = [re.compile(r"teamwork"), "sound/westcoastcrew/Teamwork.ogg"]
-            self.soundDictionaries[5]["that's all folks"] = [re.compile(r"^that'?s all folks\W?$"), "sound/westcoastcrew/thatsallfolks.ogg"]
-            self.soundDictionaries[5]["thetealduck"] = [re.compile(r"the ?teal ?duck\W?"), "sound/westcoastcrew/thetealduck.ogg"]
-            self.soundDictionaries[5]["thriller"] = [re.compile(r"thriller\W?"), "sound/westcoastcrew/thriller.ogg"]
-            self.soundDictionaries[5]["tooold"] = [re.compile(r"too?o?ld\W?"), "sound/westcoastcrew/tooold.ogg"]
-            self.soundDictionaries[5]["troll toll"] = [re.compile(r"troll ?toll\W?"), "sound/westcoastcrew/trolltoll.ogg"]
-            self.soundDictionaries[5]["turple"] = [re.compile(r"^turple\W?$"), "sound/westcoastcrew/turpled.ogg"]
-            self.soundDictionaries[5]["tustamena"] = [re.compile(r"tustamena\W?"), "sound/westcoastcrew/tustamena.ogg"]
-            self.soundDictionaries[5]["ty2"] = [re.compile(r"(?:thanks2|ty2)\W?"), "sound/westcoastcrew/ty.ogg"]
-            self.soundDictionaries[5]["unstoppable"] = [re.compile(r"unstoppable\W?"), "sound/westcoastcrew/unstoppable.ogg"]
-            self.soundDictionaries[5]["ventt"] = [re.compile(r"ventt\W?"), "sound/westcoastcrew/v3ntt.ogg"]
-            self.soundDictionaries[5]["vacuum"] = [re.compile(r"vacuum\W?"), "sound/westcoastcrew/vacuum.ogg"]
-            self.soundDictionaries[5]["vks"] = [re.compile(r"^(?:vks|bow)$"), "sound/westcoastcrew/vks.ogg"]
-            self.soundDictionaries[5]["w3rd"] = [re.compile(r"w3rd\W?"), "sound/westcoastcrew/w3rd.ogg"]
-            self.soundDictionaries[5]["wanerbuliao"] = [re.compile(r"^wanerbuliao\W?$"), "sound/westcoastcrew/wanerbuliao.ogg"]
-            self.soundDictionaries[5]["waow"] = [re.compile(r"waow\W?"), "sound/westcoastcrew/waow.ogg"]
-            self.soundDictionaries[5]["what did you do"] = [re.compile(r"^what did you do\W?"), "sound/westcoastcrew/whatdidyoudo.ogg"]
-            self.soundDictionaries[5]["what just happened"] = [re.compile(r"^what( )?just( )?happened\W?$"), "sound/westcoastcrew/whatjusthappened.ogg"]
-            self.soundDictionaries[5]["why you little"] = [re.compile(r"why you little\W?"), "sound/westcoastcrew/whyyoulittle.ogg"]
-            self.soundDictionaries[5]["wolf"] = [re.compile(r"wolf\W?"), "sound/westcoastcrew/wolf.ogg"]
-            self.soundDictionaries[5]["wow"] = [re.compile(r"^wow\W?$"), "sound/westcoastcrew/wow.ogg"]
-            self.soundDictionaries[5]["woww"] = [re.compile(r"^woww\W?$"), "sound/westcoastcrew/wow2.ogg"]
-            self.soundDictionaries[5]["wuyoga"] = [re.compile(r"wuyoga\W?"), "sound/westcoastcrew/wuyoga.ogg"]
-            self.soundDictionaries[5]["xxx"] = [re.compile(r"^xxx\W?$"), "sound/westcoastcrew/xxx.ogg"]
-            self.soundDictionaries[5]["ya basic"] = [re.compile(r"ya ?basic\W?"), "sound/westcoastcrew/yabasic.ogg"]
-            self.soundDictionaries[5]["jdub"] = [re.compile(r"(?:jdub|y'?all ready for this)\W?$"), "sound/westcoastcrew/yallreadyforthis.ogg"]
-            self.soundDictionaries[5]["yawn"] = [re.compile(r"^yawn\W?$"), "sound/westcoastcrew/yawn.ogg"]
-            self.soundDictionaries[5]["yawnn"] = [re.compile(r"^yawnn+\W?$"), "sound/westcoastcrew/yawnn.ogg"]
-            self.soundDictionaries[5]["yeah baby"] = [re.compile(r"yeah baby\W?"), "sound/westcoastcrew/yeahbaby.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "teamwork"), "teamwork, sound/westcoastcrew/Teamwork.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "that's all folks"), "^that'?s all folks\W?$, sound/westcoastcrew/thatsallfolks.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "thetealduck"), "the ?teal ?duck\W?, sound/westcoastcrew/thetealduck.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "thriller"), "thriller\W?, sound/westcoastcrew/thriller.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "tooold"), "too?o?ld\W?, sound/westcoastcrew/tooold.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "troll toll"), "troll ?toll\W?, sound/westcoastcrew/trolltoll.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "turple"), "^turple\W?$, sound/westcoastcrew/turpled.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "tustamena"), "tustamena\W?, sound/westcoastcrew/tustamena.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ty2"), "(?:thanks2|ty2)\W?, sound/westcoastcrew/ty.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "unstoppable"), "unstoppable\W?, sound/westcoastcrew/unstoppable.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ventt"), "ventt\W?, sound/westcoastcrew/v3ntt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "vacuum"), "vacuum\W?, sound/westcoastcrew/vacuum.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "vks"), "^(?:vks|bow)$, sound/westcoastcrew/vks.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "w3rd"), "w3rd\W?, sound/westcoastcrew/w3rd.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "wanerbuliao"), "^wanerbuliao\W?$, sound/westcoastcrew/wanerbuliao.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "waow"), "waow\W?, sound/westcoastcrew/waow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "what did you do"), "^what did you do\W?, sound/westcoastcrew/whatdidyoudo.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "what just happened"), "^what( )?just( )?happened\W?$, sound/westcoastcrew/whatjusthappened.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "why you little"), "why you little\W?, sound/westcoastcrew/whyyoulittle.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "wolf"), "wolf\W?, sound/westcoastcrew/wolf.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "wow"), "^wow\W?$, sound/westcoastcrew/wow.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "woww"), "^woww\W?$, sound/westcoastcrew/wow2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "wuyoga"), "wuyoga\W?, sound/westcoastcrew/wuyoga.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "xxx"), "^xxx\W?$, sound/westcoastcrew/xxx.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ya basic"), "ya ?basic\W?, sound/westcoastcrew/yabasic.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "jdub"), "(?:jdub|y'?all ready for this)\W?$, sound/westcoastcrew/yallreadyforthis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "yawn"), "^yawn\W?$, sound/westcoastcrew/yawn.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "yawnn"), "^yawnn+\W?$, sound/westcoastcrew/yawnn.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "yeah baby"), "yeah baby\W?, sound/westcoastcrew/yeahbaby.ogg")
             # repeat of FunnySounds
-            # self.soundDictionaries[5]["yhehehe"] = [re.compile(r"^yhehehe\W?$"), "sound/westcoastcrew/YHehehe.ogg"]
-            self.soundDictionaries[5]["you can do it"] = [re.compile(r"you can do( it)?\W?"), "sound/westcoastcrew/youcandoit.ogg"]
-            self.soundDictionaries[5]["youlose"] = [re.compile(r"youlose\W?"), "sound/westcoastcrew/youlose.ogg"]
-            self.soundDictionaries[5]["your pick"] = [re.compile(r"your ?pick\W?"), "sound/westcoastcrew/yourpick.ogg"]
-            self.soundDictionaries[5]["zebby"] = [re.compile(r"^zebby\W?$"), "sound/westcoastcrew/zebby.ogg"]
+            # self.db.set(SOUND_TRIGGERS.format(5, "yhehehe"), "^yhehehe\W?$, sound/westcoastcrew/YHehehe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "you can do it"), "you can do( it)?\W?, sound/westcoastcrew/youcandoit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "youlose"), "youlose\W?, sound/westcoastcrew/youlose.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "your pick"), "your ?pick\W?, sound/westcoastcrew/yourpick.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "zebby"), "^zebby\W?$, sound/westcoastcrew/zebby.ogg")
 
         self.populate_sound_lists()
         return
