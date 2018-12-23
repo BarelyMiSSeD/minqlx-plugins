@@ -130,7 +130,7 @@ import re
 
 from minqlx.database import Redis
 
-VERSION = "4.0"
+VERSION = "4.1"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -211,6 +211,8 @@ class myFun(minqlx.Plugin):
         self.populate_database()
         # Welcome sound played list
         self.playedWelcome = []
+        # command prefix
+        self._command_prefix = self.get_cvar("qlx_commandPrefix")
 
     def enable_sound_packs(self, player=None, msg=None, channel=None):
         packs = self.get_cvar("qlx_funEnableSoundPacks", int)
@@ -303,9 +305,9 @@ class myFun(minqlx.Plugin):
     @minqlx.thread
     def scan_chat(self, player, msg, channel):
         # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
-        if msg.startswith("!") or channel != "chat" or player.steam_id in self.muted_players or\
+        if msg.startswith("{}".format(self._command_prefix)) or channel != "chat" or player.steam_id in self.muted_players or\
                 not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
-            return msg
+            return
 
         # find the sound trigger for this sound (sets self.trigger, self.soundFile)
         if self.find_sound_trigger(self.clean_text(msg)):
@@ -354,24 +356,29 @@ class myFun(minqlx.Plugin):
                     match = self.db.get(key).split(";")
                     # if sound trigger matches set self.trigger to the trigger,
                     #  self.soundFile to the location of the sound
-                    if re.compile(r"{}".format(match[0])).match(msg_lower):
-                        self.trigger = key.split(":")[4]
-                        self.soundFile = match[1]
-                        return True
-                    # if custom sound triggers have been added for the sound being examined
-                    #  it searches through the stored triggers for a match
-                    if self.db.exists(TRIGGERS_LOCATION.format(match[1])):
-                        for trigger in self.db.lrange(TRIGGERS_LOCATION.format(match[1]), 0, -1):
-                            if trigger == msg_lower:
-                                self.trigger = key.split(":")[-1]
-                                self.soundFile = match[1]
-                                return True
+                    try:
+                        if re.compile(r"{}".format(match[0])).match(msg_lower):
+                            self.trigger = key.split(":")[4]
+                            self.soundFile = match[1]
+                            return True
+                        # if custom sound triggers have been added for the sound being examined
+                        #  it searches through the stored triggers for a match
+                        if self.db.exists(TRIGGERS_LOCATION.format(match[1])):
+                            for trigger in self.db.lrange(TRIGGERS_LOCATION.format(match[1]), 0, -1):
+                                if trigger == msg_lower:
+                                    self.trigger = key.split(":")[-1]
+                                    self.soundFile = match[1]
+                                    return True
+                    except Exception as e:
+                        minqlx.console_print("^3Exception: {}".format(e))
+                        minqlx.console_print(str(match))
             sound_dict += 1
         return False
 
     def add_trigger(self, player, msg, channel):
         if len(msg) < 3:
-            player.tell("^3usage^7: ^1!addtrigger ^7<^2default trigger^7> ^1= ^7<^4added trigger^7>")
+            player.tell("^3usage^7: ^1{}addtrigger ^7<^2default trigger^7> ^1= ^7<^4added trigger^7>"
+                        .format(self._command_prefix))
             return minqlx.RET_STOP_ALL
         msg_lower = [x.lower() for x in msg]
         split = 0
@@ -384,7 +391,7 @@ class myFun(minqlx.Plugin):
         if split == 0:
             player.tell("^7You MUST include a ^1= ^7sign in to separate the default trigger from the desired trigger.")
             player.tell("^3usage^7: ^1{}addtrigger ^7<^2default trigger^7> ^1= ^7<^4added trigger^7>"
-                        .format(self.get_cvar("qlx_commandPrefix")))
+                        .format(self._command_prefix))
         else:
             trigger = " ".join(msg_lower[1:split])
             add_trigger = " ".join(msg_lower[split + 1:])
@@ -400,7 +407,7 @@ class myFun(minqlx.Plugin):
                             .format(add_trigger, trigger))
             else:
                 player.tell("^3usage^7: ^1{}addtrigger ^7<^2default trigger^7> ^1= ^7<^4added trigger^7>"
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
         return minqlx.RET_STOP_ALL
 
     def del_trigger(self, player, msg, channel):
@@ -418,7 +425,7 @@ class myFun(minqlx.Plugin):
         if split == 0:
             player.tell("^7You MUST include a ^1= ^7sign in to separate the default trigger from the desired trigger.")
             player.tell("^3usage^7: ^1{}deltrigger ^7<^2default trigger^7> ^1= ^7<^4del trigger^7>"
-                        .format(self.get_cvar("qlx_commandPrefix")))
+                        .format(self._command_prefix))
         else:
             trigger = " ".join(msg_lower[1:split])
             del_trigger = " ".join(msg_lower[split + 1:])
@@ -432,7 +439,7 @@ class myFun(minqlx.Plugin):
                     player.tell("^3There are no custom triggers saved for ^4{}".format(trigger))
             else:
                 player.tell("^3usage^7: ^1{}deltrigger ^7<^2default trigger^7> ^1= ^7<^4del trigger^7>"
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
         return minqlx.RET_STOP_ALL
 
     def request_triggers(self, player, msg, channel):
@@ -479,17 +486,17 @@ class myFun(minqlx.Plugin):
                 if self.db.get(PLAYERS_SOUNDS.format(player.steam_id, self.soundFile)):
                     player.tell("^3The sound ^4{0} ^3is already disabled. Use ^1{1}on ^4{0} ^3to enable."
                                 " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(self.trigger, self._command_prefix))
                 else:
                     self.db.set(PLAYERS_SOUNDS.format(player.steam_id, self.soundFile), 1)
                     if self.trigger == "":
                         self.find_sound_trigger(self.soundFile)
                     player.tell("^3The sound ^4{0} ^3has been disabled. Use ^1{1}on ^4{0} ^3to enable."
                                 " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(self.trigger, self._command_prefix))
             else:
                 player.tell("^1{0}off <sound call> ^7use ^6{0}listsounds #help ^7to find triggers"
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
 
         else:
             trigger = " ".join(msg[1:]).lower()
@@ -498,15 +505,15 @@ class myFun(minqlx.Plugin):
                 if self.db.get(PLAYERS_SOUNDS.format(player.steam_id, found_path)):
                     player.tell("^3The sound ^4{0} ^3is already disabled. Use ^1{1}on ^4{0} ^3to enable."
                                 " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(trigger, self._command_prefix))
                 else:
                     self.db.set(PLAYERS_SOUNDS.format(player.steam_id, found_path), 1)
                     player.tell("^3The sound ^4{0} ^3has been disabled. Use ^1{1}on ^4{0} ^3to enable."
                                 " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(trigger, self._command_prefix))
             else:
                 player.tell("^3usage: ^1{0}off <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
         return
 
     # players can re-enable sounds that they previously disabled for themselves
@@ -522,14 +529,14 @@ class myFun(minqlx.Plugin):
                 if self.db.get(PLAYERS_SOUNDS.format(player.steam_id, self.soundFile)):
                     del self.db[PLAYERS_SOUNDS.format(player.steam_id, self.soundFile)]
                     player.tell("^3The sound ^4{0} ^3has been enabled. Use ^1{1}off ^4{0} ^3to disable."
-                                .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(self.trigger, self._command_prefix))
                 else:
                     player.tell("^3The sound ^4{0} ^3is not disabled. Use ^1{1}off ^4{0} ^3to disable."
                                 " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(self.trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(self.trigger, self._command_prefix))
             else:
                 player.tell("^1{0}on <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
 
         else:
             trigger = " ".join(msg[1:]).lower()
@@ -538,14 +545,14 @@ class myFun(minqlx.Plugin):
                 if self.db.get(PLAYERS_SOUNDS.format(player.steam_id, found_path)):
                     del self.db[PLAYERS_SOUNDS.format(player.steam_id, found_path)]
                     player.tell("^3The sound ^4{0} ^3has been enabled. Use ^1{1}off ^4{0} ^3to disable."
-                                .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(trigger, self._command_prefix))
                 else:
                     player.tell("^3The sound ^4{0} ^3is not disabled. Use ^1{1}off ^4{0} ^3to disable."
                                 " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                                .format(trigger, self._command_prefix))
             else:
                 player.tell("^3usage: ^1{0}on <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
         return
 
     # return the path to the supplied sound trigger
@@ -599,7 +606,7 @@ class myFun(minqlx.Plugin):
         if found_path:
             if self.db.get(DISABLED_SOUNDS.format(key)):
                 player.tell("^3The sound ^4{} ^3is already disabled. ^1{}listdisabled ^3to see the disabled sounds."
-                            .format(key, self.get_cvar("qlx_commandPrefix")))
+                            .format(key, self._command_prefix))
             else:
                 self.db.set(DISABLED_SOUNDS.format(key), 1)
                 del self.db[SOUND_TRIGGERS.format(sound_dict, key)]
@@ -609,11 +616,11 @@ class myFun(minqlx.Plugin):
                         self.soundLists[slot].remove(key)
                     slot += 1
 
-                player.tell("^3The sound ^4{} ^3is now disabled.".format(key, self.get_cvar("qlx_commandPrefix")))
+                player.tell("^3The sound ^4{} ^3is now disabled.".format(key, self._command_prefix))
 
         else:
             player.tell("^3Invalid sound trigger. Use ^1{}listsounds ^7<^1search string^7>"
-                        " ^3to find the correct sound trigger.".format(self.get_cvar("qlx_commandPrefix")))
+                        " ^3to find the correct sound trigger.".format(self._command_prefix))
         return minqlx.RET_STOP_ALL
 
     # enable the specified sound on the server
@@ -626,13 +633,13 @@ class myFun(minqlx.Plugin):
                 del self.db[DISABLED_SOUNDS.format(trigger)]
                 player.tell("^3The sound will be enabled on next list reload. Use ^1{0}reloadsounds ^3or the ^4{1}"
                             " ^3sound list will be reloaded next time the server is restarted or myFun.py is reloaded."
-                            .format(self.get_cvar("qlx_commandPrefix"), trigger))
+                            .format(self._command_prefix, trigger))
             else:
                 player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
-                            .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                            .format(trigger, self._command_prefix))
         except Exception as e:
             player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
-                        .format(trigger, self.get_cvar("qlx_commandPrefix")))
+                        .format(trigger, self._command_prefix))
             minqlx.console_print("^1Enable sound exception:: {}".format(e))
         return minqlx.RET_STOP_ALL
 
@@ -673,7 +680,7 @@ class myFun(minqlx.Plugin):
 
         if "console" != channel and not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
             player.tell("Your sounds are disabled. Use ^6{}sounds^7 to enable them again."
-                .format(self.get_cvar("qlx_commandPrefix")))
+                        .format(self._command_prefix))
             return minqlx.RET_STOP_ALL
 
         # Play locally to validate.
@@ -746,10 +753,10 @@ class myFun(minqlx.Plugin):
 
             if flag:
                 player.tell("Sounds have been disabled. Use ^6{}sounds^7 to enable them again."
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
             else:
                 player.tell("Sounds have been enabled. Use ^6{}sounds^7 to disable them again."
-                            .format(self.get_cvar("qlx_commandPrefix")))
+                            .format(self._command_prefix))
 
             return minqlx.RET_STOP_ALL
 
@@ -780,7 +787,7 @@ class myFun(minqlx.Plugin):
                     "^3Valid sound-pack are ^2{2}\n^6{1}sounds ^3to disable^7/^3enable all sound playing for yourself."
                     "\n ^6{1}off^7/^6{1}on trigger ^3to disable^7/^3enable a specific sound\n^6{1}offlist ^3to see a"
                     " list of sounds you have disabled."
-                    .format(VERSION, self.get_cvar("qlx_commandPrefix"), "^7/^2".join(self.help_msg)))
+                    .format(VERSION, self._command_prefix, "^7/^2".join(self.help_msg)))
         return
 
     # list the available sounds to the requesting player
@@ -882,10 +889,10 @@ class myFun(minqlx.Plugin):
 
             if self.sound_list_count > 1 and not category and not search:
                 sounds.append("^3Type ^4{}listsounds #help ^3 to get instructions on narrowing your search results.\n"
-                              .format(self.get_cvar("qlx_commandPrefix")))
+                              .format(self._command_prefix))
             elif not search:
                 sounds.append("^3Add a search string to further narrow results:\n^2{0}listsounds ^7<^2category^7>"
-                              " <^2search string^7>".format(self.get_cvar("qlx_commandPrefix")))
+                              " <^2search string^7>".format(self._command_prefix))
 
         sounds.append("^2{} ^4SOUNDS^7: ^3Type these words/phrases in normal chat to trigger a sound on the server.\n"
                       .format(count))
@@ -1707,7 +1714,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "cry me a riverr"), "^cry me a riverr\\W?$;sound/westcoastcrew/crymeariver2.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "cthree"), "^cthree\\W?$;sound/westcoastcrew/cuttingedge.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "damn im good"), "^damn i'?m good\\W?;sound/westcoastcrew/damnimgood.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "dead last"), "(?:yeah),? how'?d he finish again|dead ?last)\\W?;sound/westcoastcrew/deadlast.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dead last"), "(?:yeah,? how'?d he finish again|dead ?last)\\W?;sound/westcoastcrew/deadlast.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "did i do that"), "^did i do that\\W?;sound/westcoastcrew/dididothat.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "DDDid i do that"), "^DDDid i do that\\W?;sound/westcoastcrew/dididothat2.ogg")
             # repeat of Prestige Sounds
@@ -1806,7 +1813,7 @@ class myFun(minqlx.Plugin):
             # self.db.set(SOUND_TRIGGERS.format(5, "oh no"), "^oh no\\W?$;sound/westcoastcrew/OhNo.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "he's on fire"), "he'?s on fire\\W?;sound/westcoastcrew/onfire.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ooom"), "ooom\\W?;sound/westcoastcrew/oomwhatyousay.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "opinion"), "(?:opinion|well), you know, that's)\\W?;sound/westcoastcrew/opinion.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "opinion"), "(?:opinion|well, you know, that'?s)\\W?;sound/westcoastcrew/opinion.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "oshikia"), "^oshikia\\W?$;sound/westcoastcrew/oshikia.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "oy"), "^oy\\W?$;sound/westcoastcrew/oy.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "papabalyo"), "papabalyo\\W?;sound/westcoastcrew/papabaylo.ogg")
