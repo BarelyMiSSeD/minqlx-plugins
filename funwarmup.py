@@ -30,7 +30,7 @@ import minqlx
 import random
 from threading import Timer
 
-VERSION = 1.08
+VERSION = 1.09
 
 
 class funwarmup(minqlx.Plugin):
@@ -49,6 +49,7 @@ class funwarmup(minqlx.Plugin):
 
         self.add_command("setfun", self.cmd_set_fun, self.get_cvar("qlx_fwAdminLevel", int))
         self.add_command("unsetfun", self.cmd_unset_fun, self.get_cvar("qlx_fwAdminLevel", int))
+        self.add_command("weapon", self.cmd_weapon)
 
         self.fw_setup = False
         self.fw_weapons = []
@@ -147,6 +148,12 @@ class funwarmup(minqlx.Plugin):
 
     def cmd_unset_fun(self, player, msg, channel):
         self.set_normal_mode()
+
+    def cmd_weapon(self, player, msg, channel):
+        if self.fw_setup and len(self.fw_weapons) > 0:
+            self.msg("^2Fun Warmup weapon is ^1{}".format(self.WEAPON_NAMES[self.fw_weapons[-1]]))
+        else:
+            self.msg("^3No Fun Warmup weapon is set.")
 
     def set_fun_warm_up(self):
         self.fw_setup = True
