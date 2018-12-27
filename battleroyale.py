@@ -241,7 +241,7 @@ class battleroyale(minqlx.Plugin):
         self.add_command("score", self.cmd_score)
         self.add_command("rules", self.cmd_rules)
         self.add_command(("addqueue", "addq"), self.cmd_queue_add, self.get_cvar("qlx_brAdmin", int))
-        self.add_command(("lsversion", "lsv"), self.cmd_br_version)
+        self.add_command(("brversion", "brv"), self.cmd_br_version)
         self.add_command("restart", self.resart_br, self.get_cvar("qlx_brAdmin", int))
         self.add_command("gamestatus", self.game_status, 5)
 
