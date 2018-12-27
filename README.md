@@ -35,7 +35,7 @@ set qlx_brUseSlapDmg "0"<br>
 // The map loaded after the Battle Royale script initializes (loads) to ensure the SETTINGS are set<br>
 set qlx_brLoadMap "almostlost"<br>
 <br>
-<br><br>
+
 Commands available with battleroyale.py:<br>
 !q or !queue: displays the players currently in the queue<br>
 !s or !specs: Displays the players currently set to spectate only<br>
