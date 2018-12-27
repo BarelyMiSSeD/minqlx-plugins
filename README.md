@@ -36,15 +36,15 @@ set qlx_brUseSlapDmg "0"<br>
 set qlx_brLoadMap "almostlost"<br>
 <br>
 <br><br>
-Commands available with battleroyale.py:
+Commands available with battleroyale.py:<br>
 !q or !queue: displays the players currently in the queue<br>
 !s or !specs: Displays the players currently set to spectate only<br>
-!score: Displays current round win standings
-!rules: Displays an abbreviated description of the game rules
+!score: Displays current round win standings<br>
+!rules: Displays an abbreviated description of the game rules<br>
 !addqueue or !addq: puts a player into the next available queue slot<br>
 !brversion or !brv: displays the battelroyale.py version number<br>
-!restart: reloads the SETTINGS and loads the default map
-!gamestatus: Shows the current game win standings in SERVER CONSOLE
+!restart: reloads the SETTINGS and loads the default map<br>
+!gamestatus: Shows the current game win standings in SERVER CONSOLE<br>
 
 
 # funwarmup.py
