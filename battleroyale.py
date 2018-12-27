@@ -51,7 +51,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
@@ -354,7 +354,6 @@ class battleroyale(minqlx.Plugin):
 
     def death_monitor(self, victim, killer, data):
         if self.game.state == "in_progress" and self._rounds > 0:
-            minqlx.console_print("^2Killer {} : Victim {}".format(killer, victim))
             free = self.teams()["free"]
             if victim == killer:
                 remaining = len(free)
