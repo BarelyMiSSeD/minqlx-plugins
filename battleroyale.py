@@ -502,8 +502,8 @@ class battleroyale(minqlx.Plugin):
         player.tell("^1Quake ^7Live ^4Battle Royale^7:\nA round based game based in the Free For All game type. "
                     "Win ^1{} ^7rounds to win the Match. If you die in a round you have to spectate until the start of"
                     " the next round. Be the last one alive and you win a round. The last 2 standing are subject to"
-                    " server enforced damage if the round lasts too long. It is possible to be killed by the server"
-                    " if your health is too low."
+                    " server enforced damage if the round lasts too long. It can bring you down to 1 health"
+                    " and 0 armor."
                     .format(self.get_cvar("qlx_brWinRounds", int)))
 
     def cmd_score(self, player=None, msg=None, channel=None):
