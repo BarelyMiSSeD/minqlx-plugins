@@ -1,4 +1,52 @@
 # minqlx-plugins
+# battleroyale.py
+This is a plugin for the minqlx admin bot.
+It makes a last man standing game style played in FFA with some default weapons.
+
+NOTE: THIS SCRIPT IS NOT COMPATIBLE WITH ANY OTHER QUEUE SCRIPT.
+        IT PERFORMS QUEUEING ACTIONS TO FACILITATE A LAST MAN STANDING GAME.
+
+//script cvars to be put in server configuration file (default: server.cfg). Default values shown.
+// set the permission level for admins
+set qlx_brAdmin "3"
+// set the amount of rounds a player needs to win to win the match
+set qlx_brWinRounds "3"
+// set the health bonus given to a player when they kill an opponent
+set qlx_brKillHealthBonus "50"
+// set the armor bonus given to a player when they kill an opponent
+set qlx_brKillArmorBonus "50"
+// set the amount of damage a player gets when the last 2 players remain and no contact has happened
+set qlx_brLast2Damage "50"
+// set the seconds delay between checking for last 2 player contact
+set qlx_brDamageDelay "30"
+// If the last 2 are still alive after this many time periods, slap for damage every time period
+// Set this to a high value to disable.
+set qlx_brSlapAfterTimePeriods "2"
+// Added for the 'qlx_brSlapAfterTimePeriods'. If qlx_brSlapAfterTimePeriods is enabled this will half the time
+//  periods between the slaps/damage. (0=off, 1=on, any number above 1 will be added by qlx_brSlapAfterTimePeriods
+//  and that amount of rounds after the qlx_brSlapAfterTimePeriods starts the time between slaps will be half).
+set qlx_brHalfTimePeriod "2"
+// Notify a player when they set themselves to spectate (0=off 1=on)
+set qlx_brTellWhenInSpecOnly "1"
+// Enable to use the slap function as the damage dealer for the last 2
+// Slapping causes the player to move upward a little as if slapped from below
+// Disabling this results in a small center print message and a sound to notify the player that damage was dealt
+set qlx_brUseSlapDmg "0"
+// The map loaded after the Battle Royale script initializes (loads) to ensure the SETTINGS are set
+set qlx_brLoadMap "almostlost"
+<br>
+<br><br>
+Commands available with battleroyale.py:
+!q or !queue: displays the players currently in the queue<br>
+!s or !specs: Displays the players currently set to spectate only<br>
+!score: Displays current round win standings
+!rules: Displays an abbreviated description of the game rules
+!addqueue or !addq: puts a player into the next available queue slot<br>
+!brversion or !brv: displays the battelroyale.py version number<br>
+!restart: reloads the SETTINGS and loads the default map
+!gamestatus: Shows the current game win standings in SERVER CONSOLE
+
+
 # funwarmup.py
 It modifies the game CVARs to make warmup time a little different and hopefully more fun.
 Be careful modifying the setting too much. Too many projectiles needing to be kept track of
