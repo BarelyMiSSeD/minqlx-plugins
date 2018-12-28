@@ -128,9 +128,7 @@ import random
 import time
 import re
 
-from minqlx.database import Redis
-
-VERSION = "4.1"
+VERSION = "4.3"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -138,8 +136,6 @@ PLAYERS_SOUNDS = "minqlx:players:{}:flags:myFun:{}"
 
 
 class myFun(minqlx.Plugin):
-    database = Redis
-
     def __init__(self):
         super().__init__()
 
@@ -358,6 +354,8 @@ class myFun(minqlx.Plugin):
                     #  self.soundFile to the location of the sound
                     try:
                         if re.compile(r"{}".format(match[0])).match(msg_lower):
+                            if self.db.exists(DISABLED_SOUNDS.format(match[1])):
+                                return False
                             self.trigger = key.split(":")[4]
                             self.soundFile = match[1]
                             return True
@@ -366,6 +364,8 @@ class myFun(minqlx.Plugin):
                         if self.db.exists(TRIGGERS_LOCATION.format(match[1])):
                             for trigger in self.db.lrange(TRIGGERS_LOCATION.format(match[1]), 0, -1):
                                 if trigger == msg_lower:
+                                    if self.db.exists(DISABLED_SOUNDS.format(match[1])):
+                                        return False
                                     self.trigger = key.split(":")[-1]
                                     self.soundFile = match[1]
                                     return True
@@ -602,22 +602,11 @@ class myFun(minqlx.Plugin):
         if len(msg) < 2:
             return minqlx.RET_USAGE
         trigger = " ".join(msg[1:]).lower()
-        sound_dict, key, found_path = self.find_sound_info(trigger)
-        if found_path:
-            if self.db.get(DISABLED_SOUNDS.format(key)):
-                player.tell("^3The sound ^4{} ^3is already disabled. ^1{}listdisabled ^3to see the disabled sounds."
-                            .format(key, self._command_prefix))
-            else:
-                self.db.set(DISABLED_SOUNDS.format(key), 1)
-                del self.db[SOUND_TRIGGERS.format(sound_dict, key)]
-                slot = 0
-                while slot < len(self.Enabled_SoundPacks):
-                    if self.Enabled_SoundPacks[slot] and key in self.soundLists[slot]:
-                        self.soundLists[slot].remove(key)
-                    slot += 1
-
-                player.tell("^3The sound ^4{} ^3is now disabled.".format(key, self._command_prefix))
-
+        sound_path = self.find_sound_path(trigger)
+        if sound_path:
+            self.db.set(DISABLED_SOUNDS.format(sound_path), 1)
+            player.tell("^3The sound ^4{} ^3is now disabled.".format(trigger))
+            self.populate_sound_lists()
         else:
             player.tell("^3Invalid sound trigger. Use ^1{}listsounds ^7<^1search string^7>"
                         " ^3to find the correct sound trigger.".format(self._command_prefix))
@@ -628,19 +617,20 @@ class myFun(minqlx.Plugin):
         if len(msg) < 2:
             return minqlx.RET_USAGE
         trigger = " ".join(msg[1:]).lower()
-        try:
-            if self.db.exists(DISABLED_SOUNDS.format(trigger)):
-                del self.db[DISABLED_SOUNDS.format(trigger)]
-                player.tell("^3The sound will be enabled on next list reload. Use ^1{0}reloadsounds ^3or the ^4{1}"
-                            " ^3sound list will be reloaded next time the server is restarted or myFun.py is reloaded."
-                            .format(self._command_prefix, trigger))
-            else:
+        sound_path = self.find_sound_path(trigger)
+        if sound_path:
+            try:
+                if self.db.exists(DISABLED_SOUNDS.format(sound_path)):
+                    del self.db[DISABLED_SOUNDS.format(sound_path)]
+                    self.populate_sound_lists()
+                    player.tell("^3The sound {} is now enabled".format(trigger))
+                else:
+                    player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
+                                .format(trigger, self._command_prefix))
+            except Exception as e:
                 player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
                             .format(trigger, self._command_prefix))
-        except Exception as e:
-            player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
-                        .format(trigger, self._command_prefix))
-            minqlx.console_print("^1Enable sound exception:: {}".format(e))
+                minqlx.console_print("^1Enable sound exception:: {}".format(e))
         return minqlx.RET_STOP_ALL
 
     # list the sounds disabled on the server for the requesting player
@@ -648,7 +638,8 @@ class myFun(minqlx.Plugin):
         sound_list = []
         count = 0
         for key in self.db.keys("minqlx:myFun:disabled:*"):
-            trigger = key.split(":")[-1]
+            sound_path = key.split(":")[-1]
+            trigger = self.sound_trigger(sound_path)
             sound_list.append(trigger)
             count += 1
             if (count % 3) == 0:
@@ -656,21 +647,14 @@ class myFun(minqlx.Plugin):
         player.tell("^3There are ^4{0} ^3sound(s) disabled on the server:\n^1{1}".format(count, "^7, ^1".join(sound_list)))
         return minqlx.RET_STOP_ALL
 
-    # return the sound dictionary number, the sound trigger (key), and the sound path for the supplied sound trigger
-    def find_sound_info(self, msg):
-        msg_lower = msg.lower()
-
-        sound_dict = 0
-        while sound_dict < len(self.Enabled_SoundPacks):
-            if self.Enabled_SoundPacks[sound_dict]:
-                keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
-                for key in keys:
-                    trigger = self.db.get(SOUND_TRIGGERS.format(sound_dict, key))
-                    if trigger[0].match(msg_lower):
-                        return sound_dict, key, trigger[1]
-            sound_dict += 1
-
-        return False
+    # function to change the way the disabled sounds are stored in the database
+    def fix_disabled(self):
+        for key in self.db.keys("minqlx:myFun:disabled:*"):
+            trigger = key.split(":")[-1]
+            sound_path = self.find_sound_path(trigger)
+            if sound_path:
+                self.db.set(DISABLED_SOUNDS.format(sound_path), 1)
+            del self.db[DISABLED_SOUNDS.format(trigger)]
 
     # play the sound at the supplied path
     def cmd_sound(self, player, msg, channel):
@@ -709,17 +693,7 @@ class myFun(minqlx.Plugin):
     # populates the sound list that is used to list the available sounds on the server
     @minqlx.thread
     def populate_sound_lists(self):
-        # remove entries for sounds disabled on the server
-        keys = self.db.keys("minqlx:myFun:disabled:*")
-        for key in keys:
-            if self.db[key]:
-                sound_dict = 0
-                trigger = key.split(":")[-1]
-                while sound_dict < len(self.Enabled_SoundPacks):
-                    if self.Enabled_SoundPacks[sound_dict]:
-                        del self.db[SOUND_TRIGGERS.format(sound_dict, trigger)]
-                    sound_dict += 1
-
+        self.soundLists = [None, None, None, None, None, None]
         self.sound_list_count = 0
         self.help_msg = []
         slot = 0
@@ -730,6 +704,8 @@ class myFun(minqlx.Plugin):
                 self.help_msg.append(self.categories[slot])
                 keys = self.db.keys(SOUND_TRIGGERS.format(slot, "*"))
                 for key in keys:
+                    if self.db.exists(DISABLED_SOUNDS.format(self.db.get(key).split(";")[1])):
+                        continue
                     self.soundLists[slot].append(key.split(":")[-1])
                 self.soundLists[slot].sort()
             slot += 1
@@ -932,13 +908,16 @@ class myFun(minqlx.Plugin):
     #  when processing normal chat messages
     @minqlx.thread
     def populate_database(self):
-        if self.db.get("minqlx:myFun:version") == VERSION and\
+        old_version = self.db.get("minqlx:myFun:version")
+        if old_version == VERSION and\
                 self.db.get("minqlx:myFun:enabled") == self.get_cvar("qlx_funEnableSoundPacks"):
             self.populate_sound_lists()
             return
         else:
             self.db.set("minqlx:myFun:version", VERSION)
             self.db.set("minqlx:myFun:enabled", self.get_cvar("qlx_funEnableSoundPacks"))
+        if float(old_version) < 4.2:
+            self.fix_disabled()
         if self.Enabled_SoundPacks[0]:
             self.db.set(SOUND_TRIGGERS.format(0, "battlesuit"), "^battlesuit\\W?$;sound/vo/battlesuit.ogg")
             self.db.set(SOUND_TRIGGERS.format(0, "bite"), "^bite\\W?$;sound/vo/bite.ogg")
