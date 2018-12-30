@@ -51,7 +51,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
@@ -629,8 +629,14 @@ class battleroyale(minqlx.Plugin):
                     if slap:
                         if health - sub_health <= 0:
                             minqlx.console_command("slap {} {}".format(player.id, health - 1))
+                            for p in self.teams()["spectators"]:
+                                p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
+                                       .format(player, health, 1, armor, set_armor))
                         else:
                             minqlx.console_command("slap {} {}".format(player.id, sub_health))
+                            for p in self.teams()["spectators"]:
+                                p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
+                                       .format(player, health, health - set_health, armor, set_armor))
                     else:
                         if health - sub_health <= 0:
                             set_health = 1
@@ -639,9 +645,10 @@ class battleroyale(minqlx.Plugin):
                             set_health = health - sub_health
                             minqlx.set_health(player.id, set_health)
                         player.center_print("^1Damage")
-                        self.msg("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
-                                 .format(player, health, set_health, armor, set_armor))
                         super().play_sound("sound/player/doom/pain75_1.wav", player)
+                        for p in self.teams()["spectators"]:
+                            p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
+                                   .format(player, health, set_health, armor, set_armor))
             else:
                 damage = new_damage
             if half_time > 0 and count >= must_slap + half_time:
