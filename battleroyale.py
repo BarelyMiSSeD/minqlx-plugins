@@ -614,6 +614,7 @@ class battleroyale(minqlx.Plugin):
         while self.last_2 and len(self.last_two) == 2:
             new_damage = [self.last_two[0].stats.damage_dealt, self.last_two[1].stats.damage_dealt]
             if count >= must_slap or damage == new_damage:
+                specs = self.teams()["spectators"]
                 for player in self.last_two:
                     health = player.health
                     armor = player.armor
@@ -629,13 +630,13 @@ class battleroyale(minqlx.Plugin):
                     if slap:
                         if health - sub_health <= 0:
                             minqlx.console_command("slap {} {}".format(player.id, health - 1))
-                            for p in self.teams()["spectators"]:
+                            for p in specs:
                                 p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
                                        .format(player, health, 1, armor, set_armor))
                         else:
                             minqlx.console_command("slap {} {}".format(player.id, sub_health))
                             set_health = health - sub_health
-                            for p in self.teams()["spectators"]:
+                            for p in specs:
                                 p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
                                        .format(player, health, set_health, armor, set_armor))
                     else:
@@ -647,7 +648,7 @@ class battleroyale(minqlx.Plugin):
                             minqlx.set_health(player.id, set_health)
                         player.center_print("^1Damage")
                         super().play_sound("sound/player/doom/pain75_1.wav", player)
-                        for p in self.teams()["spectators"]:
+                        for p in specs:
                             p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
                                    .format(player, health, set_health, armor, set_armor))
             else:
