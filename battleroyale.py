@@ -51,7 +51,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
@@ -595,6 +595,7 @@ class battleroyale(minqlx.Plugin):
     @minqlx.next_frame
     def move_player(self, player, team, add_queue=False, queue_pos=0):
         player.put(team)
+        player.center_print("^3You were ^1killed^7.\nYou will be put back in game after the round ends.")
         if add_queue:
             self.add_to_queue_pos(player, queue_pos)
 
@@ -619,10 +620,12 @@ class battleroyale(minqlx.Plugin):
                     sub_armor = int(deal_damage * .666)
                     sub_health = deal_damage - sub_armor
                     if armor <= sub_armor:
+                        set_armor = 0
                         minqlx.set_armor(player.id, 0)
                         sub_health += sub_armor - armor
                     else:
-                        minqlx.set_armor(player.id, armor - sub_armor)
+                        set_armor = armor - sub_armor
+                        minqlx.set_armor(player.id, set_armor)
                     if slap:
                         if health - sub_health <= 0:
                             minqlx.console_command("slap {} {}".format(player.id, health - 1))
@@ -630,11 +633,14 @@ class battleroyale(minqlx.Plugin):
                             minqlx.console_command("slap {} {}".format(player.id, sub_health))
                     else:
                         if health - sub_health <= 0:
+                            set_health = 1
                             minqlx.set_health(player.id, 1)
                         else:
-                            minqlx.set_health(player.id, health - sub_health)
+                            set_health = health - sub_health
+                            minqlx.set_health(player.id, set_health)
                         player.center_print("^1Damage")
-                        self.msg("{} was damaged!".foramt(player.name))
+                        self.msg("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
+                                 .format(player, health, set_health, armor, set_armor))
                         super().play_sound("sound/player/doom/pain75_1.wav", player)
             else:
                 damage = new_damage
