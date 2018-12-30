@@ -634,9 +634,10 @@ class battleroyale(minqlx.Plugin):
                                        .format(player, health, 1, armor, set_armor))
                         else:
                             minqlx.console_command("slap {} {}".format(player.id, sub_health))
+                            set_health = health - sub_health
                             for p in self.teams()["spectators"]:
                                 p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
-                                       .format(player, health, health - set_health, armor, set_armor))
+                                       .format(player, health, set_health, armor, set_armor))
                     else:
                         if health - sub_health <= 0:
                             set_health = 1
