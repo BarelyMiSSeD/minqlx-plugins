@@ -51,7 +51,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.1.7"
+VERSION = "1.1.9"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
@@ -336,6 +336,7 @@ class battleroyale(minqlx.Plugin):
                           .format(self.get_cvar("qlx_brWinRounds", int), self.get_cvar("qlx_commandPrefix")))
 
     def handle_game_start(self, data):
+        self._deaths = 0
         self._rounds += 1
         del self.last_two[:]
         self.last_2 = False
@@ -356,11 +357,9 @@ class battleroyale(minqlx.Plugin):
         del self.last_two[:]
 
     def death_monitor(self, victim, killer, data):
-        if self.game.state == "in_progress" and self._rounds > 0:
-            free = self.teams()["free"]
-            if victim == killer:
-                remaining = len(free)
-            else:
+        with self.lock:
+            if self.game.state == "in_progress" and self._rounds > 0:
+                free = self.teams()["free"]
                 remaining = len(free) - 1
                 try:
                     if not self.last_2:
@@ -381,50 +380,50 @@ class battleroyale(minqlx.Plugin):
                         self.move_player(victim, "spectator", True, self._deaths)
                         self._deaths += 1
                 except Exception as e:
-                    minqlx.console_print("^4Not Last 2 Death Monitor Exception: {}".format(e))
+                    minqlx.console_print("^4Battle Royale Not Last 2 Death Monitor Exception: {}".format(e))
 
-            if remaining == 2 and len(self.last_two) == 0:
-                try:
-                    self.last_two.append(killer)
-                    for player in free:
-                        if killer != player and victim != player:
-                            self.last_two.append(player)
-                    self.last_2 = True
-                    self.last_2_standing()
-                except Exception as e:
-                    minqlx.console_print("^42 Remaining Death Monitor Exception: {}".format(e))
-            elif remaining == 1:
-                try:
-                    self.move_player(victim, "spectator", True, self._deaths)
-                    if killer is not None:
-                        self.msg("{} ^7killed {} ^7for the round win."
-                                 .format(killer, victim))
-                        try:
-                            self._wins[killer.steam_id] += 1
-                        except KeyError:
-                            self._wins[killer.steam_id] = 1
-                        except Exception as e:
-                            minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
-                        self._deaths = 0
-                        self.last_2 = False
-                        self.round_win(killer, killer.health, killer.armor)
-                    else:
+                if remaining == 2 and len(self.last_two) == 0:
+                    del self.last_two[:]
+                    try:
                         for player in free:
-                            if victim.steam_id != player.steam_id:
-                                winner = player
-                        self.msg("{} ^4Died^7, giving {} ^7the round win. ^1{} ^7Health and ^2{} ^7Armor remaining."
-                                 .format(victim, winner, winner.health, winner.armor))
-                        try:
-                            self._wins[winner.steam_id] += 1
-                        except KeyError:
-                            self._wins[winner.steam_id] = 1
-                        except Exception as e:
-                            minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
-                        self._deaths = 0
-                        self.last_2 = False
-                        self.round_win(winner, winner.health, winner.armor)
-                except Exception as e:
-                    minqlx.console_print("^4Last Standing Death Monitor Exception: {}".format(e))
+                            if victim != player:
+                                self.last_two.append(player)
+                        self.last_2 = True
+                        self.last_2_standing()
+                    except Exception as e:
+                        minqlx.console_print("^4Battle Royale 2 Remaining Death Monitor Exception: {}".format(e))
+                elif remaining == 1:
+                    try:
+                        self.move_player(victim, "spectator", True, self._deaths)
+                        if killer is not None:
+                            self.msg("{} ^7killed {} ^7for the round win."
+                                     .format(killer, victim))
+                            try:
+                                self._wins[killer.steam_id] += 1
+                            except KeyError:
+                                self._wins[killer.steam_id] = 1
+                            except Exception as e:
+                                minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
+                            self._deaths = 0
+                            self.last_2 = False
+                            self.round_win(killer, killer.health, killer.armor)
+                        else:
+                            for player in free:
+                                if victim.steam_id != player.steam_id:
+                                    winner = player
+                            self.msg("{} ^4Died^7, giving {} ^7the round win. ^1{} ^7Health and ^2{} ^7Armor remaining."
+                                     .format(victim, winner, winner.health, winner.armor))
+                            try:
+                                self._wins[winner.steam_id] += 1
+                            except KeyError:
+                                self._wins[winner.steam_id] = 1
+                            except Exception as e:
+                                minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
+                            self._deaths = 0
+                            self.last_2 = False
+                            self.round_win(winner, winner.health, winner.armor)
+                    except Exception as e:
+                        minqlx.console_print("^4Battle Royale Death Monitor Exception: {}".format(e))
 
     # ==============================================
     #       Minqlx Player Command Functions
@@ -606,7 +605,8 @@ class battleroyale(minqlx.Plugin):
 
     @minqlx.next_frame
     def move_player(self, player, team, add_queue=False, queue_pos=0):
-        player.put(team)
+        location = team if team != "spectator" else "spec"
+        minqlx.console_command("put {} {}".format(player.id, location))
         player.center_print("^3You were ^1killed^7.\nYou will be put back in game after the round ends.")
         if add_queue:
             self.add_to_queue_pos(player, queue_pos)
