@@ -51,7 +51,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
@@ -294,16 +294,19 @@ class battleroyale(minqlx.Plugin):
             check_spectator()
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
-        if (self._rounds > 0 and old_team == "spectator" and self.game.state == "in_progress") or\
-                len(self.teams()["free"]) >= self.get_max_players():
-            self.add_to_queue(player)
-            self.remove_from_spec(player)
-            player.center_print("^4Welcome to ^1Quake ^7Live ^2Battle Royale^7.\n^2You are in the Queue to join."
-                                "\nYou will be put into the game at round end."
-                                "\nType ^1{}rules ^7to see game rules.".format(self.get_cvar("qlx_commandPrefix")))
-            return minqlx.RET_STOP_ALL
-        elif new_team == "spectator":
-            self.add_to_spec(player)
+        try:
+            if (self._rounds > 0 and old_team == "spectator" and self.game.state == "in_progress") or\
+                    len(self.teams()["free"]) >= self.get_max_players():
+                self.add_to_queue(player)
+                self.remove_from_spec(player)
+                player.center_print("^4Welcome to ^1Quake ^7Live ^2Battle Royale^7.\n^2You are in the Queue to join."
+                                    "\nYou will be put into the game at round end."
+                                    "\nType ^1{}rules ^7to see game rules.".format(self.get_cvar("qlx_commandPrefix")))
+                return minqlx.RET_STOP_ALL
+            elif new_team == "spectator":
+                self.add_to_spec(player)
+        except Exception as e:
+            minqlx.console_print("^4Handle Teams Switch Attempt Exception: {}".format(e))
 
     def handle_set_config_string(self, index, values):
         args = values.split("\\")[1:]
@@ -359,60 +362,69 @@ class battleroyale(minqlx.Plugin):
                 remaining = len(free)
             else:
                 remaining = len(free) - 1
-                if not self.last_2:
-                    if killer is not None:
-                        start_health = self.get_cvar("g_startingHealth", int)
-                        if self._bonus[0] > 0:
-                            health = killer.health
-                            if health < start_health * 2 - self._bonus[0]:
-                                minqlx.set_health(killer.id, health + self._bonus[0])
-                            else:
-                                minqlx.set_health(killer.id, start_health * 2)
-                        if self._bonus[1] > 0:
-                            armor = killer.armor
-                            if armor < start_health * 2 - self._bonus[1]:
-                                minqlx.set_armor(killer.id, armor + self._bonus[1])
-                            else:
-                                minqlx.set_armor(killer.id, start_health * 2)
-                    self.move_player(victim, "spectator", True, self._deaths)
-                    self._deaths += 1
+                try:
+                    if not self.last_2:
+                        if killer is not None:
+                            start_health = self.get_cvar("g_startingHealth", int)
+                            if self._bonus[0] > 0:
+                                health = killer.health
+                                if health < start_health * 2 - self._bonus[0]:
+                                    minqlx.set_health(killer.id, health + self._bonus[0])
+                                else:
+                                    minqlx.set_health(killer.id, start_health * 2)
+                            if self._bonus[1] > 0:
+                                armor = killer.armor
+                                if armor < start_health * 2 - self._bonus[1]:
+                                    minqlx.set_armor(killer.id, armor + self._bonus[1])
+                                else:
+                                    minqlx.set_armor(killer.id, start_health * 2)
+                        self.move_player(victim, "spectator", True, self._deaths)
+                        self._deaths += 1
+                except Exception as e:
+                    minqlx.console_print("^4Not Last 2 Death Monitor Exception: {}".format(e))
 
             if remaining == 2 and len(self.last_two) == 0:
-                self.last_two.append(killer)
-                for player in free:
-                    if killer != player and victim != player:
-                        self.last_two.append(player)
-                self.last_2 = True
-                self.last_2_standing()
-            elif remaining == 1:
-                self.move_player(victim, "spectator", True, self._deaths)
-                if killer is not None:
-                    self.msg("{} ^7killed {} ^7for the round win."
-                             .format(killer, victim))
-                    try:
-                        self._wins[killer.steam_id] += 1
-                    except KeyError:
-                        self._wins[killer.steam_id] = 1
-                    except Exception as e:
-                        minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
-                    self._deaths = 0
-                    self.last_2 = False
-                    self.round_win(killer, killer.health, killer.armor)
-                else:
+                try:
+                    self.last_two.append(killer)
                     for player in free:
-                        if victim.steam_id != player.steam_id:
-                            winner = player
-                    self.msg("{} ^4Died^7, giving {} ^7the round win. ^1{} ^7Health and ^2{} ^7Armor remaining."
-                             .format(victim, winner, winner.health, winner.armor))
-                    try:
-                        self._wins[winner.steam_id] += 1
-                    except KeyError:
-                        self._wins[winner.steam_id] = 1
-                    except Exception as e:
-                        minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
-                    self._deaths = 0
-                    self.last_2 = False
-                    self.round_win(winner, winner.health, winner.armor)
+                        if killer != player and victim != player:
+                            self.last_two.append(player)
+                    self.last_2 = True
+                    self.last_2_standing()
+                except Exception as e:
+                    minqlx.console_print("^42 Remaining Death Monitor Exception: {}".format(e))
+            elif remaining == 1:
+                try:
+                    self.move_player(victim, "spectator", True, self._deaths)
+                    if killer is not None:
+                        self.msg("{} ^7killed {} ^7for the round win."
+                                 .format(killer, victim))
+                        try:
+                            self._wins[killer.steam_id] += 1
+                        except KeyError:
+                            self._wins[killer.steam_id] = 1
+                        except Exception as e:
+                            minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
+                        self._deaths = 0
+                        self.last_2 = False
+                        self.round_win(killer, killer.health, killer.armor)
+                    else:
+                        for player in free:
+                            if victim.steam_id != player.steam_id:
+                                winner = player
+                        self.msg("{} ^4Died^7, giving {} ^7the round win. ^1{} ^7Health and ^2{} ^7Armor remaining."
+                                 .format(victim, winner, winner.health, winner.armor))
+                        try:
+                            self._wins[winner.steam_id] += 1
+                        except KeyError:
+                            self._wins[winner.steam_id] = 1
+                        except Exception as e:
+                            minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
+                        self._deaths = 0
+                        self.last_2 = False
+                        self.round_win(winner, winner.health, winner.armor)
+                except Exception as e:
+                    minqlx.console_print("^4Last Standing Death Monitor Exception: {}".format(e))
 
     # ==============================================
     #       Minqlx Player Command Functions
@@ -612,52 +624,55 @@ class battleroyale(minqlx.Plugin):
         half_time = self.get_cvar("qlx_brHalfTimePeriod", int)
         slap = self.get_cvar("qlx_brUseSlapDmg", bool)
         while self.last_2 and len(self.last_two) == 2:
-            new_damage = [self.last_two[0].stats.damage_dealt, self.last_two[1].stats.damage_dealt]
-            if count >= must_slap or damage == new_damage:
-                specs = self.teams()["spectators"]
-                for player in self.last_two:
-                    health = player.health
-                    armor = player.armor
-                    sub_armor = int(deal_damage * .666)
-                    sub_health = deal_damage - sub_armor
-                    if armor <= sub_armor:
-                        set_armor = 0
-                        minqlx.set_armor(player.id, 0)
-                        sub_health += sub_armor - armor
-                    else:
-                        set_armor = armor - sub_armor
-                        minqlx.set_armor(player.id, set_armor)
-                    if slap:
-                        if health - sub_health <= 0:
-                            minqlx.console_command("slap {} {}".format(player.id, health - 1))
-                            for p in specs:
-                                p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
-                                       .format(player, health, 1, armor, set_armor))
+            try:
+                new_damage = [self.last_two[0].stats.damage_dealt, self.last_two[1].stats.damage_dealt]
+                if count >= must_slap or damage == new_damage:
+                    specs = self.teams()["spectator"]
+                    for player in self.last_two:
+                        health = player.health
+                        armor = player.armor
+                        sub_armor = int(deal_damage * .666)
+                        sub_health = deal_damage - sub_armor
+                        if armor <= sub_armor:
+                            set_armor = 0
+                            minqlx.set_armor(player.id, 0)
+                            sub_health += sub_armor - armor
                         else:
-                            minqlx.console_command("slap {} {}".format(player.id, sub_health))
-                            set_health = health - sub_health
+                            set_armor = armor - sub_armor
+                            minqlx.set_armor(player.id, set_armor)
+                        if slap:
+                            if health - sub_health <= 0:
+                                minqlx.console_command("slap {} {}".format(player.id, health - 1))
+                                for p in specs:
+                                    p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
+                                           .format(player, health, 1, armor, set_armor))
+                            else:
+                                minqlx.console_command("slap {} {}".format(player.id, sub_health))
+                                set_health = health - sub_health
+                                for p in specs:
+                                    p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
+                                           .format(player, health, set_health, armor, set_armor))
+                        else:
+                            if health - sub_health <= 0:
+                                set_health = 1
+                                minqlx.set_health(player.id, 1)
+                            else:
+                                set_health = health - sub_health
+                                minqlx.set_health(player.id, set_health)
+                            player.center_print("^1Damage")
+                            super().play_sound("sound/player/doom/pain75_1.wav", player)
                             for p in specs:
                                 p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
                                        .format(player, health, set_health, armor, set_armor))
-                    else:
-                        if health - sub_health <= 0:
-                            set_health = 1
-                            minqlx.set_health(player.id, 1)
-                        else:
-                            set_health = health - sub_health
-                            minqlx.set_health(player.id, set_health)
-                        player.center_print("^1Damage")
-                        super().play_sound("sound/player/doom/pain75_1.wav", player)
-                        for p in specs:
-                            p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
-                                   .format(player, health, set_health, armor, set_armor))
-            else:
-                damage = new_damage
-            if half_time > 0 and count >= must_slap + half_time:
-                time.sleep(delay / 2)
-            else:
-                time.sleep(delay)
-            count += 1
+                else:
+                    damage = new_damage
+                if half_time > 0 and count >= must_slap + half_time:
+                    time.sleep(delay / 2)
+                else:
+                    time.sleep(delay)
+                count += 1
+            except Exception as e:
+                minqlx.console_print("^4Last 2 Standing While loop Exception: {}".format(e))
 
     @minqlx.delay(0.2)
     def round_win(self, player, health, armor):
