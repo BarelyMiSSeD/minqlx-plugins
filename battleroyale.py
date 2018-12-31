@@ -51,7 +51,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
@@ -615,6 +615,8 @@ class battleroyale(minqlx.Plugin):
     def last_2_standing(self):
         deal_damage = self.get_cvar("qlx_brLast2Damage", int)
         delay = self.get_cvar("qlx_brDamageDelay", int)
+        for pl in self.players():
+            super().play_sound("sound/vo/sudden_death.ogg", pl)
         self.msg("^3Last 2 remaining^7. ^1{0} ^3damage every ^2{1} ^3seconds to unengaged "
                  "players begins in ^2{1} ^3seconds^7.".format(deal_damage, delay))
         damage = [self.last_two[0].stats.damage_dealt, self.last_two[1].stats.damage_dealt]
