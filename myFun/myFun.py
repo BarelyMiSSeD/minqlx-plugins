@@ -1517,7 +1517,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "confident"), "^confident\\W?$;sound/warp/confident.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "cooperation"), "^cooperation\\W?$;sound/warp/cooperation.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "cow dick"), "^cow dick\\W?$;sound/warp/cowdick.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "crush your enemies"), "^(?:crush( your enemies)?\\W?$;sound/warp/crushyourenemies.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "crush your enemies"), "^crush( your enemies)?\\W?$;sound/warp/crushyourenemies.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "crusher"), "^crusher\\W?$;sound/warp/crusher.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "cucumber"), "^cucumber\\W?$;sound/warp/cucumber.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "go crazy"), "^go crazy\\W?$;sound/warp/crazy.ogg")
