@@ -29,8 +29,9 @@ set qlx_fwPlayerSplit "8"
 import minqlx
 import random
 from threading import Timer
+import time
 
-VERSION = 1.09
+VERSION = "2.1"
 
 
 class funwarmup(minqlx.Plugin):
@@ -89,7 +90,7 @@ class funwarmup(minqlx.Plugin):
             1: ["weapon_reload_sg 1000", "g_knockback_sg 1.00", "g_range_sg_falloff 768"],
             2: ["weapon_reload_mg 100", "g_knockback_mg 1.00"],
             3: ["weapon_reload_hmg 75", "g_knockback_hmg 1.00"],
-            4: ["weapon_reload_pg 100", "g_knockback_pg 1.10", "g_knockback_pg_self 1.30", "g_velocity_pg 2000"],
+            4: ["weapon_reload_pg 100", "g_knockback_pg 1.10", "g_knockback_pg_self 1.10", "g_velocity_pg 2000"],
             5: ["weapon_reload_rl 800", "g_knockback_rl 0.90", "g_knockback_rl_self 1.10", "g_velocity_rl 1000"]
         }
         # Default CVARs
@@ -99,7 +100,7 @@ class funwarmup(minqlx.Plugin):
                            "weapon_reload_mg 100", "weapon_reload_hmg 75", "g_velocity_rl 1000", "g_velocity_pg 2000",
                            "g_velocity_gl 700", "g_knockback_rl 0.90", "g_knockback_pg 1.10", "g_knockback_rg 0.85",
                            "g_knockback_lg 1.75", "g_knockback_sg 1.00", "g_knockback_gl 1.10", "g_knockback_mg 1.00",
-                           "g_knockback_hmg 1.00", "g_knockback_rl_self 1.1", "g_railJump 0", "g_velocity_pg 2000",
+                           "g_knockback_hmg 1.00", "g_knockback_rl_self 1.10", "g_railJump 0", "g_velocity_pg 2000",
                            "g_velocity_rl 1000"]
 
     def handle_map(self, mapname, factory):
@@ -129,6 +130,8 @@ class funwarmup(minqlx.Plugin):
     def handle_player_spawn(self, player):
         if self.fw_setup and len(self.fw_weapons) > 0:
             player.tell("^2Fun Warmup weapon is ^1{}".format(self.WEAPON_NAMES[self.fw_weapons[-1]]))
+        elif not self.fw_setup and self.get_cvar("qlx_fwSetupWarmupFun", bool) and self.game.state == "warmup":
+            self.set_fun_warm_up(delay=0.5)
 
     def handle_game_end(self, data):
         if data["ABORTED"]:
@@ -155,18 +158,22 @@ class funwarmup(minqlx.Plugin):
         else:
             self.msg("^3No Fun Warmup weapon is set.")
 
-    def set_fun_warm_up(self):
+    def set_fun_warm_up(self, delay=0.0):
         self.fw_setup = True
         self.fw_weapons = []
         self.msg_players()
         for setting in self.PLAYER_CVARS:
             minqlx.console_command("set {}".format(setting))
         fw_id = self.fw_id = random.randint(0, 10000000)
-        self.cycle_fun_weapons(fw_id)
+        self.cycle_fun_weapons(fw_id, delay)
 
     @minqlx.thread
-    def cycle_fun_weapons(self, fw_id=None):
-        if self.fw_setup and self.game.state == "warmup" and fw_id == self.fw_id:
+    def cycle_fun_weapons(self, fw_id=None, delay=0.0):
+        if delay > 0.0:
+            time.sleep(delay)
+        teams = self.teams()
+        if self.fw_setup and self.game.state == "warmup" and fw_id == self.fw_id and\
+                len(teams["red"] + teams["blue"] + teams["free"]) > 0:
             for used in self.fw_weapons:
                 cvar_list = self.WEAPONS_DFLTS[used]
                 for cvar in cvar_list:
@@ -193,6 +200,8 @@ class funwarmup(minqlx.Plugin):
             self.msg("^2Fun Warmup weapon is ^1{} ^2for the next ^1{} ^2seconds."
                      .format(self.WEAPON_NAMES[self.fw_weapons[-1]], self.fw_interval))
             Timer(self.fw_interval, self.cycle_fun_weapons, [fw_id]).start()
+        else:
+            self.set_normal_mode()
 
     def set_normal_mode(self):
         msg = False
