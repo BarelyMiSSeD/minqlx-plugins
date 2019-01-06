@@ -30,7 +30,7 @@ import minqlx
 import random
 from threading import Timer
 
-VERSION = "2.2"
+VERSION = "2.3"
 
 
 class funwarmup(minqlx.Plugin):
@@ -51,7 +51,7 @@ class funwarmup(minqlx.Plugin):
         self.add_command("unsetfun", self.cmd_unset_fun, self.get_cvar("qlx_fwAdminLevel", int))
         self.add_command("weapon", self.cmd_weapon)
 
-        self.fw_setup = False
+        self.fw_active = False
         self.fw_weapons = []
         self.cycle = None
         self.fw_interval = self.get_cvar("qlx_fwInterval", int)
@@ -108,24 +108,27 @@ class funwarmup(minqlx.Plugin):
             Timer(2, self.start_fun_warm_up).start()
 
     def handle_game_countdown(self):
-        if self.fw_setup:
+        if self.fw_active:
             self.set_normal_mode()
 
     def handle_player_disconnect(self, player, reason):
-        if len(self.players()) - 1 <= 0 and self.fw_setup:
+        if len(self.players()) - 1 <= 0 and self.fw_active:
             self.set_normal_mode()
 
     def handle_player_loaded(self, player):
-        if self.fw_setup:
+        if self.fw_active:
             player.center_print("^6Fun Warmup mode is ^1ON")
             if len(self.fw_weapons) > 0:
                 player.center_print("^2Fun Warmup weapon is ^1{} \n^2^1{} ^2seconds of fun per weapon."
                                     .format(self.WEAPON_NAMES[self.fw_weapons[-1]], self.fw_interval))
 
     def handle_player_spawn(self, player):
-        if self.fw_setup and len(self.fw_weapons) > 0:
-            player.tell("^2Fun Warmup weapon is ^1{}".format(self.WEAPON_NAMES[self.fw_weapons[-1]]))
-        elif not self.fw_setup and self.get_cvar("qlx_fwSetupWarmupFun", bool) and self.game.state == "warmup":
+        if self.fw_active:
+            if len(self.fw_weapons) > 0:
+                player.tell("^2Fun Warmup weapon is ^1{}".format(self.WEAPON_NAMES[self.fw_weapons[-1]]))
+            else:
+                player.tell("^6Fun Warmup mode is ^1ON")
+        elif self.get_cvar("qlx_fwSetupWarmupFun", bool) and self.game.state == "warmup":
             Timer(0.2, self.start_fun_warm_up).start()
 
     def handle_game_end(self, data):
@@ -134,12 +137,13 @@ class funwarmup(minqlx.Plugin):
                 Timer(2, self.start_fun_warm_up).start()
 
     def start_fun_warm_up(self):
-        if len(self.players()) > 0:
+        teams = self.teams()
+        if not self.fw_active and len(teams["red"] + teams["blue"] + teams["free"]) > 0:
             self.set_fun_warm_up()
 
     def cmd_set_fun(self, player, msg, channel):
         if self.game.state == "warmup":
-            if not self.fw_setup:
+            if not self.fw_active:
                 self.set_fun_warm_up()
         else:
             player.msg("^1The game is not in warmup. Changes not allowed.")
@@ -148,13 +152,16 @@ class funwarmup(minqlx.Plugin):
         self.set_normal_mode()
 
     def cmd_weapon(self, player, msg, channel):
-        if self.fw_setup and len(self.fw_weapons) > 0:
-            self.msg("^2Fun Warmup weapon is ^1{}".format(self.WEAPON_NAMES[self.fw_weapons[-1]]))
+        if self.fw_active:
+            if len(self.fw_weapons) > 0:
+                self.msg("^2Fun Warmup weapon is ^1{}".format(self.WEAPON_NAMES[self.fw_weapons[-1]]))
+            else:
+                self.msg("^3No Fun Warmup weapon is set.")
         else:
-            self.msg("^3No Fun Warmup weapon is set.")
+            self.msg("^6Fun Warmup mode is ^3OFF")
 
     def set_fun_warm_up(self):
-        self.fw_setup = True
+        self.fw_active = True
         self.fw_weapons = []
         self.msg_players()
         for setting in self.PLAYER_CVARS:
@@ -165,7 +172,7 @@ class funwarmup(minqlx.Plugin):
     @minqlx.thread
     def cycle_fun_weapons(self, fw_id=None):
         teams = self.teams()
-        if self.fw_setup and self.game.state == "warmup" and fw_id == self.fw_id and\
+        if self.fw_active and self.game.state == "warmup" and fw_id == self.fw_id and\
                 len(teams["red"] + teams["blue"] + teams["free"]) > 0:
             for used in self.fw_weapons:
                 cvar_list = self.WEAPONS_DFLTS[used]
@@ -198,9 +205,9 @@ class funwarmup(minqlx.Plugin):
 
     def set_normal_mode(self):
         msg = False
-        if self.fw_setup:
+        if self.fw_active:
             msg = True
-        self.fw_setup = False
+        self.fw_active = False
         minqlx.console_print("Fun Warm Up: Setting normal mode.")
         if msg:
             self.msg_players()
@@ -209,13 +216,11 @@ class funwarmup(minqlx.Plugin):
             minqlx.console_command("set {}".format(setting))
 
     def msg_players(self):
-        players = self.players()
-        if len(players) > 0:
-            for player in players:
-                if self.fw_setup:
-                    player.center_print("^6Fun Warmup mode is ^1ON")
-                else:
-                    player.center_print("^6Fun Warmup mode is ^3OFF")
+        for player in self.players():
+            if self.fw_active:
+                player.center_print("^6Fun Warmup mode is ^1ON")
+            else:
+                player.center_print("^6Fun Warmup mode is ^3OFF")
 
     def get_max_players(self):
         max_players = self.get_cvar("teamsize", int)
