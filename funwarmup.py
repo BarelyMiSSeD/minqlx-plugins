@@ -29,9 +29,8 @@ set qlx_fwPlayerSplit "8"
 import minqlx
 import random
 from threading import Timer
-import time
 
-VERSION = "2.1"
+VERSION = "2.2"
 
 
 class funwarmup(minqlx.Plugin):
@@ -122,16 +121,12 @@ class funwarmup(minqlx.Plugin):
             if len(self.fw_weapons) > 0:
                 player.center_print("^2Fun Warmup weapon is ^1{} \n^2^1{} ^2seconds of fun per weapon."
                                     .format(self.WEAPON_NAMES[self.fw_weapons[-1]], self.fw_interval))
-        else:
-            if self.get_cvar("qlx_fwSetupWarmupFun", bool):
-                if not self.fw_setup and self.game.state == "warmup":
-                    self.start_fun_warm_up()
 
     def handle_player_spawn(self, player):
         if self.fw_setup and len(self.fw_weapons) > 0:
             player.tell("^2Fun Warmup weapon is ^1{}".format(self.WEAPON_NAMES[self.fw_weapons[-1]]))
         elif not self.fw_setup and self.get_cvar("qlx_fwSetupWarmupFun", bool) and self.game.state == "warmup":
-            self.set_fun_warm_up(delay=0.5)
+            Timer(0.2, self.start_fun_warm_up).start()
 
     def handle_game_end(self, data):
         if data["ABORTED"]:
@@ -158,19 +153,17 @@ class funwarmup(minqlx.Plugin):
         else:
             self.msg("^3No Fun Warmup weapon is set.")
 
-    def set_fun_warm_up(self, delay=0.0):
+    def set_fun_warm_up(self):
         self.fw_setup = True
         self.fw_weapons = []
         self.msg_players()
         for setting in self.PLAYER_CVARS:
             minqlx.console_command("set {}".format(setting))
         fw_id = self.fw_id = random.randint(0, 10000000)
-        self.cycle_fun_weapons(fw_id, delay)
+        self.cycle_fun_weapons(fw_id)
 
     @minqlx.thread
-    def cycle_fun_weapons(self, fw_id=None, delay=0.0):
-        if delay > 0.0:
-            time.sleep(delay)
+    def cycle_fun_weapons(self, fw_id=None):
         teams = self.teams()
         if self.fw_setup and self.game.state == "warmup" and fw_id == self.fw_id and\
                 len(teams["red"] + teams["blue"] + teams["free"]) > 0:
