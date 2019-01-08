@@ -121,8 +121,9 @@ import time
 from threading import Lock
 import random
 import requests
+import re
 
-VERSION = "1.04.01"
+VERSION = "1.04.02"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -295,6 +296,8 @@ class serverBDM(minqlx.Plugin):
         if self.get_cvar("qlx_bdmPrintJoinMsg", bool) and str(player.steam_id)[0] != "9":
             try:
                 games_completed = self.get_db_field(player, "minqlx:players:{}:games_completed")
+                if games_completed is None:
+                    games_completed = 0
             except Exception as e:
                 games_completed = 0
                 minqlx.console_print("Games Completed retrieval error: {}".format(e))
@@ -559,7 +562,7 @@ class serverBDM(minqlx.Plugin):
                     t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 r_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in r_dict:
-                    r_msg.append("^7{}^7:^1{}^7".format(v, k))
+                    r_msg.append("^7{}^7:^1{}^7".format(re.sub(r"\^[0-9]", "", v), k))
                 self.msg(", ".join(r_msg))
 
             clients = len(teams["blue"])
@@ -570,7 +573,7 @@ class serverBDM(minqlx.Plugin):
                     t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 b_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in b_dict:
-                    b_msg.append("^7{}^7:^4{}^7".format(v, k))
+                    b_msg.append("^7{}^7:^4{}^7".format(re.sub(r"\^[0-9]", "", v), k))
                 self.msg(", ".join(b_msg))
 
             clients = len(teams["free"])
@@ -581,7 +584,7 @@ class serverBDM(minqlx.Plugin):
                     t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 f_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in f_dict:
-                    f_msg.append("^7{}^7:^2{}^7".format(v, k))
+                    f_msg.append("^7{}^7:^2{}^7".format(re.sub(r"\^[0-9]", "", v), k))
                 self.msg(", ".join(f_msg))
 
             clients = len(teams["spectator"])
@@ -592,7 +595,7 @@ class serverBDM(minqlx.Plugin):
                     t_dict[str(p)] = self.get_bdm_field(p, game_type, "rating")
                 s_dict = sorted(((v, k) for k, v in t_dict.items()), reverse=True)
                 for k, v in s_dict:
-                    s_msg.append("^7{}^7:^3{}^7".format(v, k))
+                    s_msg.append("^7{}^7:^3{}^7".format(re.sub(r"\^[0-9]", "", v), k))
                 self.msg(", ".join(s_msg))
 
         else:
@@ -1824,9 +1827,12 @@ class serverBDM(minqlx.Plugin):
                 self._save_previous_bdm[p_sid] = rating
                 self.db.set(BDM_KEY.format(p_sid, game_type, "rating"), str(new_rating))
             if print_change:
-                name = self.db.lindex("minqlx:players:{}".format(p_sid), 0)
-                minqlx.console_print("^6Player^7: {} ^7BDM Change: Old = ^6{}^7, New = ^2{}"
-                                     .format(name, rating, new_rating))
+                try:
+                    minqlx.console_print("^6Player^7: {} ^7BDM Change: Old = ^6{}^7, New = ^2{}"
+                                         .format(self.player(int(p_sid)), rating, new_rating))
+                except Exception as e:
+                    minqlx.console_print("^3BDM change message error for ^1{}^3: ^7{}".format(p_sid, e))
+
         if len(self._save_previous_bdm) > 0:
             self.save_previous()
 
