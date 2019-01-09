@@ -57,6 +57,8 @@ set qlx_queueSpecByPrimary "score"
 //set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will
 // kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")
 set qlx_queueMaxSpecTime "9999"
+// The amount of time in NO_COUNTDOWN_TEAM_GAMES it will give when teams are detected as uneven before putting a player in spectate
+set qlx_queueCheckTeamsDelay "5"
 """
 
 import minqlx
@@ -64,7 +66,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.04.5"
+VERSION = "2.05.2"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -267,6 +269,7 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueSpecByScore", "1")
         self.set_cvar_once("qlx_queueSpecByPrimary", "score")
         self.set_cvar_once("qlx_queueMaxSpecTime", "9999")  # time in minutes
+        self.set_cvar_once("qlx_queueCheckTeamsDelay", "5")
 
         # Minqlx bot Hooks
         self.add_hook("new_game", self.handle_new_game)
@@ -295,6 +298,8 @@ class specqueue(minqlx.Plugin):
         self.add_command("ignore", self.ignore_imbalance, 3)
         self.add_command("latch", self.ignore_imbalance_latch, 3)
 
+        self.add_command("test", self.cmd_test)
+
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
         self._queue = PlayerQueue()
@@ -308,7 +313,7 @@ class specqueue(minqlx.Plugin):
         self.displaying_spec = False
         self.in_countdown = False
         self.death_count = 0
-        self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
+        self.q_game_info = []
         self._round = 0
 
         # Initialize Commands
@@ -322,8 +327,12 @@ class specqueue(minqlx.Plugin):
     # ==============================================
     #               Event Handler's
     # ==============================================
+    def cmd_test(self, player, msg, channel):
+        minqlx.console_print("Test: {}".format(self.q_game_info))
 
     def handle_player_connect(self, player):
+        if len(self.q_game_info) == 0:
+            self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
         if player.steam_id not in self._queue:
             self.add_to_spec(player)
             self.remove_from_queue(player)
@@ -334,6 +343,8 @@ class specqueue(minqlx.Plugin):
         self.remove_from_queue(player)
         self.remove_from_join(player)
         self.check_for_opening(0.5)
+        if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
+            self.look_at_teams(1.0)
 
     def handle_team_switch(self, player, old_team, new_team):
         if new_team != "spectator":
@@ -352,6 +363,7 @@ class specqueue(minqlx.Plugin):
                 self.remove_from_join(player)
 
             check_spectator()
+            self.look_at_teams(1.0)
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
         if self.q_game_info[0] in SUPPORTED_GAMETYPES and\
@@ -412,19 +424,22 @@ class specqueue(minqlx.Plugin):
 
         @minqlx.thread
         def t():
-            if self.game.type_short == "ft":
-                countdown = self.get_cvar("g_freezeRoundDelay", int)
+            if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
+                self.look_at_teams(1.0)
             else:
-                countdown = self.get_cvar("g_roundWarmupDelay", int)
-            time.sleep(max(countdown / 1000 - 0.8, 0))
-            self.even_the_teams()
+                if self.game.type_short == "ft":
+                    countdown = self.get_cvar("g_freezeRoundDelay", int)
+                else:
+                    countdown = self.get_cvar("g_roundWarmupDelay", int)
+                time.sleep(max(countdown / 1000 - 0.8, 0))
+                self.even_the_teams()
         t()
 
     def handle_map(self, mapname, factory):
+        self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
         self._ignore = False
         self._ignore_msg_already_said = False
         self.end_screen = False
-        self.q_game_info[0] = self.game.type_short
         self.check_spec_time()
 
     def handle_game_end(self, data):
@@ -442,7 +457,8 @@ class specqueue(minqlx.Plugin):
             self.cmd_list_specs()
         self.check_queue(0.2)
         self.check_spec(0.2)
-        self.look_at_teams()
+        if self.q_game_info[0] not in NO_COUNTDOWN_TEAM_GAMES:
+            self.look_at_teams()
 
     def handle_round_start(self, number):
         self.check_for_opening(0.2)
@@ -769,8 +785,81 @@ class specqueue(minqlx.Plugin):
         return self._join.get_jt()
 
     @minqlx.thread
-    def look_at_teams(self):
-        if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+    def look_at_teams(self, delay=None):
+        if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+            if delay:
+                time.sleep(delay)
+            teams = self.teams()
+            difference = len(teams["red"]) - len(teams["blue"])
+            if abs(difference) > 0 and self._latch_ignore or self._ignore:
+                if not self._ignore_msg_already_said:
+                    self.msg("^6Uneven teams action^7: no action will be taken due to admin setting!")
+                    self._ignore_msg_already_said = True
+                return
+            p_count = len(teams["red"] + teams["blue"])
+            players = []
+            move_players = []
+            where = None
+            spec_player = None
+
+            if abs(difference) > 0 and \
+                    self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
+                if difference == -1:
+                    self.get_player_for_spec(teams["blue"].copy())
+                    spec_player = self._players[0]
+                elif difference == 1:
+                    self.get_player_for_spec(teams["red"].copy())
+                    spec_player = self._players[0]
+                else:
+                    move = int(abs(difference) / 2)
+                    if (difference % 2) == 0:
+                        spec = 0
+                    else:
+                        spec = 1
+                    if difference < 0:
+                        self.get_uneven_players(teams["blue"].copy(), move + spec)
+                        where = "red"
+                    else:
+                        self.get_uneven_players(teams["red"].copy(), move + spec)
+                        where = "blue"
+                    if (difference % 2) != 0:
+                        spec_player = self._players[0]
+                        self._players.pop(0)
+                    for p in self._players:
+                        players.append(p.name)
+                        move_players.append(p)
+                if not delay:
+                    if len(move_players) > 0:
+                        self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
+                                 .format("^7, ".join(players), where))
+                    if spec_player:
+                        self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate^7.".format(spec_player))
+            if delay:
+                if len(players) > 0:
+                    self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
+                             .format("^7, ".join(players), where))
+                    self.even_the_teams(False)
+                elif spec_player:
+                    delay_time = self.get_cvar("qlx_queueCheckTeamsDelay", int)
+                    self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate ^7if not fixed."
+                             .format(spec_player))
+                    
+                    self.msg("^2Looking at teams again in {} seconds to assess even status.".format(delay_time))
+                    time.sleep(delay_time)
+                    self.even_the_teams(False)
+            else:
+                self.even_the_teams(True)
+
+    @minqlx.thread
+    def even_the_teams(self, delay=False):
+        if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+            if delay:
+                if self.game.type_short == "ft":
+                    countdown = self.get_cvar("g_freezeRoundDelay", int)
+                else:
+                    countdown = self.get_cvar("g_roundWarmupDelay", int)
+                time.sleep(max(countdown / 1000 - 0.3, 0))
+
             teams = self.teams()
             difference = len(teams["red"]) - len(teams["blue"])
             if abs(difference) > 0 and self._latch_ignore or self._ignore:
@@ -811,68 +900,12 @@ class specqueue(minqlx.Plugin):
                         players.append(p.name)
                         move_players.append(p)
                 if len(move_players) > 0:
-                    self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
-                             .format("^7, ".join(players), where))
+                    for player in move_players:
+                        self.team_placement(player, where)
+                    self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7.".format("^7, ".join(players), where))
                 if spec_player:
-                    self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate^7.".format(spec_player))
-            self.even_the_teams(True)
-
-    @minqlx.thread
-    def even_the_teams(self, delay=False):
-        if self.q_game_info[0] not in TEAM_BASED_GAMETYPES:
-            return
-        if delay:
-            if self.game.type_short == "ft":
-                countdown = self.get_cvar("g_freezeRoundDelay", int)
-            else:
-                countdown = self.get_cvar("g_roundWarmupDelay", int)
-            time.sleep(max(countdown / 1000 - 0.3, 0))
-        teams = self.teams()
-        difference = len(teams["red"]) - len(teams["blue"])
-        if abs(difference) > 0 and self._latch_ignore or self._ignore:
-            if not self._ignore_msg_already_said:
-                self.msg("^6Uneven teams action^7: no action will be taken due to admin setting!")
-                self._ignore_msg_already_said = True
-            return
-        p_count = len(teams["red"] + teams["blue"])
-        players = []
-        move_players = []
-        where = None
-        spec_player = None
-
-        if abs(difference) > 0 and \
-                self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
-            if difference == -1:
-                self.get_player_for_spec(teams["blue"].copy())
-                spec_player = self._players[0]
-            elif difference == 1:
-                self.get_player_for_spec(teams["red"].copy())
-                spec_player = self._players[0]
-            else:
-                move = int(abs(difference) / 2)
-                if (difference % 2) == 0:
-                    spec = 0
-                else:
-                    spec = 1
-                if difference < 0:
-                    self.get_uneven_players(teams["blue"].copy(), move + spec)
-                    where = "red"
-                else:
-                    self.get_uneven_players(teams["red"].copy(), move + spec)
-                    where = "blue"
-                if (difference % 2) != 0:
-                    spec_player = self._players[0]
-                    self._players.pop(0)
-                for p in self._players:
-                    players.append(p.name)
-                    move_players.append(p)
-            if len(move_players) > 0:
-                for player in move_players:
-                    self.team_placement(player, where)
-                self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7.".format("^7, ".join(players), where))
-            if spec_player:
-                self.team_placement(spec_player, "spectator", True)
-                self.msg("^3Uneven Teams Detected^7: {} ^7was moved to ^3spectate^7.".format(spec_player))
+                    self.team_placement(spec_player, "spectator", True)
+                    self.msg("^3Uneven Teams Detected^7: {} ^7was moved to ^3spectate^7.".format(spec_player))
 
     @minqlx.thread
     def get_player_for_spec(self, team):
