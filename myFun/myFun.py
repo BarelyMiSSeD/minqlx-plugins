@@ -128,7 +128,7 @@ import random
 import time
 import re
 
-VERSION = "4.4"
+VERSION = "4.5"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -973,7 +973,9 @@ class myFun(minqlx.Plugin):
     #  when processing normal chat messages
     @minqlx.thread
     def populate_database(self):
-        old_version = self.db.get("minqlx:myFun:version")
+        old_version = 0.0
+        if self.db.exists("minqlx:myFun:version"):
+            old_version = self.db.get("minqlx:myFun:version")
         if old_version == VERSION and\
                 self.db.get("minqlx:myFun:enabled") == self.get_cvar("qlx_funEnableSoundPacks"):
             self.populate_sound_lists()
