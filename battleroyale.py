@@ -51,7 +51,7 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.1.9"
+VERSION = "1.2.2"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
@@ -219,6 +219,7 @@ class battleroyale(minqlx.Plugin):
         self.set_cvar_once("qlx_brHalfTimePeriod", "2")
         self.set_cvar_once("qlx_brUseSlapDmg", "0")
         self.set_cvar_once("qlx_brLoadMap", "almostlost")
+        self.set_cvar_once("qlx_brLogErrors", "1")
 
         # Minqlx bot Hooks
         self.add_hook("new_game", self.handle_new_game)
@@ -240,10 +241,11 @@ class battleroyale(minqlx.Plugin):
         self.add_command(("s", "specs"), self.cmd_list_specs)
         self.add_command("score", self.cmd_score)
         self.add_command("rules", self.cmd_rules)
+        self.add_command("last2", self.last2_explanation)
         self.add_command(("addqueue", "addq"), self.cmd_queue_add, self.get_cvar("qlx_brAdmin", int))
         self.add_command(("brversion", "brv"), self.cmd_br_version)
         self.add_command("restart", self.resart_br, self.get_cvar("qlx_brAdmin", int))
-        self.add_command("gamestatus", self.game_status, 5)
+        self.add_command("gamestatus", self.game_status, self.get_cvar("qlx_brAdmin", int))
 
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
@@ -252,10 +254,13 @@ class battleroyale(minqlx.Plugin):
         self._wins = {}
         self._rounds = 0
         self._deaths = 0
+        self.wins_needed = self.get_cvar("qlx_brWinRounds", int)
         self.last_2 = False
+        self.in_game = []
         self.last_two = []
         self._forfeit_game = False
         self._bonus = [self.get_cvar("qlx_brKillHealthBonus", int), self.get_cvar("qlx_brKillArmorBonus", int)]
+        self.logging_enabled = False
 
         # Initialize Commands
         self.initialize_settings()
@@ -264,10 +269,15 @@ class battleroyale(minqlx.Plugin):
     #               Event Handler's
     # ==============================================
     def handle_player_loaded(self, player):
-        player.tell("^4Welcome to ^1Quake ^7Live ^2Battle Royale^7.\nThis is a Last Standing type of game.\n"
-                    "Type ^1{}rules ^7to see game rules.".format(self.get_cvar("qlx_commandPrefix")))
-        player.center_print("^4Welcome to ^1Quake ^7Live ^2Battle Royale^7.\nThis is a Last Standing type of game.\n"
-                            "Type ^1{}rules ^7to see game rules.".format(self.get_cvar("qlx_commandPrefix")))
+        try:
+            player.tell("^4Welcome to ^1Quake ^7Live ^2Battle Royale^7.\nThis is a Last Standing type of game.\n"
+                        "Type ^1{}rules ^7to see game rules.".format(self.get_cvar("qlx_commandPrefix")))
+            player.center_print("^4Welcome to ^1Quake ^7Live ^2Battle Royale^7.\nThis is a Last Standing type of game."
+                                "\nType ^1{}rules ^7to see game rules.".format(self.get_cvar("qlx_commandPrefix")))
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Player Loaded Error: {}".format(e))
 
     def handle_player_disconnect(self, player, reason):
         self.remove_from_spec(player)
@@ -277,6 +287,8 @@ class battleroyale(minqlx.Plugin):
         except KeyError:
             pass
         except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
             minqlx.console_print("Battle Royale Player Disconnect Error: {}".format(e))
         self.check_for_opening(0.5)
 
@@ -306,6 +318,8 @@ class battleroyale(minqlx.Plugin):
             elif new_team == "spectator":
                 self.add_to_spec(player)
         except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
             minqlx.console_print("^4Handle Teams Switch Attempt Exception: {}".format(e))
 
     def handle_set_config_string(self, index, values):
@@ -325,15 +339,17 @@ class battleroyale(minqlx.Plugin):
     def handle_new_game(self):
         self._forfeit_game = False
         del self.last_two[:]
+        del self.in_game[:]
         self._deaths = 0
 
     @minqlx.delay(1)
     def handle_game_countdown(self):
         del self.last_two[:]
+        del self.in_game[:]
         self.last_2 = False
         self._deaths = 0
         self.center_print("^4Win ^1{} ^4rounds ^7to win the ^4Game\n^7Type ^1{}score ^7to see current standings."
-                          .format(self.get_cvar("qlx_brWinRounds", int), self.get_cvar("qlx_commandPrefix")))
+                          .format(self.wins_needed, self.get_cvar("qlx_commandPrefix")))
 
     def handle_game_start(self, data):
         self._deaths = 0
@@ -342,6 +358,11 @@ class battleroyale(minqlx.Plugin):
         self.last_2 = False
         if len(self.teams()["free"]) == 2:
             self.last_2 = True
+
+        @minqlx.delay(1)
+        def get_players():
+            self.in_game = self.teams()["free"].copy()
+        get_players()
 
     def handle_map(self, mapname, factory):
         del self.last_two[:]
@@ -359,8 +380,13 @@ class battleroyale(minqlx.Plugin):
     def death_monitor(self, victim, killer, data):
         with self.lock:
             if self.game.state == "in_progress" and self._rounds > 0:
-                free = self.teams()["free"]
-                remaining = len(free) - 1
+                try:
+                    self.in_game.remove(victim)
+                except Exception as e:
+                    if self.logging_enabled:
+                        minqlx.log_exception(self)
+                    minqlx.console_print("^4Battle Royale Remove Victim from self.in_game Exception: {}".format(e))
+                remaining = len(self.in_game)
                 try:
                     if not self.last_2:
                         if killer is not None:
@@ -380,17 +406,18 @@ class battleroyale(minqlx.Plugin):
                         self.move_player(victim, "spectator", True, self._deaths)
                         self._deaths += 1
                 except Exception as e:
+                    if self.logging_enabled:
+                        minqlx.log_exception(self)
                     minqlx.console_print("^4Battle Royale Not Last 2 Death Monitor Exception: {}".format(e))
 
                 if remaining == 2 and len(self.last_two) == 0:
-                    del self.last_two[:]
                     try:
-                        for player in free:
-                            if victim != player:
-                                self.last_two.append(player)
+                        self.last_two = self.in_game.copy()
                         self.last_2 = True
                         self.last_2_standing()
                     except Exception as e:
+                        if self.logging_enabled:
+                            minqlx.log_exception(self)
                         minqlx.console_print("^4Battle Royale 2 Remaining Death Monitor Exception: {}".format(e))
                 elif remaining == 1:
                     try:
@@ -403,12 +430,14 @@ class battleroyale(minqlx.Plugin):
                             except KeyError:
                                 self._wins[killer.steam_id] = 1
                             except Exception as e:
+                                if self.logging_enabled:
+                                    minqlx.log_exception(self)
                                 minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
                             self._deaths = 0
                             self.last_2 = False
                             self.round_win(killer, killer.health, killer.armor)
                         else:
-                            for player in free:
+                            for player in self.last_two:
                                 if victim.steam_id != player.steam_id:
                                     winner = player
                             self.msg("{} ^4Died^7, giving {} ^7the round win. ^1{} ^7Health and ^2{} ^7Armor remaining."
@@ -418,11 +447,15 @@ class battleroyale(minqlx.Plugin):
                             except KeyError:
                                 self._wins[winner.steam_id] = 1
                             except Exception as e:
+                                if self.logging_enabled:
+                                    minqlx.log_exception(self)
                                 minqlx.console_print("Battle Royale Death Monitor Round Win Exception: {}".format(e))
                             self._deaths = 0
                             self.last_2 = False
                             self.round_win(winner, winner.health, winner.armor)
                     except Exception as e:
+                        if self.logging_enabled:
+                            minqlx.log_exception(self)
                         minqlx.console_print("^4Battle Royale Death Monitor Exception: {}".format(e))
 
     # ==============================================
@@ -444,6 +477,8 @@ class battleroyale(minqlx.Plugin):
                 player.tell("Invalid client ID.")
                 return
             except Exception as e:
+                if self.logging_enabled:
+                    minqlx.log_exception(self)
                 minqlx.console_print("Battle Royale Cmd Que Add Exception: {}".format(e))
                 return
             self.add_to_queue(target_player)
@@ -509,26 +544,67 @@ class battleroyale(minqlx.Plugin):
             self.msg("^4Spectators^7: " + ", ".join(message))
 
     def cmd_rules(self, player, msg=None, channel=None):
-        player.tell("^1Quake ^7Live ^4Battle Royale^7:\nA round based game based in the Free For All game type. "
-                    "Win ^1{} ^7rounds to win the Match. If you die in a round you have to spectate until the start of"
-                    " the next round. Be the last one alive and you win a round. The last 2 standing are subject to"
-                    " server enforced damage if the round lasts too long. It can bring you down to 1 health"
-                    " and 0 armor."
-                    .format(self.get_cvar("qlx_brWinRounds", int)))
+        player.tell("^1Quake ^7Live ^4Battle Royale^7:\nA round based game using the Free For All game type."
+                    " Win ^1{} ^7rounds to win the Match. If you die in a round you have to spectate until the start of"
+                    " the next round. Be the last one alive and you win a round. Kill an opponent and get a health"
+                    " and/or armor bonus, which can greatly help in the quest to be the last alive. The last 2"
+                    " standing are subject to server enforced damage if the round lasts too long. It can bring you"
+                    " down to 1 health and 0 armor.".format(self.wins_needed))
+
+    def last2_explanation(self, player, msg=None, channel=None):
+        damage = self.get_cvar("qlx_brLast2Damage", int)
+        time_period = self.get_cvar("qlx_brDamageDelay", int)
+        require_damage = self.get_cvar("qlx_brSlapAfterTimePeriods", int)
+        reduce_time = self.get_cvar("qlx_brHalfTimePeriod", int)
+        player.tell("^1Quake ^7Live ^4Battle Royale ^1Last 2^7:\nWhen the last 2 players are left, in an attempt to"
+                    " speed up the game, the server deals ^1{0} ^7damage to players each ^4{1} ^7second time period."
+                    " For the first ^3{2} ^7time periods it will only damage the players if no damage has been"
+                    " dealt by another player. The server will deal the damage no matter what for next ^3{3} ^7time"
+                    " periods. And after ^3{4} ^7time periods the interval between time periods will reduce to"
+                    " ^3{5} ^7seconds and continue to damage the players. The server can damage a player to ^11"
+                    " ^7health and ^40 ^7armor, but it will not kill a player."
+                    .format(damage, time_period, require_damage, reduce_time, require_damage + reduce_time,
+                            time_period / 2)
+                    )
+
+    def game_status(self, player=None, msg=None, channel=None):
+        if player:
+            player.tell("^6Battle Royale Game Status: ^1{} ^3Rounds Played ^4Map ^1- ^7{}"
+                             .format(self._rounds, self.get_cvar("mapname")))
+        else:
+            minqlx.console_print("^6Battle Royale Game Status: ^1{} ^3Rounds Played ^4Map ^1- ^7{}"
+                                 .format(self._rounds, self.get_cvar("mapname")))
+        teams = self.teams()
+        if len(teams["free"] + teams["spectator"]) == 0:
+            minqlx.console_print("^3No players connected")
+        else:
+            if self.game.state not in ["in_progress", "countdown"]:
+                if player:
+                    player.tell("^3Match is not in progress")
+                else:
+                    minqlx.console_print("^3Match is not in progress")
+            for player in teams["free"]:
+                try:
+                    score = self._wins[player.steam_id]
+                except KeyError:
+                    score = 0
+                except Exception as e:
+                    score = 0
+                    if self.logging_enabled:
+                        minqlx.log_exception(self)
+                    minqlx.console_print("Battle Royale Game Status score error: {}".format(e))
+                if player:
+                    player.tell("{}^7: ^6Round Wins ^4{} ^6Ping^7: {}".format(player, score, player.stats.ping))
+                else:
+                    minqlx.console_print("{}^7: ^6Round Wins ^4{} ^6Ping^7: {}".format(player, score, player.stats.ping))
+            for player in teams["spectator"]:
+                if player:
+                    player.tell("^6Spectator^7: {} {}".format(player.id, player))
+                else:
+                    minqlx.console_print("^6Spectator^7: {} {}".format(player.id, player))
 
     def cmd_score(self, player=None, msg=None, channel=None):
         self.show_score()
-
-    @minqlx.thread
-    def show_score(self):
-        if len(self._wins) > 0:
-            message = ["^3Current Round Win Standings^7: (^6{} ^7round wins needed to win the match)"
-                       .format(self.get_cvar("qlx_brWinRounds", int))]
-            for sid in self._wins:
-                message.append("  ^4{} ^7: {}".format(self._wins[sid], self.player(sid)))
-            self.msg("\n".join(message))
-        else:
-            self.msg("^3No players have won a round.")
 
     # ==============================================
     #               Plugin Helper functions
@@ -538,6 +614,22 @@ class battleroyale(minqlx.Plugin):
         for setting in SETTINGS:
             minqlx.console_command("set {}".format(setting))
         minqlx.console_command("map {} ffa".format(self.get_cvar("qlx_brLoadMap")))
+        self.logging_enabled = self.get_cvar("qlx_brLogErrors", bool)
+        if self.logging_enabled:
+            self.logger.info("Initializing Battle Royale Version {}: Changing map to {}"
+                             " and setting server to settings: {}"
+                             .format(VERSION, self.get_cvar("qlx_brLoadMap"), SETTINGS))
+
+    @minqlx.thread
+    def show_score(self):
+        if len(self._wins) > 0:
+            message = ["^3Current Round Win Standings^7: (^6{} ^7round wins needed to win the match)"
+                       .format(self.wins_needed)]
+            for sid in self._wins:
+                message.append("  ^4{} ^7: {}".format(self._wins[sid], self.player(sid)))
+            self.msg("\n".join(message))
+        else:
+            self.msg("^3No players have won a round.")
 
     def get_max_players(self):
         max_players = self.get_cvar("teamsize", int)
@@ -546,29 +638,54 @@ class battleroyale(minqlx.Plugin):
         return max_players
 
     def add_to_queue_pos(self, player, pos):
-        self.remove_from_queue(player)
-        self.remove_from_spec(player)
-        self._queue.add_to_queue_pos(player.steam_id, player, pos)
+        try:
+            self.remove_from_queue(player)
+            self.remove_from_spec(player)
+            self._queue.add_to_queue_pos(player.steam_id, player, pos)
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Add To Queue Position error: {}".format(e))
 
     def add_to_queue(self, player):
-        self.remove_from_spec(player)
-        self._queue.add_to_queue(player.steam_id, player)
+        try:
+            self.remove_from_spec(player)
+            self._queue.add_to_queue(player.steam_id, player)
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Add to Queue error: {}".format(e))
 
     def remove_from_queue(self, player):
         if player in self._queue:
             self._queue.remove_from_queue(player.steam_id, player)
 
     def add_spectators(self):
-        for player in self.teams()["spectator"]:
-            self.add_to_spec(player)
+        try:
+            for player in self.teams()["spectator"]:
+                self.add_to_spec(player)
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Add Spectators error: {}".format(e))
 
     def add_to_spec(self, player):
-        self._spec.add_to_spec(player.steam_id)
-        if self.get_cvar("qlx_brTellWhenInSpecOnly", bool):
-            player.center_print("^6Spectate Mode\n^7Type ^4!s ^7to show spectators.")
+        try:
+            self._spec.add_to_spec(player.steam_id)
+            if self.get_cvar("qlx_brTellWhenInSpecOnly", bool):
+                player.center_print("^6Spectate Mode\n^7Type ^4!s ^7to show spectators.")
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Add to Spec error: {}".format(e))
 
     def remove_from_spec(self, player):
-        self._spec.remove_from_spec(player.steam_id)
+        try:
+            self._spec.remove_from_spec(player.steam_id)
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Remove from Spec error: {}".format(e))
 
     @minqlx.thread
     def check_for_opening(self, delay=0.0):
@@ -584,6 +701,8 @@ class battleroyale(minqlx.Plugin):
             if free_players < max_players:
                 self.place_in_team(max_players - free_players)
         except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
             minqlx.console_print("LastStanding Check For Openings Exception: {}".format(e))
         return
 
@@ -600,16 +719,23 @@ class battleroyale(minqlx.Plugin):
                     self.msg("{} ^7has joined the battle.".format(p[1]))
                     count += 1
         except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
             minqlx.console_print("LastStanding Place in Team Exception: {}".format(e))
         return
 
     @minqlx.next_frame
     def move_player(self, player, team, add_queue=False, queue_pos=0):
-        location = team if team != "spectator" else "spec"
-        minqlx.console_command("put {} {}".format(player.id, location))
-        player.center_print("^3You were ^1killed^7.\nYou will be put back in game after the round ends.")
-        if add_queue:
-            self.add_to_queue_pos(player, queue_pos)
+        try:
+            location = team if team != "spectator" else "spec"
+            minqlx.console_command("put {} {}".format(player.id, location))
+            player.center_print("^3You were ^1killed^7.\nYou will be put back in game after the round ends.")
+            if add_queue:
+                self.add_to_queue_pos(player, queue_pos)
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Move Player error: {}".format(e))
 
     @minqlx.thread
     def last_2_standing(self):
@@ -618,7 +744,8 @@ class battleroyale(minqlx.Plugin):
         for pl in self.players():
             super().play_sound("sound/vo/sudden_death.ogg", pl)
         self.msg("^3Last 2 remaining^7. ^1{0} ^3damage every ^2{1} ^3seconds to unengaged "
-                 "players begins in ^2{1} ^3seconds^7.".format(deal_damage, delay))
+                 "players begins in ^2{1} ^3seconds^7. Type {2}last2 for a complete explanation"
+                 .format(deal_damage, delay, self.get_cvar("qlx_commandPrefix")))
         damage = [self.last_two[0].stats.damage_dealt, self.last_two[1].stats.damage_dealt]
         time.sleep(delay)
         count = 1
@@ -674,75 +801,78 @@ class battleroyale(minqlx.Plugin):
                     time.sleep(delay)
                 count += 1
             except Exception as e:
+                if self.logging_enabled:
+                    minqlx.log_exception(self)
                 minqlx.console_print("^4Last 2 Standing While loop Exception: {}".format(e))
 
     @minqlx.delay(0.2)
     def round_win(self, player, health, armor):
-        del self.last_two[:]
-        if self._wins[player.steam_id] == self.get_cvar("qlx_brWinRounds", int):
-            self.win_message(player, self._wins[player.steam_id], self._rounds, "match", health, armor)
-            self._rounds = 0
-        else:
-            if not self._forfeit_game or self._queue.size() > 0:
-                self.win_message(player, self._wins[player.steam_id], self._rounds, "round", health, armor)
-                self.abort()
-                self.return_players_to_game()
-            else:
-                self._forfeit_game = False
+        try:
+            del self.last_two[:]
+            if self._wins[player.steam_id] == self.wins_needed:
+                self.win_message(player, self._wins[player.steam_id], self._rounds, "match", health, armor)
                 self._rounds = 0
-                self._wins.clear()
+            else:
+                if not self._forfeit_game or self._queue.size() > 0:
+                    self.win_message(player, self._wins[player.steam_id], self._rounds, "round", health, armor)
+                    self.abort()
+                    self.return_players_to_game()
+                else:
+                    self._forfeit_game = False
+                    self._rounds = 0
+                    self._wins.clear()
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Round Win error: {}".format(e))
 
     @minqlx.thread
     def return_players_to_game(self):
-        time.sleep(0.5)
-        self.place_in_team(0)
-        if self._rounds > 0:
-            self.allready()
+        try:
+            time.sleep(0.5)
+            self.place_in_team(0)
+            if self._rounds > 0:
+                self.allready()
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Return Players to Game error: {}".format(e))
 
     @minqlx.delay(2.5)
     def win_message(self, player, wins, rounds, win_type, health, armor):
-        if win_type == "match":
-            message = ["{} ^7Wins the match with ^1{} ^7Health and ^2{} ^7Armor remaining^1!!!\n"
-                       " ^2{} ^7wins in ^3{} ^7rounds\n^6Other Round Winners:"
-                       .format(player, health, armor, wins, rounds)]
-            if rounds > wins:
-                pid = player.steam_id
-                for sid in self._wins:
-                    if sid != pid:
-                        message.append("  ^4{} ^7: {}".format(self._wins[sid], self.player(sid)))
-            else:
-                message.append("^3No other players won a round")
-            self.msg("\n".join(message))
-            for p in self.teams()["free"]:
-                if p.steam_id == player.steam_id:
-                    super().play_sound("sound/vo/you_win.wav", p)
+        try:
+            if win_type == "match":
+                message = ["{} ^7Wins the match with ^1{} ^7Health and ^2{} ^7Armor remaining^1!!!\n"
+                           " ^2{} ^7wins in ^3{} ^7rounds\n^6Other Round Winners:"
+                           .format(player, health, armor, wins, rounds)]
+                if rounds > wins:
+                    pid = player.steam_id
+                    for sid in self._wins:
+                        if sid != pid:
+                            message.append("  ^4{} ^7: {}".format(self._wins[sid], self.player(sid)))
                 else:
-                    super().play_sound("sound/vo/you_lose.wav", p)
-            self._wins.clear()
-        else:
-            self.msg("{} ^7Wins the round with ^1{} ^7Health and ^2{} ^7Armor remaining^1!!!\n"
-                     "^2{} ^7current round wins, needs ^1{} ^7more"
-                     .format(player, health, armor, wins, self.get_cvar("qlx_brWinRounds", int) - wins))
-            self.center_print("{} ^7Wins the round^1!!!\n^2{} ^7current round wins, needs ^1{} ^7more"
-                              .format(player, wins, self.get_cvar("qlx_brWinRounds", int) - wins))
-            self.cmd_score()
-
-    def game_status(self, player=None, msg=None, channel=None):
-        minqlx.console_print("^6Battle Royale Game Status: ^4Map ^1- ^7{}".format(self.get_cvar("mapname")))
-        teams = self.teams()
-        if len(teams["free"] + teams["spectator"]) == 0:
-            minqlx.console_print("^3No players connected")
-        else:
-            if self.game.state not in ["in_progress", "countdown"]:
-                minqlx.console_print("^3Match is not in progress")
-            for player in teams["free"]:
-                try:
-                    score = self._wins[player.steam_id]
-                except KeyError:
-                    score = 0
-                except Exception as e:
-                    score = 0
-                    minqlx.console_print("Battle Royale Game Status score error: {}".format(e))
-                minqlx.console_print("{}^7: ^6Round Wins ^4{} ^6Ping^7: {}".format(player, score, player.stats.ping))
-            for player in teams["spectator"]:
-                minqlx.console_print("^6Spectator^7: {} {}".format(player.id, player))
+                    message.append("^3No other players won a round")
+                display = "\n".join(message)
+                self.msg(display)
+                if self.logging_enabled:
+                    self.logger.info("^1Battle Royale Match Win: " + display)
+                for p in self.teams()["free"]:
+                    if p.steam_id == player.steam_id:
+                        super().play_sound("sound/vo/you_win.wav", p)
+                    else:
+                        super().play_sound("sound/vo/you_lose.wav", p)
+                self._wins.clear()
+            else:
+                display = "{} ^7Wins the round with ^1{} ^7Health and ^2{} ^7Armor remaining^1!!!\n" \
+                          "^2{} ^7current round wins, needs ^1{} ^7more"\
+                    .format(player, health, armor, wins, self.wins_needed - wins)
+                self.msg(display)
+                self.center_print("{} ^7Wins the round^1!!!\n^2{} ^7current round wins, needs ^1{} ^7more"
+                                  .format(player, wins, self.wins_needed - wins))
+                if self.logging_enabled:
+                    self.logger.info("^6Battle Royale Round Win: " + display)
+                self.cmd_score()
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Win Message error: {}".format(e))
