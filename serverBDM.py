@@ -123,7 +123,7 @@ import random
 import requests
 import re
 
-VERSION = "1.04.06"
+VERSION = "1.04.07"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -182,7 +182,7 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmMinTimePerc", "60")
         self.set_cvar_once("qlx_bdmMinRounds", "5")
         self.set_cvar_once("qlx_bdmMinimumTeamSize", "3")
-        self.set_cvar_once("qlx_bdmNumGamesForCalculation", "25")
+        self.set_cvar_once("qlx_bdmNumGamesForCalculation", "15")
 
         # Minqlx bot Hooks
         self.add_hook("chat", self.handle_chat)
@@ -1229,28 +1229,39 @@ class serverBDM(minqlx.Plugin):
         self.rounds_played = 0
 
     def suggest_switch(self, teams):
-        red_bdm = self.team_average(teams["red"])
-        blue_bdm = self.team_average(teams["blue"])
-        difference = round(abs(red_bdm - blue_bdm))
-        diff = 99999
-        new_difference = 99999
-        players = None
-        for red in teams["red"]:
-            for blue in teams["blue"]:
-                temp_red = teams["red"].copy()
-                temp_blue = teams["blue"].copy()
-                temp_red.append(blue)
-                temp_blue.append(red)
-                temp_red.remove(red)
-                temp_blue.remove(blue)
-                avg_red = self.team_average(temp_red)
-                avg_blue = self.team_average(temp_blue)
-                if abs(avg_red - avg_blue) < diff:
-                    new_difference = round(abs(avg_red - avg_blue))
-                    diff = abs(avg_red - avg_blue)
-                    players = (red, blue)
-        if new_difference < difference:
-            return players
+        if self.get_cvar("g_factory").lower() == "ictf":
+            game_type = "ictf"
+        else:
+            game_type = self._bdm_gtype
+
+        red_bdms = {}
+        for r in teams["red"]:
+            red_bdms[r.steam_id] = self.get_bdm_field(r, game_type, "rating")
+        red_bdms_dict = {v: k for k, v in red_bdms.items()}
+        red_bdms = sorted(red_bdms_dict)
+        blue_bdms = {}
+        for b in teams["blue"]:
+            blue_bdms[b.steam_id] = self.get_bdm_field(b, game_type, "rating")
+        blue_bdms_dict = {v: k for k, v in blue_bdms.items()}
+        blue_bdms = sorted(blue_bdms_dict)
+        diff = abs(sum(red_bdms) - sum(blue_bdms))
+        red = -1
+        blue = -1
+        for x in range(len(red_bdms)):
+            for y in range(len(blue_bdms)):
+                temp_red = red_bdms.copy()
+                temp_blue = blue_bdms.copy()
+                temp_v = temp_red[x]
+                temp_red[x] = temp_blue[y]
+                temp_blue[y] = temp_v
+                avg_diff = abs(sum(temp_red) - sum(temp_blue))
+                if avg_diff < diff:
+                    diff = avg_diff
+                    red = x
+                    blue = y
+
+        if red > -1 and blue > -1:
+            return [self.player(red_bdms_dict[red_bdms[red]]), self.player(blue_bdms_dict[blue_bdms[blue]])]
         else:
             return None
 
