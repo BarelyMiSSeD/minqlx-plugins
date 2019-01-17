@@ -123,7 +123,7 @@ import random
 import requests
 import re
 
-VERSION = "1.04.02"
+VERSION = "1.04.06"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -306,6 +306,7 @@ class serverBDM(minqlx.Plugin):
             except Exception as e:
                 games_left = 0
                 minqlx.console_print("Games Left retrieval error: {}".format(e))
+            games_played = games_completed + games_left
             try:
                 if games_completed > 0:
                     quit_percentage = round((games_left / games_completed) * 100)
@@ -313,8 +314,7 @@ class serverBDM(minqlx.Plugin):
                     quit_percentage = 0
             except Exception as e:
                 quit_percentage = 0
-                minqlx.console_print("Games Quit Percentage calculation error: {}".format(e))
-            games_played = games_completed + games_left
+                minqlx.console_print("Games Quit Percentage calculation error for {}^7: {}".format(player, e))
             try:
                 bdm_rating = self.get_bdm_field(player, game_type, "rating")
             except Exception as e:
@@ -337,8 +337,11 @@ class serverBDM(minqlx.Plugin):
                 bdm_quit_percentage = 0
                 minqlx.console_print("Quit calculation error: {}".format(e))
             join_msg = self.get_cvar("qlx_bdmJoinMessage").replace("%", "％")
-            self.msg(join_msg.format(player, bdm_rating, bdm_completed, bdm_left, bdm_total, bdm_quit_percentage,
-                                     games_played, games_completed, games_left, quit_percentage))
+            try:
+                self.msg(join_msg.format(player, bdm_rating, bdm_completed, bdm_left, bdm_total, bdm_quit_percentage,
+                                         games_played, games_completed, games_left, quit_percentage))
+            except Exception as e:
+                minqlx.console_print("Print Join Message error: {}".format(e))
 
     def handle_player_disconnect(self, player, reason):
         self.player_disconnect_record([player, player.stats])
@@ -793,7 +796,7 @@ class serverBDM(minqlx.Plugin):
                         .return_spec_player((teams["red"] + teams["blue"]))[0]
                 else:
                     lowest = self.get_cvar("qlx_bdmMaxRating", int)
-                    for player in teams["red"] + teams["blue"]:
+                    for player in (teams["red"] + teams["blue"]):
                         bdm = self.get_bdm_field(player, game_type, "rating")
                         if bdm < lowest:
                             lowest = bdm
@@ -806,32 +809,46 @@ class serverBDM(minqlx.Plugin):
             else:
                 self.msg("^3The teams are not even. Balancing can't occur.")
                 return
-        # Start out by evening out the number of players on each team.
-        diff = len(teams["red"]) - len(teams["blue"])
-        if abs(diff) > 1:
-            if diff > 0:
-                for i in range(diff - 1):
-                    player = teams["red"].pop()
-                    player.put("blue")
-                    teams["blue"].append(player)
-            elif diff < 0:
-                for i in range(abs(diff) - 1):
-                    player = teams["blue"].pop()
-                    player.put("red")
-                    teams["red"].append(player)
+        # Put all players into a sorted dictionary (sorted by player bdm)
+        player_bdms = {}
+        for p in (teams["red"] + teams["blue"]):
+            player_bdms[p.steam_id] = self.get_bdm_field(p, game_type, "rating")
+        sorted_bdms = sorted(((v, k) for k, v in player_bdms.items()), reverse=True)
+        # Put players into red and blue teams starting with the highest bdm players and alternate red and blue team
+        moved_players = False
+        player_count = 0
+        team_players = []
+        for k, v in sorted_bdms:
+            team_players.append(self.player(v))
+            if player_count % 2 == 0:
+                if team_players[player_count] in teams["blue"]:
+                    moved_players = True
+                    teams["blue"].remove(team_players[player_count])
+                    teams["red"].append(team_players[player_count])
+            else:
+                if team_players[player_count] in teams["red"]:
+                    moved_players = True
+                    teams["red"].remove(team_players[player_count])
+                    teams["blue"].append(team_players[player_count])
+            player_count += 1
         # Start shuffling by looping through our suggestion function until
         # there are no more switches that can be done to improve teams.
         switch = self.suggest_switch(teams)
         if switch:
+            moved_players = True
             while switch:
-                player1 = switch[0]
-                player2 = switch[1]
-                self.switch(player1, player2)
-                teams["blue"].append(player1)
-                teams["red"].append(player2)
-                teams["blue"].remove(player2)
-                teams["red"].remove(player1)
+                if switch[0] in teams["red"]:
+                    teams["blue"].append(switch[0])
+                    teams["red"].remove(switch[0])
+                    teams["red"].append(switch[1])
+                    teams["blue"].remove(switch[1])
+                else:
+                    teams["red"].append(switch[0])
+                    teams["blue"].remove(switch[0])
+                    teams["blue"].append(switch[1])
+                    teams["red"].remove(switch[1])
                 switch = self.suggest_switch(teams)
+        if moved_players:
             avg_red = self.team_average(teams["red"])
             avg_blue = self.team_average(teams["blue"])
             message = ["^7Team Balance: ^1{} ^7vs. ^4{}".format(round(avg_red), round(avg_blue))]
@@ -843,6 +860,13 @@ class serverBDM(minqlx.Plugin):
             else:
                 message.append(" ^7- ^2EVEN")
             self.msg("".join(message))
+            curr_teams = self.teams()
+            for player in teams["red"]:
+                if player in curr_teams["blue"]:
+                    player.put("red")
+            for player in teams["blue"]:
+                if player in curr_teams["red"]:
+                    player.put("blue")
         else:
             self.msg("^4Teams look good^1! ^7Nothing to balance.")
         if exclude:
