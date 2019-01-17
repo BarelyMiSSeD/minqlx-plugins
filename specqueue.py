@@ -66,7 +66,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.05.2"
+VERSION = "2.05.4"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -298,8 +298,6 @@ class specqueue(minqlx.Plugin):
         self.add_command("ignore", self.ignore_imbalance, 3)
         self.add_command("latch", self.ignore_imbalance_latch, 3)
 
-        self.add_command("test", self.cmd_test)
-
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
         self._queue = PlayerQueue()
@@ -327,9 +325,6 @@ class specqueue(minqlx.Plugin):
     # ==============================================
     #               Event Handler's
     # ==============================================
-    def cmd_test(self, player, msg, channel):
-        minqlx.console_print("Test: {}".format(self.q_game_info))
-
     def handle_player_connect(self, player):
         if len(self.q_game_info) == 0:
             self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
@@ -343,7 +338,7 @@ class specqueue(minqlx.Plugin):
         self.remove_from_queue(player)
         self.remove_from_join(player)
         self.check_for_opening(0.5)
-        if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
+        if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen:
             self.look_at_teams(1.0)
 
     def handle_team_switch(self, player, old_team, new_team):
@@ -355,6 +350,8 @@ class specqueue(minqlx.Plugin):
         else:
             if not self.end_screen:
                 self.check_for_opening(0.2)
+                if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
+                    self.look_at_teams(1.0)
 
             @minqlx.delay(1)
             def check_spectator():
@@ -363,7 +360,6 @@ class specqueue(minqlx.Plugin):
                 self.remove_from_join(player)
 
             check_spectator()
-            self.look_at_teams(1.0)
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
         if self.q_game_info[0] in SUPPORTED_GAMETYPES and\
@@ -424,15 +420,12 @@ class specqueue(minqlx.Plugin):
 
         @minqlx.thread
         def t():
-            if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
-                self.look_at_teams(1.0)
+            if self.q_game_info[0] == "ft":
+                countdown = self.get_cvar("g_freezeRoundDelay", int)
             else:
-                if self.game.type_short == "ft":
-                    countdown = self.get_cvar("g_freezeRoundDelay", int)
-                else:
-                    countdown = self.get_cvar("g_roundWarmupDelay", int)
-                time.sleep(max(countdown / 1000 - 0.8, 0))
-                self.even_the_teams()
+                countdown = self.get_cvar("g_roundWarmupDelay", int)
+            time.sleep(max(countdown / 1000 - 0.8, 0))
+            self.even_the_teams()
         t()
 
     def handle_map(self, mapname, factory):
@@ -457,7 +450,7 @@ class specqueue(minqlx.Plugin):
             self.cmd_list_specs()
         self.check_queue(0.2)
         self.check_spec(0.2)
-        if self.q_game_info[0] not in NO_COUNTDOWN_TEAM_GAMES:
+        if self.q_game_info[0] not in NO_COUNTDOWN_TEAM_GAMES:  # maybe an unnecessary check
             self.look_at_teams()
 
     def handle_round_start(self, number):
