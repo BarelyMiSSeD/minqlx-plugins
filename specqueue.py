@@ -29,10 +29,10 @@
 # This feature will not kick people with permission levels at or above the qlx_queueAdmin level,
 #  or people who are in the queue.
 
-"""
+""" The lines between the 3 quotes can be copied directly to a server configuration file and edited
 //set the minqlx permission level needed to admin this script
 set qlx_queueAdmin", "3"
-//enable to use BDM in placement into teams when 2 players are put in together
+//enable to use BDM in placement into teams when 2 players are put in together (must have serverBDM loaded)
 //disable to use as generic queue system (0=off, 1=on)
 set qlx_queueUseBDMPlacement "1"
 //The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will
@@ -53,11 +53,11 @@ set qlx_queueSpecByTime "1"
 //use score played as a choosing factor to decide which player to spectate
 set qlx_queueSpecByScore "1"
 //set to either "score" or "time" to set which to use as the primary deciding factor in choosing a player to spectate
-set qlx_queueSpecByPrimary "score"
+set qlx_queueSpecByPrimary "time"
 //set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will
 // kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")
 set qlx_queueMaxSpecTime "9999"
-// The amount of time in NO_COUNTDOWN_TEAM_GAMES it will give when teams are detected as uneven before putting a player in spectate
+// The amount of time in NO_COUNTDOWN_TEAM_GAMES it will give when teams are detected as uneven before putting a player to spectate
 set qlx_queueCheckTeamsDelay "5"
 """
 
@@ -267,7 +267,7 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueMaxPlayers", "30")
         self.set_cvar_once("qlx_queueSpecByTime", "1")
         self.set_cvar_once("qlx_queueSpecByScore", "1")
-        self.set_cvar_once("qlx_queueSpecByPrimary", "score")
+        self.set_cvar_once("qlx_queueSpecByPrimary", "time")
         self.set_cvar_once("qlx_queueMaxSpecTime", "9999")  # time in minutes
         self.set_cvar_once("qlx_queueCheckTeamsDelay", "5")
 
