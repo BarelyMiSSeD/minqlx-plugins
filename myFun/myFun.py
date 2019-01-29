@@ -40,6 +40,13 @@ set qlx_funJoinSoundEveryMap "0"
 #Join sound path/file
 set qlx_funJoinSound "sound/feedback/welcome_02.wav"
 
+# Play Sound when last 2 players alive (should set to "3" to play sounds always)
+# 0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains
+# 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
+# 2 = only play sounds for people who are dead/spectating when game is active
+# 3 = play sound for everyone with sounds enabled
+set qlx_funLast2Sound "3"
+
 These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:
 (put the workshop item numbers in your workshop.txt file)
 #Prestige Worldwide Soundhonks
@@ -128,11 +135,12 @@ import random
 import time
 import re
 
-VERSION = "4.5"
+VERSION = "4.6"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
 PLAYERS_SOUNDS = "minqlx:players:{}:flags:myFun:{}"
+TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
 
 
 class myFun(minqlx.Plugin):
@@ -156,6 +164,12 @@ class myFun(minqlx.Plugin):
         self.set_cvar_once("qlx_funJoinSoundForEveryone", "0")
         # Play Join Sound on every map change
         self.set_cvar_once("qlx_funJoinSoundEveryMap", "0")
+        # Play Sound when last 2 players alive (should set to "3" to play sounds always)
+        # 0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains
+        # 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
+        # 2 = only play sounds for people who are dead/spectating when game is active
+        # 3 = play sound for everyone with sounds enabled
+        self.set_cvar_once("qlx_funLast2Sound", "3")
 
         self.add_hook("chat", self.handle_chat)
         self.add_hook("server_command", self.handle_server_command)
@@ -745,13 +759,57 @@ class myFun(minqlx.Plugin):
     # plays the supplied sound for the players on the server (if the player has the sound(s) enabled)
     @minqlx.thread
     def play_sound(self, path):
-        self.played = True
+        play = self.last_2_sound()
+        active = self.game.state in ["in_progress", "countdown"]
+        if play == 3 or not active:
+            self.played = True
+            self.last_sound = time.time()
+            for p in self.players():
+                if self.db.get_flag(p, "essentials:sounds_enabled", default=True) and \
+                        not self.db.get(PLAYERS_SOUNDS.format(p.steam_id, path)):
+                    super().play_sound(path, p)
+        elif play == 1 or (play == 2 and active):
+            self.played = True
+            self.last_sound = time.time()
+            teams = self.teams()
+            for p in teams["red"] + teams["blue"] + teams["free"]:
+                if not p.is_alive and self.db.get_flag(p, "essentials:sounds_enabled", default=True) and \
+                        not self.db.get(PLAYERS_SOUNDS.format(p.steam_id, path)):
+                    super().play_sound(path, p)
+            for p in teams["spectator"]:
+                if self.db.get_flag(p, "essentials:sounds_enabled", default=True) and \
+                        not self.db.get(PLAYERS_SOUNDS.format(p.steam_id, path)):
+                    super().play_sound(path, p)
 
-        self.last_sound = time.time()
-        for p in self.players():
-            if self.db.get_flag(p, "essentials:sounds_enabled", default=True) and \
-                    not self.db.get(PLAYERS_SOUNDS.format(p.steam_id, path)):
-                super().play_sound(path, p)
+    def last_2_sound(self):
+        # 0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains
+        # 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
+        # 2 = only play sounds for people who are dead/spectating when game is active
+        # 3 = play sound for everyone with sounds enabled
+        play_last2 = self.get_cvar("qlx_funLast2Sound", int)
+        if play_last2 in [2, 3]:
+            return play_last2
+        teams = self.teams()
+        remaining = 0
+        if self.game.type_short in TEAM_BASED_GAMETYPES:
+            r_remaining = 0
+            b_remaining = 0
+            for r in teams["red"]:
+                if r.is_alive:
+                    r_remaining += 1
+            for b in teams["blue"]:
+                if b.is_alive:
+                    b_remaining += 1
+            if r_remaining == 1 or b_remaining == 1:
+                remaining = 2
+        else:
+            for p in teams["free"]:
+                if p.is_alive:
+                    remaining += 1
+        if remaining == 2:
+            return play_last2
+        else:
+            return 3
 
     # populates the sound list that is used to list the available sounds on the server
     @minqlx.thread
