@@ -27,16 +27,16 @@ set qlx_brKillHealthBonus "50"
 // set the armor bonus given to a player when they kill an opponent
 set qlx_brKillArmorBonus "50"
 // set the amount of damage a player gets when the last 2 players remain and no contact has happened
-set qlx_brLast2Damage "50"
+set qlx_brLast2Damage "25"
 // set the seconds delay between checking for last 2 player contact
-set qlx_brDamageDelay "30"
-// If the last 2 are still alive after this many time periods, slap for damage every time period
+set qlx_brDamageDelay "15"
+// If the last 2 are still alive after this many time periods, slap/damage every time period
 // Set this to a high value to disable.
 set qlx_brSlapAfterTimePeriods "2"
 // Added for the 'qlx_brSlapAfterTimePeriods'. If qlx_brSlapAfterTimePeriods is enabled this will half the time
 //  periods between the slaps/damage. (0=off, 1=on, any number above 1 will be added by qlx_brSlapAfterTimePeriods
 //  and that amount of rounds after the qlx_brSlapAfterTimePeriods starts the time between slaps will be half).
-set qlx_brHalfTimePeriod "2"
+set qlx_brHalfTimePeriod "3"
 // Notify a player when they set themselves to spectate (0=off 1=on)
 set qlx_brTellWhenInSpecOnly "1"
 // Enable to use the slap function as the damage dealer for the last 2
@@ -51,11 +51,11 @@ import minqlx
 import time
 from threading import Lock
 
-VERSION = "1.2.2"
+VERSION = "1.2.6"
 
 # Settings used in Battle Royale (These settings get executed on script initialization)
 SETTINGS = ["g_teamSizeMin 3", "g_infiniteAmmo 0", "g_startingWeapons 23", "g_startingArmor 100",
-            "g_startingHealth 200", "dmflags 20", "g_startingHealthBonus 200", "g_spawnItemPowerup 0", "fraglimit 50",
+            "g_startingHealth 200", "dmflags 20", "g_startingHealthBonus 100", "g_spawnItemPowerup 0", "fraglimit 50",
             "teamsize 0", "g_weaponrespawn 1", "g_itemTimers 0", "g_specItemTimers 0", "timelimit 10",
             "g_startingAmmo_sg 10", "g_startingAmmo_rl 5", "g_startingAmmo_rg 5", "g_startingAmmo_pl 5",
             "g_startingAmmo_pg 50", "g_startingAmmo_ng 10", "g_startingAmmo_mg 100", "g_startingAmmo_lg 100",
@@ -235,6 +235,7 @@ class battleroyale(minqlx.Plugin):
         self.add_hook("client_command", self.handle_client_command)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("map", self.handle_map)
+        self.add_hook("server_command", self.team_placement)
 
         # Minqlx bot commands
         self.add_command(("q", "queue"), self.cmd_list_queue)
@@ -261,6 +262,7 @@ class battleroyale(minqlx.Plugin):
         self._forfeit_game = False
         self._bonus = [self.get_cvar("qlx_brKillHealthBonus", int), self.get_cvar("qlx_brKillArmorBonus", int)]
         self.logging_enabled = False
+        self.server_move = False
 
         # Initialize Commands
         self.initialize_settings()
@@ -381,7 +383,8 @@ class battleroyale(minqlx.Plugin):
         with self.lock:
             if self.game.state == "in_progress" and self._rounds > 0:
                 try:
-                    self.in_game.remove(victim)
+                    if victim in self.in_game:
+                        self.in_game.remove(victim)
                 except Exception as e:
                     if self.logging_enabled:
                         minqlx.log_exception(self)
@@ -403,7 +406,13 @@ class battleroyale(minqlx.Plugin):
                                     minqlx.set_armor(killer.id, armor + self._bonus[1])
                                 else:
                                     minqlx.set_armor(killer.id, start_health * 2)
-                        self.move_player(victim, "spectator", True, self._deaths)
+
+                        @minqlx.delay(0.2)
+                        def spec_player():
+                            if victim in self.teams()["free"]:
+                                self.move_player(victim, "spectator", True, self._deaths)
+
+                        spec_player()
                         self._deaths += 1
                 except Exception as e:
                     if self.logging_enabled:
@@ -422,9 +431,8 @@ class battleroyale(minqlx.Plugin):
                 elif remaining == 1:
                     try:
                         self.move_player(victim, "spectator", True, self._deaths)
-                        if killer is not None:
-                            self.msg("{} ^7killed {} ^7for the round win."
-                                     .format(killer, victim))
+                        if killer is not None and killer != victim:
+                            self.msg("{} ^7killed {} ^7for the round win.".format(killer, victim))
                             try:
                                 self._wins[killer.steam_id] += 1
                             except KeyError:
@@ -457,6 +465,37 @@ class battleroyale(minqlx.Plugin):
                         if self.logging_enabled:
                             minqlx.log_exception(self)
                         minqlx.console_print("^4Battle Royale Death Monitor Exception: {}".format(e))
+
+    def team_placement(self, player, cmd):
+        if not self.server_move and cmd.startswith('print') and self._rounds > 0 and\
+                self.game.state == "in_progress" and len(self.in_game) >= 2:
+            if "The server has moved you to the FREE team" in cmd:
+                if not self.last_2:
+                    if player not in self.in_game:
+                        self.in_game.append(player)
+                    self.remove_from_queue(player)
+                    self.remove_from_spec(player)
+                    if self.logging_enabled:
+                        minqlx.console_print("^4Battle Royale: {} ^1was placed into the game using admin command"
+                                             .format(player))
+                else:
+                    @minqlx.delay(0.5)
+                    def put_to_spec():
+                        self.move_player(player, "spectator")
+                        self.add_to_queue(player)
+
+                    player.center_print("^3You were added to the queue^7.\n"
+                                        "You will be put in game after the round ends.")
+                    minqlx.console_print("^4Battle Royale: ^1Player {} was added to the active game".format(player))
+                    if self.logging_enabled:
+                        minqlx.console_print("^4Battle Royale: ^1placement of {} ^1into the game using admin"
+                                             " command was attempted. Last2 standing condition override."
+                                             .format(player))
+                    put_to_spec()
+            elif "The server has moved you to the SPECTATOR team" in cmd:
+                if player in self.in_game:
+                    self.in_game.remove(player)
+        self.server_move = False
 
     # ==============================================
     #       Minqlx Player Command Functions
@@ -570,7 +609,7 @@ class battleroyale(minqlx.Plugin):
     def game_status(self, player=None, msg=None, channel=None):
         if player:
             player.tell("^6Battle Royale Game Status: ^1{} ^3Rounds Played ^4Map ^1- ^7{}"
-                             .format(self._rounds, self.get_cvar("mapname")))
+                        .format(self._rounds, self.get_cvar("mapname")))
         else:
             minqlx.console_print("^6Battle Royale Game Status: ^1{} ^3Rounds Played ^4Map ^1- ^7{}"
                                  .format(self._rounds, self.get_cvar("mapname")))
@@ -583,9 +622,9 @@ class battleroyale(minqlx.Plugin):
                     player.tell("^3Match is not in progress")
                 else:
                     minqlx.console_print("^3Match is not in progress")
-            for player in teams["free"]:
+            for p in teams["free"]:
                 try:
-                    score = self._wins[player.steam_id]
+                    score = self._wins[p.steam_id]
                 except KeyError:
                     score = 0
                 except Exception as e:
@@ -594,14 +633,14 @@ class battleroyale(minqlx.Plugin):
                         minqlx.log_exception(self)
                     minqlx.console_print("Battle Royale Game Status score error: {}".format(e))
                 if player:
-                    player.tell("{}^7: ^6Round Wins ^4{} ^6Ping^7: {}".format(player, score, player.stats.ping))
+                    player.tell("{}^7: ^6Round Wins ^4{} ^6Ping^7: {}".format(p, score, p.stats.ping))
                 else:
-                    minqlx.console_print("{}^7: ^6Round Wins ^4{} ^6Ping^7: {}".format(player, score, player.stats.ping))
-            for player in teams["spectator"]:
+                    minqlx.console_print("{}^7: ^6Round Wins ^4{} ^6Ping^7: {}".format(p, score, p.stats.ping))
+            for p in teams["spectator"]:
                 if player:
-                    player.tell("^6Spectator^7: {} {}".format(player.id, player))
+                    player.tell("^6Spectator^7: {} {} ^6Ping^7: {}".format(p.id, p, p.stats.ping))
                 else:
-                    minqlx.console_print("^6Spectator^7: {} {}".format(player.id, player))
+                    minqlx.console_print("^6Spectator^7: {} {} ^6Ping^7: {}".format(p.id, p, p.stats.ping))
 
     def cmd_score(self, player=None, msg=None, channel=None):
         self.show_score()
@@ -657,8 +696,13 @@ class battleroyale(minqlx.Plugin):
             minqlx.console_print("Battle Royale Add to Queue error: {}".format(e))
 
     def remove_from_queue(self, player):
-        if player in self._queue:
-            self._queue.remove_from_queue(player.steam_id, player)
+        try:
+            if player in self._queue:
+                self._queue.remove_from_queue(player.steam_id, player)
+        except Exception as e:
+            if self.logging_enabled:
+                minqlx.log_exception(self)
+            minqlx.console_print("Battle Royale Remove from Queue error: {}".format(e))
 
     def add_spectators(self):
         try:
@@ -728,10 +772,15 @@ class battleroyale(minqlx.Plugin):
     def move_player(self, player, team, add_queue=False, queue_pos=0):
         try:
             location = team if team != "spectator" else "spec"
+            self.server_move = True
             minqlx.console_command("put {} {}".format(player.id, location))
-            player.center_print("^3You were ^1killed^7.\nYou will be put back in game after the round ends.")
+            if location == "spec":
+                player.center_print("^3You were ^1killed^7.\nYou will be put back in game after the round ends.")
             if add_queue:
-                self.add_to_queue_pos(player, queue_pos)
+                if queue_pos == -1:
+                    self.add_to_queue(player)
+                else:
+                    self.add_to_queue_pos(player, queue_pos)
         except Exception as e:
             if self.logging_enabled:
                 minqlx.log_exception(self)
@@ -772,12 +821,20 @@ class battleroyale(minqlx.Plugin):
                         if slap:
                             if health - sub_health <= 0:
                                 minqlx.console_command("slap {} {}".format(player.id, health - 1))
+                                if self.logging_enabled:
+                                    minqlx.console_print("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7:"
+                                                         " ^4Armor ^2{} ^7to ^1{}"
+                                                         .format(player, health, 1, armor, set_armor))
                                 for p in specs:
                                     p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
                                            .format(player, health, 1, armor, set_armor))
                             else:
                                 minqlx.console_command("slap {} {}".format(player.id, sub_health))
                                 set_health = health - sub_health
+                                if self.logging_enabled:
+                                    minqlx.console_print("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7:"
+                                                         " ^4Armor ^2{} ^7to ^1{}"
+                                                         .format(player, health, set_health, armor, set_armor))
                                 for p in specs:
                                     p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
                                            .format(player, health, set_health, armor, set_armor))
@@ -790,6 +847,10 @@ class battleroyale(minqlx.Plugin):
                                 minqlx.set_health(player.id, set_health)
                             player.center_print("^1Damage")
                             super().play_sound("sound/player/doom/pain75_1.wav", player)
+                            if self.logging_enabled:
+                                minqlx.console_print("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7:"
+                                                     " ^4Armor ^2{} ^7to ^1{}"
+                                                     .format(player, health, set_health, armor, set_armor))
                             for p in specs:
                                 p.tell("{} was damaged! ^4Health ^2{} ^7to ^1{} ^7: ^4Armor ^2{} ^7to ^1{}"
                                        .format(player, health, set_health, armor, set_armor))
