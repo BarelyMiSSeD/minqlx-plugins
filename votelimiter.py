@@ -5,24 +5,22 @@
 #
 """
 Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
-qlx_voteLimiterAdmin "5" - Sets the minqlx server permisson level needed to admin the vote limiter.
-qlx_voteLimiterLimit "5" - Sets the amount of votes each player is allowed to call before the end of a game/match
-                            This count will carry through map changes. The built in limiter for Quake Live resets
-                            on map changes.
-qlx_voteLimiterTypes "1" - Enable/Disable the restricting of vote types ("1" = Enable, "0" = Disable)
-qlx_voteLimiterDelay "60" - The amount of seconds a player must wait before the same type of vote may be called again.
-qlx_voteLimiterExcludeAdmin "0" - Exclude admins from vote limiting? (Exclude on = 1, off = 0)
+qlx_voteLimiterAdmin "5"        // Sets the minqlx server permisson level needed to admin the vote limiter.
+qlx_voteLimiterLimit "5"        // Sets the amount of votes each player is allowed to call before game/match end
+                                //   This count will carry through map changes.
+                                //   The built in limiter for Quake Live resets on map changes.
+qlx_voteLimiterTypes "1"        // Enable/Disable the restricting of vote types ("1" = Enable, "0" = Disable)
+qlx_voteLimiterDelay "30"       // The amount of seconds a player must wait before again calling the same type of vote.
+qlx_voteLimiterExcludeAdmin "1" // Exclude admins from vote limiting? (Exclude on = 1, off = 0)
 """
 
 import minqlx
-import requests
 import os
 import time
 import re
 
-VERSION = "v2.02"
+VERSION = "2.03"
 VOTELIMITER_FILE = "votelimiter.txt"
-VOTELIMITER_DEFAULT_VOTES = ["kick", "kick", "clientkick", "map", "teamsize", "cointoss", "shuffle", "map_restart"]
 
 
 class votelimiter(minqlx.Plugin):
@@ -31,18 +29,18 @@ class votelimiter(minqlx.Plugin):
         self.set_cvar_once("qlx_voteLimiterAdmin", "5")
         self.set_cvar_once("qlx_voteLimiterLimit", "5")
         self.set_cvar_once("qlx_voteLimiterTypes", "1")
-        self.set_cvar_once("qlx_voteLimiterDelay", "60")
-        self.set_cvar_once("qlx_voteLimiterExcludeAdmin", "0")
+        self.set_cvar_once("qlx_voteLimiterDelay", "30")
+        self.set_cvar_once("qlx_voteLimiterExcludeAdmin", "1")
         self.set_cvar_once("qlx_voteLimiterAllowed", "2")
-
-        # Variable to hold the admin permission level
-        self.AdminLevel = self.get_cvar("qlx_voteLimiterAdmin", int)
 
         # monitored server occurrences
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGHEST)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("game_end", self.handle_end_game)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
+
+        # Variable to hold the admin permission level
+        self.AdminLevel = self.get_cvar("qlx_voteLimiterAdmin", int)
 
         # commands
         self.add_command(("addvote", "allowvote"), self.cmd_allow_vote, self.AdminLevel)
@@ -62,8 +60,6 @@ class votelimiter(minqlx.Plugin):
         self.voteLimiterCount = {}
         # Dictionary to store the time and vote last called by a player
         self.voteLimiterVote = {}
-        # Variable to hold the Exclude Admin setting
-        self.excludeAdmin = self.get_cvar("qlx_voteLimiterExcludeAdmin", bool)
         # Loads the allowed votes list
         self.load_allowed_votes()
         # Holds Steam ID of player who called a vote
@@ -84,14 +80,16 @@ class votelimiter(minqlx.Plugin):
 
         if vote == "voteban":
             try:
-                player_name = self.player(int(args))
-                player_id = self.player(int(args)).id
+                player = self.player(int(args))
+                player_id = player.id
             except ValueError:
-                player_id = self.find_player_id(args)
+                player, player_id = self.find_player(args)
                 if player_id == -1:
-                    caller.tell("^1No player matching that name found")
+                    if player == 0:
+                        caller.tell("^1Too Many players matched your player name")
+                    else:
+                        caller.tell("^1No player matching that name found")
                     return minqlx.RET_STOP_ALL
-                player_name = self.player(player_id)
             except Exception as e:
                 if type(e).__name__ == "NonexistentPlayerError":
                     caller.tell("^1Invalid ID.^7 Use a client ID from the ^2/players^7 command.")
@@ -100,15 +98,15 @@ class votelimiter(minqlx.Plugin):
                                      .format(type(e).__name__, e.args))
                 return minqlx.RET_STOP_ALL
 
-            if self.db.get_permission(player_name) >= self.AdminLevel and\
-                    self.db.get_permission(player_name) >= self.db.get_permission(caller):
+            if self.db.get_permission(player) >= self.AdminLevel and\
+                    self.db.get_permission(player) >= self.db.get_permission(caller):
                 caller.tell("^3That player is a server admin and can't have their voting privileges suspended.")
                 minqlx.console_print("Votelimiter voteban attempted for player {}."
-                                     " Vote denied due to admin permission level.".format(player_name))
+                                     " Vote denied due to admin permission level.".format(player))
                 return minqlx.RET_STOP_ALL
 
             self.callvote("qlx {}votelimiter_voteban {}".format(self.get_cvar("qlx_commandPrefix"), player_id),
-                          "Ban {} from calling votes on the server?".format(player_name))
+                          "Ban {} from calling votes on the server?".format(player))
             minqlx.client_command(caller.id, "vote yes")
             self.msg("{}^7 called vote /cv {} {}".format(caller.name, vote, args))
             return minqlx.RET_STOP_ALL
@@ -119,7 +117,7 @@ class votelimiter(minqlx.Plugin):
             caller.tell("^3That vote type is not allowed on this server.\nSpeak to a server admin if this is in error")
             return minqlx.RET_STOP_ALL
 
-        if self.excludeAdmin and self.db.get_permission(caller) >= self.AdminLevel:
+        if self.get_cvar("qlx_voteLimiterExcludeAdmin", bool) and self.db.get_permission(caller) >= self.AdminLevel:
             return
 
         if sid not in self.voteLimiterVote:
@@ -136,8 +134,8 @@ class votelimiter(minqlx.Plugin):
         if sid in self.voteLimiterCount:
             self.voteLimiterCount[sid] += 1
             if self.voteLimiterCount[sid] >= self.get_cvar("qlx_voteLimiterLimit", int):
-                caller.tell("^3You have called your maximum number of votes.")
-                caller.tell("^3Your vote count will reset at the end of a game/match.")
+                caller.tell("^3You have called your maximum number of votes.\n"
+                            "^3Your vote count will reset at the end of a game/match.")
                 return minqlx.RET_STOP_ALL
         else:
             self.voteLimiterCount[sid] = 1
@@ -161,12 +159,27 @@ class votelimiter(minqlx.Plugin):
         if player.id in self.vote_banned:
             self.vote_banned.remove(player.id)
 
-    def find_player_id(self, name):
-        players = self.players()
-        for player in players:
-            if re.sub(r"\^[0-9]", "", name.lower()) in re.sub(r"\^[0-9]", "", str(player).lower()):
-                return self.player(player).id
-        return -1
+    # Search for a player name match using the supplied string
+    def find_player(self, name):
+        found_player = None
+        found_count = 0
+        # Remove color codes from the supplied string
+        player_name = re.sub(r"\^[0-9]", "", name).lower()
+        # search through the list of connected players for a name match
+        for player in self.players():
+            if player_name in re.sub(r"\^[0-9]", "", player.name).lower():
+                # if match is found return player, player id
+                found_player = player
+                found_count += 1
+        # if only one match was found return player, player id
+        if found_count == 1:
+            return found_player, int(str([found_player]).split(":")[0].split("(")[1])
+        # if more than one match is found return 0, -1
+        elif found_count > 1:
+            return 0, -1
+        # if no match is found return -1, -1
+        else:
+            return -1, -1
 
     def votelimiter_voteban(self, player, msg, channel):
         try:
@@ -242,9 +255,20 @@ class votelimiter(minqlx.Plugin):
 
                 # The following lines add the default votes that are allowed. You can edit here,
                 # but I recommend just removing the vote from the allowed list using the !rvote <vote> command.
-                for vote in VOTELIMITER_DEFAULT_VOTES:
-                    m.write(vote + "\n")
-                    temp_list.append(vote)
+                m.write("kick\n")
+                temp_list.append("kick")
+                m.write("clientkick\n")
+                temp_list.append("clientkick")
+                m.write("map\n")
+                temp_list.append("map")
+                m.write("teamsize\n")
+                temp_list.append("teamsize")
+                m.write("cointoss\n")
+                temp_list.append("cointoss")
+                m.write("shuffle\n")
+                temp_list.append("shuffle")
+                m.write("map_restart\n")
+                temp_list.append("map_restart")
                 # End default vote list
 
                 m.close()
@@ -261,41 +285,8 @@ class votelimiter(minqlx.Plugin):
             minqlx.console_print("^1Error ^3reading the Allowed Votes list: {}".format(e))
         return minqlx.RET_STOP_EVENT
 
-    # votelimiter.py version checker. Thanks to iouonegirl for most of this section's code.
-    @minqlx.thread
-    def check_version(self, player=None, channel=None):
-        url = "https://raw.githubusercontent.com/barelymissed/minqlx-plugins/master/{}.py" \
-            .format(self.__class__.__name__)
-        res = requests.get(url)
-        if res.status_code != requests.codes.ok:
-            return
-        for line in res.iter_lines():
-            if line.startswith(b'VERSION'):
-                line = line.replace(b'VERSION = ', b'')
-                line = line.replace(b'"', b'')
-                # If called manually and outdated
-                if channel and VERSION.encode() != line:
-                    channel.reply("^4Server: ^7Currently using  ^4BarelyMiSSeD^7's ^6{}^7 plugin ^1outdated^7 version"
-                                  " ^6{}^7. The latest version is ^6{}"
-                                  .format(self.__class__.__name__, VERSION, line.decode()))
-                    channel.reply("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
-                # If called manually and alright
-                elif channel and VERSION.encode() == line:
-                    channel.reply("^4Server: ^7Currently using ^4BarelyMiSSeD^7's  latest ^6{}^7 plugin version ^6{}^7."
-                                  .format(self.__class__.__name__, VERSION))
-                    channel.reply("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
-                # If routine check and it's not alright.
-                elif player and VERSION.encode() != line:
-                    try:
-                        player.tell("^4Server: ^3Plugin update alert^7:^6 {}^7's latest version is ^6{}^7 and you're"
-                                    " using ^6{}^7!".format(self.__class__.__name__, line.decode(), VERSION))
-                        player.tell("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
-                    except Exception as e:
-                        minqlx.console_command("echo {}".format(e))
-                return
-
     def get_version(self, player, msg, channel):
-        self.check_version(channel=channel)
+        player.tell("^4The server is using ^5{} ^4version ^1{}".format(self.__class__.__name__, VERSION))
 
     # Add a vote to the Allowed Votes list
     def cmd_allow_vote(self, player, msg, channel):
