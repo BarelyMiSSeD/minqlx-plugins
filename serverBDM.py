@@ -123,7 +123,7 @@ import random
 import requests
 import re
 
-VERSION = "1.04.07"
+VERSION = "1.04.08"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -489,13 +489,19 @@ class serverBDM(minqlx.Plugin):
             if len(msg) > 1:
                 try:
                     pid = int(msg[1])
-                    player = self.player(pid)
+                    p = self.player(pid)
                 except minqlx.NonexistentPlayerError:
                     player.tell("Invalid client ID.")
                     return
                 except ValueError:
-                    player.tell("^3Use a valid player ID.")
-                    return minqlx.RET_STOP_ALL
+                    p, pid = self.find_player(" ".join(msg[1:]))
+                    if pid == -1:
+                        if p == 0:
+                            player.tell("^1Too Many players matched your player name")
+                        else:
+                            player.tell("^1No player matching that name found")
+                        return minqlx.RET_STOP_ALL
+                player = p
 
             if self.check_entry_exists(player, game_type, "rating"):
                 rating = self.get_bdm_field(player, game_type, "rating")
@@ -517,13 +523,19 @@ class serverBDM(minqlx.Plugin):
             if len(msg) > 1:
                 try:
                     pid = int(msg[1])
-                    player = self.player(pid)
+                    p = self.player(pid)
                 except minqlx.NonexistentPlayerError:
                     player.tell("Invalid client ID.")
                     return
                 except ValueError:
-                    player.tell("^3Use a valid player ID.")
-                    return minqlx.RET_STOP_ALL
+                    p, pid = self.find_player(" ".join(msg[1:]))
+                    if pid == -1:
+                        if p == 0:
+                            player.tell("^1Too Many players matched your player name")
+                        else:
+                            player.tell("^1No player matching that name found")
+                        return minqlx.RET_STOP_ALL
+                player = p
 
             if self.check_entry_exists(player, game_type, "rating"):
                 rating = self.get_bdm_field(player, game_type, "rating")
@@ -915,13 +927,19 @@ class serverBDM(minqlx.Plugin):
         if len(msg) > 1:
             try:
                 pid = int(msg[1])
-                player = self.player(pid)
+                p = self.player(pid)
             except minqlx.NonexistentPlayerError:
                 self.msg("^1Invalid player ID.")
                 return
             except ValueError:
-                self.msg("^3Use a valid player ID.")
-                return
+                p, pid = self.find_player(" ".join(msg[1:]))
+                if pid == -1:
+                    if p == 0:
+                        player.tell("^1Too Many players matched your player name")
+                    else:
+                        player.tell("^1No player matching that name found")
+                    return minqlx.RET_STOP_ALL
+            player = p
         if player in teams["spectator"]:
             self.msg("^3{} ^3is spectating".format(player))
             return
@@ -986,6 +1004,28 @@ class serverBDM(minqlx.Plugin):
     # ==============================================
     #               Script Commands
     # ==============================================
+    # Search for a player name match using the supplied string
+    def find_player(self, name):
+        found_player = None
+        found_count = 0
+        # Remove color codes from the supplied string
+        player_name = re.sub(r"\^[0-9]", "", name).lower()
+        # search through the list of connected players for a name match
+        for player in self.players():
+            if player_name in re.sub(r"\^[0-9]", "", player.name).lower():
+                # if match is found return player, player id
+                found_player = player
+                found_count += 1
+        # if only one match was found return player, player id
+        if found_count == 1:
+            return found_player, int(str([found_player]).split(":")[0].split("(")[1])
+        # if more than one match is found return 0, -1
+        elif found_count > 1:
+            return 0, -1
+        # if no match is found return -1, -1
+        else:
+            return -1, -1
+
     @minqlx.thread
     def check_force_switch_vote(self, caller, vote):
         self.callvote("qlx {}mark_agree".format(self.get_cvar("qlx_commandPrefix")),
