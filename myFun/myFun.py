@@ -135,7 +135,7 @@ import random
 import time
 import re
 
-VERSION = "4.6"
+VERSION = "4.7"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -1102,7 +1102,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(0, "hah haha"), "^hah haha\\W?$;sound/player/hunter/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "woohoo"), "^woo+hoo+\\W?$;sound/player/janet/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "quake live"), "^(?:ql|quake live)\\W?$;sound/vo_female/quake_live")
-            self.db.set(SOUND_TRIGGERS.format(0, "chaching"), "(?:\$|€|£|chaching);sound/misc/chaching")
+            self.db.set(SOUND_TRIGGERS.format(0, "chaching"), "(?:\\$|€|£|chaching);sound/misc/chaching")
             self.db.set(SOUND_TRIGGERS.format(0, "uh ah"), "^uh ah$;sound/player/mynx/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "oohwee"), "^ooh+wee\\W?$;sound/player/anarki/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "erah"), "^erah\\W?$;sound/player/bitterman/taunt.wav")
