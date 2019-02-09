@@ -123,7 +123,7 @@ import random
 import requests
 import re
 
-VERSION = "1.04.08"
+VERSION = "1.04.09"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -561,14 +561,20 @@ class serverBDM(minqlx.Plugin):
                 channel.reply("^7There is no stored ^3{} ^bdm for {}^7. A rating of ^6{} ^7will be used."
                               .format(self._bdm_gtype.upper(), player, self.get_cvar("qlx_bdmDefaultBDM", int)))
 
-    @minqlx.thread
     def bdms_cmd(self, player, msg, channel):
+        self.get_bdms(player, msg, channel)
+
+    @minqlx.thread
+    def get_bdms(self, player, msg, channel):
         if self._bdm_gtype in BDM_GAMETYPES:
             if self.get_cvar("g_factory").lower() == "ictf":
                 game_type = "ictf"
             else:
                 game_type = self._bdm_gtype
             teams = self.teams()
+            if len(teams["red"]) + len(teams["blue"]) + len(teams["free"]) + len(teams["spectator"]) == 0:
+                self.msg("^7There are no players connected.")
+                return
             clients = len(teams["red"])
             if clients:
                 t_dict = {}
@@ -784,6 +790,10 @@ class serverBDM(minqlx.Plugin):
 
     @minqlx.delay(1)
     def cmd_bdmbalance(self, player=None, msg=None, channel=None):
+        self.exec_bdmbalance(player, msg, channel)
+
+    @minqlx.thread
+    def exec_bdmbalance(self, player=None, msg=None, channel=None):
         if self._bdm_gtype in TEAM_BASED_GAMETYPES and self._bdm_gtype not in BDM_GAMETYPES:
             self.msg("^3This is not a team based game type with bdm ratings.")
             return
@@ -888,8 +898,11 @@ class serverBDM(minqlx.Plugin):
                 exclude.put("blue")
             self.msg("^6{} ^4was not included in the balance.".format(exclude))
 
-    @minqlx.thread
     def cmd_damage_status(self, player=None, msg=None, channel=None):
+        self.exec_damage_status(player, msg, channel)
+
+    @minqlx.thread
+    def exec_damage_status(self, player=None, msg=None, channel=None):
         teams = self.teams()
         if len(teams["red"] + teams["blue"] + teams["free"] + teams["spectator"]) == 0:
             self.msg("^3No players connected")
@@ -960,8 +973,11 @@ class serverBDM(minqlx.Plugin):
                              player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
                              player.stats.damage_taken))
 
-    @minqlx.thread
     def cmd_game_status(self, player=None, msg=None, channel=None):
+        self.exec_game_status(player, msg, channel)
+
+    @minqlx.thread
+    def exec_game_status(self, player=None, msg=None, channel=None):
         minqlx.console_print("^6Game Status: ^4Map ^1- ^7{} ^5Game Mode ^1- ^7{}"
                              .format(self.get_cvar("mapname"), self._bdm_gtype.upper()))
         teams = self.teams()
