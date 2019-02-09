@@ -123,7 +123,7 @@ import random
 import requests
 import re
 
-VERSION = "1.04.10"
+VERSION = "1.04.11"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -296,6 +296,8 @@ class serverBDM(minqlx.Plugin):
         if self.get_cvar("qlx_bdmPrintJoinMsg", bool) and str(player.steam_id)[0] != "9":
             try:
                 games_completed = int(self.get_db_field(player, "minqlx:players:{}:games_completed"))
+            except TypeError:
+                games_completed = 0
             except ValueError:
                 games_completed = 0
             except Exception as e:
@@ -303,6 +305,8 @@ class serverBDM(minqlx.Plugin):
                 minqlx.console_print("Games Completed retrieval error: {}".format(e))
             try:
                 games_left = int(self.get_db_field(player, "minqlx:players:{}:games_left"))
+            except TypeError:
+                games_left = 0
             except ValueError:
                 games_left = 0
             except Exception as e:
