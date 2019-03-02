@@ -28,6 +28,9 @@
 #  to be kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
 # This feature will not kick people with permission levels at or above the qlx_queueAdmin level,
 #  or people who are in the queue.
+#
+# Use the command '!fix' to fix it if a player is shown as sarge and not seen as an enemy or a team mate.
+# It puts all players to spec then back in the game.
 
 """
 //set the minqlx permission level needed to admin this script
@@ -59,6 +62,8 @@ set qlx_queueSpecByPrimary "score"
 set qlx_queueMaxSpecTime "9999"
 // The amount of time in NO_COUNTDOWN_TEAM_GAMES it will give when teams are detected as uneven before putting a player in spectate
 set qlx_queueCheckTeamsDelay "5"
+// Enable voting to fix the sarge player bug
+set qlx_queueEnableVoteSargeFix "1"
 """
 
 import minqlx
@@ -66,7 +71,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.05.5"
+VERSION = "2.06.0"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -270,6 +275,7 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueSpecByPrimary", "time")
         self.set_cvar_once("qlx_queueMaxSpecTime", "9999")  # time in minutes
         self.set_cvar_once("qlx_queueCheckTeamsDelay", "5")
+        self.set_cvar_once("qlx_queueEnableVoteSargeFix", "1")
 
         # Minqlx bot Hooks
         self.add_hook("new_game", self.handle_new_game)
@@ -285,6 +291,7 @@ class specqueue(minqlx.Plugin):
         self.add_hook("team_switch_attempt", self.handle_team_switch_attempt)
         self.add_hook("set_configstring", self.handle_set_config_string)
         self.add_hook("client_command", self.handle_client_command)
+        self.add_hook("vote_called", self.handle_vote_called)
         self.add_hook("vote_ended", self.handle_vote_ended)
         self.add_hook("console_print", self.handle_console_print)
         self.add_hook("map", self.handle_map)
@@ -297,6 +304,7 @@ class specqueue(minqlx.Plugin):
 
         self.add_command("ignore", self.ignore_imbalance, 3)
         self.add_command("latch", self.ignore_imbalance_latch, 3)
+        self.add_command("fix", self.sarge_bug, 3)
 
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
@@ -311,8 +319,9 @@ class specqueue(minqlx.Plugin):
         self.displaying_spec = False
         self.in_countdown = False
         self.death_count = 0
-        self.q_game_info = []
+        self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
         self._round = 0
+        self.fix_sage_active = [False, False]
 
         # Initialize Commands
         self.add_spectators()
@@ -342,24 +351,25 @@ class specqueue(minqlx.Plugin):
             self.look_at_teams(1.0)
 
     def handle_team_switch(self, player, old_team, new_team):
-        if new_team != "spectator":
-            self.remove_from_spec(player)
-            self.remove_from_queue(player)
-            if player.steam_id not in self._join:
-                self.add_to_join(player)
-        else:
-            if not self.end_screen:
-                self.check_for_opening(0.2)
-                if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
-                    self.look_at_teams(1.0)
+        if not self.fix_sage_active[0]:
+            if new_team != "spectator":
+                self.remove_from_spec(player)
+                self.remove_from_queue(player)
+                if player.steam_id not in self._join:
+                    self.add_to_join(player)
+            else:
+                if not self.end_screen:
+                    self.check_for_opening(0.2)
+                    if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
+                        self.look_at_teams(1.0)
 
-            @minqlx.delay(1)
-            def check_spectator():
-                if player.steam_id not in self._queue:
-                    self.add_to_spec(player)
-                self.remove_from_join(player)
+                @minqlx.delay(1)
+                def check_spectator():
+                    if player.steam_id not in self._queue:
+                        self.add_to_spec(player)
+                    self.remove_from_join(player)
 
-            check_spectator()
+                check_spectator()
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
         if self.q_game_info[0] in SUPPORTED_GAMETYPES and\
@@ -440,6 +450,7 @@ class specqueue(minqlx.Plugin):
             self.end_screen = True
 
     def handle_round_countdown(self, round_num):
+        self.fix_sage_active[1] = True
         self._round = round_num
         self._ignore = False
         self._ignore_msg_already_said = False
@@ -452,8 +463,11 @@ class specqueue(minqlx.Plugin):
         self.check_spec(0.2)
         if self.q_game_info[0] not in NO_COUNTDOWN_TEAM_GAMES:  # maybe an unnecessary check
             self.look_at_teams()
+        if self.fix_sage_active[0]:
+            self.cmd_fix_sarge()
 
     def handle_round_start(self, number):
+        self.fix_sage_active[1] = False
         self.check_for_opening(0.2)
         self.check_queue(2)
         self.check_spec(2)
@@ -495,6 +509,16 @@ class specqueue(minqlx.Plugin):
             elif text.find('broadcast: print "The BLUE team is now unlocked') != -1:
                 self.blue_locked = False
                 self.check_for_opening(0.2)
+
+    def handle_vote_called(self, caller, vote, args):
+        if vote.lower() in ["fix", "fixsarge", "fix_sarge"]:
+            if not self.get_cvar("qlx_queueEnableVoteSargeFix", bool):
+                caller.tell("^3Voting to fix sarge bug is not enabled on this server.")
+                return minqlx.RET_STOP_ALL
+            self.callvote("qlx {}fix".format(self.get_cvar("qlx_commandPrefix")), "^1Fix Sarge Player bug?")
+            minqlx.client_command(caller.id, "vote yes")
+            self.msg("{}^7 called vote /cv fix.".format(caller.name))
+            return minqlx.RET_STOP_ALL
 
     def handle_vote_ended(self, votes, vote, args, passed):
         if passed and vote == "teamsize":
@@ -989,9 +1013,41 @@ class specqueue(minqlx.Plugin):
                     else:
                         self.remove_from_spec(spec)
 
+    @minqlx.thread
+    def cmd_fix_sarge(self):
+        if self.fix_sage_active[0]:
+            teams = self.teams().copy()
+            if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                for player in teams["red"]:
+                    self.team_placement(player, "spectator")
+                    time.sleep(0.05)
+                    self.team_placement(player, "red")
+                    time.sleep(0.05)
+                for player in teams["blue"]:
+                    self.team_placement(player, "spectator")
+                    time.sleep(0.05)
+                    self.team_placement(player, "blue")
+                    time.sleep(0.05)
+            else:
+                for player in teams["free"]:
+                    self.team_placement(player, "spectator")
+                    time.sleep(0.05)
+                    self.team_placement(player, "free")
+                    time.sleep(0.05)
+            self.fix_sage_active[0] = False
+            self.msg("^4All Players put to spectate then back on team.")
+
     # ==============================================
     #               Minqlx Bot Commands
     # ==============================================
+    def sarge_bug(self, player, msg, channel):
+        self.fix_sage_active[0] = True
+        if self.q_game_info[0] in TEAM_BASED_GAMETYPES and self.game.state == "in_progress" and\
+                not self.fix_sage_active[1]:
+            self.msg("^3The sarge fix will be executed at the start of next round.")
+            return
+        self.cmd_fix_sarge()
+
     def ignore_imbalance(self, player, msg, channel):
         self.msg("^3The move to ^1spectate ^3action will be ignored this round")
         self._ignore = True
