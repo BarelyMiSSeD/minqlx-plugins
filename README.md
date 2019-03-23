@@ -7,14 +7,14 @@ This is intended to give people a place to play even when no one else is playing
 NOTE: THIS SCRIPT IS WILL NOT WORK WITHOUT THE SPECQUEUE.PY SCRIPT ON THIS PAGE.
 
 //script cvars to be put in server configuration file (default: server.cfg). Default values shown.<br>
-//set map the server will change to when the script is loaded if bot_enable isn't on
-set qlx_botsMap "almostlost"
-//set the maximum number of bots per team
-set qlx_botsMaxBots "4"
-//set weather to set a bot default level or to use the bots standard level set in BOT_DEFAULT_SKILLS
-set qlx_botsUseDefaultSkills "1"
-//use this skill level for all bots if qlx_botsUseDefaultSkills is set to "1"
-set qlx_botsSkillLevel "3"
+//set map the server will change to when the script is loaded if bot_enable isn't on<br>
+set qlx_botsMap "almostlost"<br>
+//set the maximum number of bots per team<br>
+set qlx_botsMaxBots "4"<br>
+//set weather to set a bot default level or to use the bots standard level set in BOT_DEFAULT_SKILLS<br>
+set qlx_botsUseDefaultSkills "1"<br>
+//use this skill level for all bots if qlx_botsUseDefaultSkills is set to "1"<br>
+set qlx_botsSkillLevel "3"<br>
 <br>
 
 # battleroyale.py
