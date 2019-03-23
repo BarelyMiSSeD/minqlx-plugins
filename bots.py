@@ -36,7 +36,7 @@ import time
 import re
 from threading import Timer
 
-VERSION = "1.5"
+VERSION = "1.6"
 
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -350,7 +350,7 @@ class bots(minqlx.Plugin):
         if self.checking_bots[0] or self.kicking_bots:
             return
         self.checking_bots[0] = True
-        skill_level = self.get_cvar("qlx_botsSkillLevel", int) if self.get_cvar("qlx_botsUseDefaultSkills", bool)\
+        skill_level = self.get_cvar("qlx_botsSkillLevel", float) if self.get_cvar("qlx_botsUseDefaultSkills", bool)\
             else 0
         add = True
         teams = self.teams()
