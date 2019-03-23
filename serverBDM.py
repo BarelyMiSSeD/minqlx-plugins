@@ -22,6 +22,9 @@ set qlx_bdmMaxRating "3000"
 // Balance with BDM Ratings at the start of a team game
 //   This will disable shuffle vote calling
 set qlx_bdmBalanceAtGameStart "0"
+// This will spectate everyone during the pre-game balance in an attempt to eliminate players showing
+//   as Sarge when they aren't supposed to. Cvar qlx_bdmBalanceAtGameStart has to be enabled.
+set qlx_bdmAutoBalanceSargeFix "1"
 // balance the teams based on BDM after a shuffle vote passes
 set qlx_bdmBalanceAfterShuffleVote "0"
 // Balance teams if the teams are not even
@@ -123,7 +126,7 @@ import random
 import requests
 import re
 
-VERSION = "1.04.11"
+VERSION = "1.04.13"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -140,6 +143,7 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmMinRating", "300")
         self.set_cvar_once("qlx_bdmMaxRating", "3000")
         self.set_cvar_once("qlx_bdmBalanceAtGameStart", "0")
+        self.set_cvar_once("qlx_bdmAutoBalanceSargeFix", "1")
         self.set_cvar_once("qlx_bdmBalanceAfterShuffleVote", "0")
         self.set_cvar_once("qlx_bdmMinimumSuggestionDiff", "60")
         self.set_cvar_once("qlx_bdmBalanceUnevenTeams", "0")
@@ -239,6 +243,7 @@ class serverBDM(minqlx.Plugin):
         self.player_count = 0
         self.player_join_rating_displayed = []
         self.vote_count = [0, 0, 0]
+        self._executing_balance = False
 
         self.create_db()
         if self.game is not None and self.game.state == "in_progress":
@@ -387,15 +392,15 @@ class serverBDM(minqlx.Plugin):
     def handle_game_start(self, data):
         self.game_start = int(round(time.time() * 1000))
 
+        if self.get_cvar("qlx_bdmBalanceAtGameStart", bool) and self.get_cvar("qlx_bdmEnableSwitch", bool):
+            self.msg("^2Balancing ^1Teams ^7based on ^6BDM ^7stats.")
+            self.cmd_bdmbalance()
+
         # Give a little time for the game to insert everyone into a team
         @minqlx.next_frame
         def set_up():
             self.players_in_teams()
         set_up()
-
-        if self.get_cvar("qlx_bdmBalanceAtGameStart", bool) and self.get_cvar("qlx_bdmEnableSwitch", bool):
-            self.msg("^2Balancing ^1Teams ^7based on ^6BDM ^7stats.")
-            self.cmd_bdmbalance()
 
     def handle_game_end(self, data):
         if data["ABORTED"]:
@@ -570,8 +575,11 @@ class serverBDM(minqlx.Plugin):
     def bdms_cmd(self, player, msg, channel):
         self.get_bdms(player, msg, channel)
 
-    @minqlx.thread
     def get_bdms(self, player, msg, channel):
+        self.cmd_get_bdms(player, msg, channel)
+
+    @minqlx.thread
+    def cmd_get_bdms(self, player, msg, channel):
         if self._bdm_gtype in BDM_GAMETYPES:
             if self.get_cvar("g_factory").lower() == "ictf":
                 game_type = "ictf"
@@ -639,8 +647,11 @@ class serverBDM(minqlx.Plugin):
         if self.get_cvar("qlx_bdmRespondToBalanceCommand", bool):
             self.cmd_bdmbalance(player, msg, channel)
 
-    @minqlx.thread
     def bteams_cmd(self, player, msg, channel):
+        self.cmd_bteams_cmd(player, msg, channel)
+
+    @minqlx.thread
+    def cmd_bteams_cmd(self, player, msg, channel):
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
             if self.get_cvar("g_factory").lower() == "ictf":
                 game_type = "ictf"
@@ -800,109 +811,124 @@ class serverBDM(minqlx.Plugin):
 
     @minqlx.thread
     def exec_bdmbalance(self, player=None, msg=None, channel=None):
-        if self._bdm_gtype in TEAM_BASED_GAMETYPES and self._bdm_gtype not in BDM_GAMETYPES:
-            self.msg("^3This is not a team based game type with bdm ratings.")
-            return
-        elif self._bdm_gtype not in TEAM_BASED_GAMETYPES:
-            self.msg("^3This is not a game type supported by this balance function.")
-            return
-        teams = self.teams().copy()
-        if len(teams["red"] + teams["blue"]) < 4:
-            self.msg("^3There are not enough players on the teams to perform a balance.")
-            return
-        exclude = None
-        avg_red = 0
-        avg_blue = 0
-        if self.get_cvar("g_factory").lower() == "ictf":
-            game_type = "ictf"
-        else:
-            game_type = self._bdm_gtype
-        if len(teams["red"] + teams["blue"]) % 2 != 0:
-            if self.get_cvar("qlx_bdmBalanceUnevenTeams", bool):
-                if "specqueue" in minqlx.Plugin._loaded_plugins:
-                    exclude = minqlx.Plugin._loaded_plugins["specqueue"]\
-                        .return_spec_player((teams["red"] + teams["blue"]))[0]
-                else:
-                    lowest = self.get_cvar("qlx_bdmMaxRating", int)
-                    for player in (teams["red"] + teams["blue"]):
-                        bdm = self.get_bdm_field(player, game_type, "rating")
-                        if bdm < lowest:
-                            lowest = bdm
-                            exclude = player
-                if exclude:
-                    if exclude in teams["red"]:
-                        teams["red"].remove(exclude)
-                    elif exclude in teams["blue"]:
-                        teams["blue"].remove(exclude)
-            else:
-                self.msg("^3The teams are not even. Balancing can't occur.")
+        if not self._executing_balance:
+            self._executing_balance = True
+            if self._bdm_gtype in TEAM_BASED_GAMETYPES and self._bdm_gtype not in BDM_GAMETYPES:
+                self.msg("^3This is not a team based game type with bdm ratings.")
                 return
-        # Put all players into a sorted dictionary (sorted by player bdm)
-        player_bdms = {}
-        for p in (teams["red"] + teams["blue"]):
-            player_bdms[p.steam_id] = self.get_bdm_field(p, game_type, "rating")
-        sorted_bdms = sorted(((v, k) for k, v in player_bdms.items()), reverse=True)
-        # Put players into red and blue teams starting with the highest bdm players and alternate red and blue team
-        moved_players = False
-        player_count = 0
-        team_players = []
-        for k, v in sorted_bdms:
-            team_players.append(self.player(v))
-            if player_count % 2 == 0:
-                if team_players[player_count] in teams["blue"]:
-                    moved_players = True
-                    teams["blue"].remove(team_players[player_count])
-                    teams["red"].append(team_players[player_count])
+            elif self._bdm_gtype not in TEAM_BASED_GAMETYPES:
+                self.msg("^3This is not a game type supported by this balance function.")
+                return
+            teams = self.teams().copy()
+            if len(teams["red"] + teams["blue"]) < 4:
+                self.msg("^3There are not enough players on the teams to perform a balance.")
+                return
+            exclude = None
+            avg_red = 0
+            avg_blue = 0
+            if self.get_cvar("g_factory").lower() == "ictf":
+                game_type = "ictf"
             else:
-                if team_players[player_count] in teams["red"]:
-                    moved_players = True
-                    teams["red"].remove(team_players[player_count])
-                    teams["blue"].append(team_players[player_count])
-            player_count += 1
-        # Start shuffling by looping through our suggestion function until
-        # there are no more switches that can be done to improve teams.
-        switch = self.suggest_switch(teams)
-        if switch:
-            moved_players = True
-            while switch:
-                if switch[0] in teams["red"]:
-                    teams["blue"].append(switch[0])
-                    teams["red"].remove(switch[0])
-                    teams["red"].append(switch[1])
-                    teams["blue"].remove(switch[1])
+                game_type = self._bdm_gtype
+            if len(teams["red"] + teams["blue"]) % 2 != 0:
+                if self.get_cvar("qlx_bdmBalanceUnevenTeams", bool):
+                    if "specqueue" in minqlx.Plugin._loaded_plugins:
+                        exclude = minqlx.Plugin._loaded_plugins["specqueue"]\
+                            .return_spec_player((teams["red"] + teams["blue"]))[0]
+                    else:
+                        lowest = self.get_cvar("qlx_bdmMaxRating", int)
+                        for player in (teams["red"] + teams["blue"]):
+                            bdm = self.get_bdm_field(player, game_type, "rating")
+                            if bdm < lowest:
+                                lowest = bdm
+                                exclude = player
+                    if exclude:
+                        if exclude in teams["red"]:
+                            teams["red"].remove(exclude)
+                        elif exclude in teams["blue"]:
+                            teams["blue"].remove(exclude)
                 else:
-                    teams["red"].append(switch[0])
-                    teams["blue"].remove(switch[0])
-                    teams["blue"].append(switch[1])
-                    teams["red"].remove(switch[1])
-                switch = self.suggest_switch(teams)
-        if moved_players:
-            avg_red = self.team_average(teams["red"])
-            avg_blue = self.team_average(teams["blue"])
-            message = ["^7Team Balance: ^1{} ^7vs. ^4{}".format(round(avg_red), round(avg_blue))]
-            difference = round(avg_red - avg_blue)
-            if difference > 0:
-                message.append(" ^7- Difference: ^1{}".format(difference))
-            elif difference < 0:
-                message.append(" ^7- Difference: ^4{}".format(abs(difference)))
+                    self.msg("^3The teams are not even. Balancing can't occur.")
+                    return
+            # Put all players into a sorted dictionary (sorted by player bdm)
+            player_bdms = {}
+            for p in (teams["red"] + teams["blue"]):
+                player_bdms[p.steam_id] = self.get_bdm_field(p, game_type, "rating")
+            sorted_bdms = sorted(((v, k) for k, v in player_bdms.items()), reverse=True)
+            # Put players into red and blue teams starting with the highest bdm players and alternate red and blue team
+            moved_players = False
+            player_count = 0
+            team_players = []
+            for k, v in sorted_bdms:
+                team_players.append(self.player(v))
+                if player_count % 2 == 0:
+                    if team_players[player_count] in teams["blue"]:
+                        moved_players = True
+                        teams["blue"].remove(team_players[player_count])
+                        teams["red"].append(team_players[player_count])
+                else:
+                    if team_players[player_count] in teams["red"]:
+                        moved_players = True
+                        teams["red"].remove(team_players[player_count])
+                        teams["blue"].append(team_players[player_count])
+                player_count += 1
+            # Start shuffling by looping through our suggestion function until
+            # there are no more switches that can be done to improve teams.
+            switch = self.suggest_switch(teams)
+            if switch:
+                moved_players = True
+                while switch:
+                    if switch[0] in teams["red"]:
+                        teams["blue"].append(switch[0])
+                        teams["red"].remove(switch[0])
+                        teams["red"].append(switch[1])
+                        teams["blue"].remove(switch[1])
+                    else:
+                        teams["red"].append(switch[0])
+                        teams["blue"].remove(switch[0])
+                        teams["blue"].append(switch[1])
+                        teams["red"].remove(switch[1])
+                    switch = self.suggest_switch(teams)
+            if moved_players:
+                avg_red = self.team_average(teams["red"])
+                avg_blue = self.team_average(teams["blue"])
+                message = ["^7Team Balance: ^1{} ^7vs. ^4{}".format(round(avg_red), round(avg_blue))]
+                difference = round(avg_red - avg_blue)
+                if difference > 0:
+                    message.append(" ^7- Difference: ^1{}".format(difference))
+                elif difference < 0:
+                    message.append(" ^7- Difference: ^4{}".format(abs(difference)))
+                else:
+                    message.append(" ^7- ^2EVEN")
+                self.msg("".join(message))
+
+                curr_teams = self.teams()
+                for player in teams["red"]:
+                    if player in curr_teams["blue"]:
+                        player.put("red")
+                for player in teams["blue"]:
+                    if player in curr_teams["red"]:
+                        player.put("blue")
+
+                if self.get_cvar("qlx_bdmBalanceAtGameStart", bool) and\
+                        self.get_cvar("qlx_bdmAutoBalanceSargeFix", bool) and\
+                        not self.game_active and "specqueue" in minqlx.Plugin._loaded_plugins:
+                    minqlx.Plugin._loaded_plugins["specqueue"].sarge_bug()
+                    self.msg("^3Sarge bug fix attempted.")
             else:
-                message.append(" ^7- ^2EVEN")
-            self.msg("".join(message))
-            curr_teams = self.teams()
-            for player in teams["red"]:
-                if player in curr_teams["blue"]:
-                    player.put("red")
-            for player in teams["blue"]:
-                if player in curr_teams["red"]:
-                    player.put("blue")
-        else:
-            self.msg("^4Teams look good^1! ^7Nothing to balance.")
-        if exclude:
-            if avg_blue > avg_red:
-                exclude.put("red")
-            else:
-                exclude.put("blue")
-            self.msg("^6{} ^4was not included in the balance.".format(exclude))
+                if self.get_cvar("qlx_bdmBalanceAtGameStart", bool) and\
+                        self.get_cvar("qlx_bdmAutoBalanceSargeFix", bool) and not self.game_active and\
+                        "specqueue" in minqlx.Plugin._loaded_plugins:
+                    minqlx.Plugin._loaded_plugins["specqueue"].sarge_bug()
+                    self.msg("^3Sarge bug fix attempted.")
+                self.msg("^4Teams look good^1! ^7Nothing to balance.")
+            if exclude:
+                if avg_blue > avg_red:
+                    exclude.put("red")
+                else:
+                    exclude.put("blue")
+                self.msg("^6{} ^4was not included in the balance.".format(exclude))
+        self._executing_balance = False
 
     def cmd_damage_status(self, player=None, msg=None, channel=None):
         self.exec_damage_status(player, msg, channel)
@@ -1364,7 +1390,7 @@ class serverBDM(minqlx.Plugin):
         self._players_agree = [False, False]
         self._suggested_switch = 0
 
-    @minqlx.thread
+    # @minqlx.thread
     def save_previous(self):
         if self.get_cvar("g_factory").lower() == "ictf":
             game_type = "ictf"

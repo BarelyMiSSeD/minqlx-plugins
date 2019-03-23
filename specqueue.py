@@ -70,8 +70,9 @@ import minqlx
 import time
 from threading import Lock
 from random import randint
+import re
 
-VERSION = "2.06.0"
+VERSION = "2.06.6"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -288,7 +289,7 @@ class specqueue(minqlx.Plugin):
         self.add_hook("player_connect", self.handle_player_connect)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("team_switch", self.handle_team_switch)
-        self.add_hook("team_switch_attempt", self.handle_team_switch_attempt)
+        self.add_hook("team_switch_attempt", self.handle_team_switch_attempt, priority=minqlx.PRI_HIGH)
         self.add_hook("set_configstring", self.handle_set_config_string)
         self.add_hook("client_command", self.handle_client_command)
         self.add_hook("vote_called", self.handle_vote_called)
@@ -299,8 +300,10 @@ class specqueue(minqlx.Plugin):
         # Minqlx bot commands
         self.add_command(("q", "queue"), self.cmd_list_queue)
         self.add_command(("s", "specs"), self.cmd_list_specs)
+        self.add_command("qt", self.cmd_play_time)
         self.add_command(("addqueue", "addq"), self.cmd_queue_add)
         self.add_command(("qversion", "qv"), self.cmd_qversion)
+        self.add_command(("qs", "qsetting"), self.queue_setting)
 
         self.add_command("ignore", self.ignore_imbalance, 3)
         self.add_command("latch", self.ignore_imbalance_latch, 3)
@@ -322,6 +325,8 @@ class specqueue(minqlx.Plugin):
         self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
         self._round = 0
         self.fix_sage_active = [False, False]
+        self.uneven_teams_move_to_spec = {}
+        self.bot_players = [None, None, None]
 
         # Initialize Commands
         self.add_spectators()
@@ -346,7 +351,13 @@ class specqueue(minqlx.Plugin):
         self.remove_from_spec(player)
         self.remove_from_queue(player)
         self.remove_from_join(player)
-        self.check_for_opening(0.5)
+        if not (self.bot_players[0] or self.bot_players[1] or self.bot_players[2]):
+            self.check_for_opening(0.5)
+        else:
+            @minqlx.delay(1)
+            def check():
+                self.check_for_opening(0.5)
+            check()
         if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen:
             self.look_at_teams(1.0)
 
@@ -355,8 +366,7 @@ class specqueue(minqlx.Plugin):
             if new_team != "spectator":
                 self.remove_from_spec(player)
                 self.remove_from_queue(player)
-                if player.steam_id not in self._join:
-                    self.add_to_join(player)
+                self.add_to_join(player)
             else:
                 if not self.end_screen:
                     self.check_for_opening(0.2)
@@ -369,7 +379,10 @@ class specqueue(minqlx.Plugin):
                         self.add_to_spec(player)
                     self.remove_from_join(player)
 
-                check_spectator()
+                if player.steam_id in self.uneven_teams_move_to_spec:
+                    del self.uneven_teams_move_to_spec[player.steam_id]
+                else:
+                    check_spectator()
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
         if self.q_game_info[0] in SUPPORTED_GAMETYPES and\
@@ -377,21 +390,36 @@ class specqueue(minqlx.Plugin):
             teams = self.teams()
             type_action = 0
             at_max_players = False
+            add_team = None
             if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 type_action = 1
                 if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players():
                     at_max_players = True
+                if self.bot_players[0] or self.bot_players[1]:
+                    try:
+                        if self.bot_players[0] > self.bot_players[1]:
+                            add_team = "red"
+                        else:
+                            add_team = "blue"
+                    except TypeError:
+                        if self.bot_players[0]:
+                            add_team = "red"
+                        else:
+                            add_team = "blue"
             elif self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
                 type_action = 2
                 if len(self.teams()["free"]) >= self.get_max_players():
                     at_max_players = True
+                if self.bot_players[2]:
+                    add_team = "free"
             if type_action != 0 and self._queue.size() > 0 or self.red_locked or self.blue_locked or\
-                    self.game.state in ["in_progress", "countdown"] or at_max_players:
-                if player.steam_id not in self._join:
-                    self.add_to_join(player)
+                    self.game.state in ["in_progress", "countdown"] or at_max_players or\
+                    self.fix_sage_active[0] or add_team:
+                self.add_to_join(player)
                 self.add_to_queue(player)
                 self.remove_from_spec(player)
-                self.check_for_opening(0.2)
+                if not add_team:
+                    self.check_for_opening(0.2)
                 return minqlx.RET_STOP_ALL
 
     def handle_set_config_string(self, index, values):
@@ -527,6 +555,16 @@ class specqueue(minqlx.Plugin):
     # ==============================================
     #               Plugin functions
     # ==============================================
+    def update_bots(self, bot_list):
+        self.bot_players[0] = bot_list[0] if bot_list[0] > 0 else None
+        self.bot_players[1] = bot_list[1] if bot_list[1] > 0 else None
+        self.bot_players[2] = bot_list[2] if bot_list[2] > 0 else None
+
+    def queue_populated(self):
+        return self._queue.size()
+
+    def sarge_fix_active(self):
+        return self.fix_sage_active[0]
 
     def get_max_players(self):
         max_players = self.get_cvar("teamsize", int)
@@ -549,7 +587,8 @@ class specqueue(minqlx.Plugin):
         position = self._queue.get_queue_position(player)
         player.center_print("^7You are in the ^4Queue^7 position ^1{}^7\nType ^4{}q ^7to show the queue"
                             .format(position + 1, self.get_cvar("qlx_commandPrefix")))
-        self.check_for_opening(0.2)
+        if not (self.bot_players[0] or self.bot_players[1] or self.bot_players[2]):
+            self.check_for_opening(0.2)
 
     def remove_from_queue(self, player):
         self._queue.remove_from_queue(player.steam_id, player)
@@ -624,7 +663,7 @@ class specqueue(minqlx.Plugin):
 
     @minqlx.thread
     def check_for_opening(self, delay=0.0):
-        if self._queue.size() == 0 or self.end_screen:
+        if self._queue.size() == 0 or self.end_screen or self.fix_sage_active[0]:
             return
 
         if delay > 0.0:
@@ -715,7 +754,6 @@ class specqueue(minqlx.Plugin):
                         # Executes if the 'place by team score' doesn't execute and sets player
                         #   with higher BDM on the team with the lower average BDM.
                         else:
-                            minqlx.console_print("77")
                             if red_bdm > blue_bdm:
                                 placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
                             elif blue_bdm > red_bdm:
@@ -921,6 +959,7 @@ class specqueue(minqlx.Plugin):
                         self.team_placement(player, where)
                     self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7.".format("^7, ".join(players), where))
                 if spec_player:
+                    self.uneven_teams_move_to_spec[spec_player.steam_id] = True
                     self.team_placement(spec_player, "spectator", True)
                     self.msg("^3Uneven Teams Detected^7: {} ^7was moved to ^3spectate^7.".format(spec_player))
 
@@ -996,22 +1035,23 @@ class specqueue(minqlx.Plugin):
 
     @minqlx.thread
     def check_spec_time(self):
-        max_spec_time = self.get_cvar("qlx_queueMaxSpecTime", int)
-        if 0 < max_spec_time < 9999:
-            admin = self.get_cvar("qlx_queueAdmin", int)
-            spectators = self.teams()["spectator"]
-            if self._spec.size() > 0 and len(spectators) > 0:
-                s = self._spec.get_spectators()
-                for p, t in s.items():
-                    spec = self.player(int(p))
-                    if spec in spectators:
-                        if self.db.get_permission(int(p)) >= admin:
-                            continue
-                        time_in_spec = round((time.time() - t)) / 60
-                        if time_in_spec >= max_spec_time:
-                            spec.kick("was in spectate, not the queue, for too long.")
-                    else:
-                        self.remove_from_spec(spec)
+        if self._spec.size() > 0:
+            max_spec_time = self.get_cvar("qlx_queueMaxSpecTime", int)
+            if 0 < max_spec_time < 9999:
+                admin = self.get_cvar("qlx_queueAdmin", int)
+                spectators = self.teams()["spectator"]
+                if len(spectators) > 0:
+                    s = self._spec.get_spectators()
+                    for p, t in s.items():
+                        spec = self.player(int(p))
+                        if spec in spectators:
+                            if self.db.get_permission(int(p)) >= admin:
+                                continue
+                            time_in_spec = round((time.time() - t)) / 60
+                            if time_in_spec >= max_spec_time:
+                                spec.kick("was in spectate, not the queue, for too long.")
+                        else:
+                            self.remove_from_spec(spec)
 
     @minqlx.thread
     def cmd_fix_sarge(self):
@@ -1023,24 +1063,32 @@ class specqueue(minqlx.Plugin):
                     time.sleep(0.05)
                     self.team_placement(player, "red")
                     time.sleep(0.05)
+                    if player.steam_id not in self._join:
+                        self.add_to_join(player)
                 for player in teams["blue"]:
                     self.team_placement(player, "spectator")
                     time.sleep(0.05)
                     self.team_placement(player, "blue")
                     time.sleep(0.05)
+                    if player.steam_id not in self._join:
+                        self.add_to_join(player)
             else:
                 for player in teams["free"]:
                     self.team_placement(player, "spectator")
                     time.sleep(0.05)
                     self.team_placement(player, "free")
                     time.sleep(0.05)
+                    if player.steam_id not in self._join:
+                        self.add_to_join(player)
             self.fix_sage_active[0] = False
             self.msg("^4All Players put to spectate then back on team.")
+            self.check_for_opening(0.2)
+            return True
 
     # ==============================================
     #               Minqlx Bot Commands
     # ==============================================
-    def sarge_bug(self, player, msg, channel):
+    def sarge_bug(self, player=None, msg=None, channel=None):
         self.fix_sage_active[0] = True
         if self.q_game_info[0] in TEAM_BASED_GAMETYPES and self.game.state == "in_progress" and\
                 not self.fix_sage_active[1]:
@@ -1095,6 +1143,9 @@ class specqueue(minqlx.Plugin):
         channel.reply("^7This server has installed ^2{0} version {1} by BarelyMiSSeD\n"
                       "https://github.com/BarelyMiSSeD/minqlx-plugins/{0}.py"
                       .format(self.__class__.__name__, VERSION))
+
+    def get_version(self):
+        return VERSION
 
     def cmd_list_queue(self, player=None, msg=None, channel=None):
         self.exec_list_queue(player, msg, channel)
@@ -1154,3 +1205,82 @@ class specqueue(minqlx.Plugin):
         elif player or count:
             self.msg("^4Spectators^7: " + ", ".join(message))
 
+    def cmd_play_time(self, player=None, msg=None, channel=None):
+        self.exec_play_time(player, msg, channel)
+
+    @minqlx.thread
+    def exec_play_time(self, player=None, msg=None, channel=None):
+        teams = self.teams()
+        count = 0
+        spectators = []
+        red = []
+        blue = []
+        free = []
+        for player in teams["red"]:
+            t = self.get_join_time(player)
+            time_in_game = round((time.time() - t))
+            if time_in_game / 60 > 1:
+                play_time = "^7{}^5m^7:{}^5s^7".format(int(time_in_game / 60), time_in_game % 60)
+            else:
+                play_time = "^7{}^5s^7".format(time_in_game)
+            red.append("^1{} ^7:{}".format(re.sub(r"\^[0-9]", "", player.name), play_time))
+            count += 1
+        for player in teams["blue"]:
+            t = self.get_join_time(player)
+            time_in_game = round((time.time() - t))
+            if time_in_game / 60 > 1:
+                play_time = "^7{}^5m^7:{}^5s^7".format(int(time_in_game / 60), time_in_game % 60)
+            else:
+                play_time = "^7{}^5s^7".format(time_in_game)
+            blue.append("^4{} ^7:{}".format(re.sub(r"\^[0-9]", "", player.name), play_time))
+            count += 1
+        for player in teams["free"]:
+            t = self.get_join_time(player)
+            time_in_game = round((time.time() - t))
+            if time_in_game / 60 > 1:
+                play_time = "^7{}^5m^7:{}^5s^7".format(int(time_in_game / 60), time_in_game % 60)
+            else:
+                play_time = "^7{}^5s^7".format(time_in_game)
+            free.append("^2{} ^7:{}".format(re.sub(r"\^[0-9]", "", player.name), play_time))
+            count += 1
+        if self._queue.size() > 0 and len(teams["spectator"]) > 0:
+            for n in range(0, self._queue.size()):
+                spec = self._queue[n]
+                if spec[1] in teams["spectator"]:
+                    t = self.get_join_time(spec[1])
+                    time_in_game = round((time.time() - t))
+                    if time_in_game / 60 > 1:
+                        play_time = "^7{}^5m^7:{}^5s^7".format(int(time_in_game / 60), time_in_game % 60)
+                    else:
+                        play_time = "^7{}^5s^7".format(time_in_game)
+                    spectators.append("^3{} ^7:{}".format(re.sub(r"\^[0-9]", "", spec[1].name), play_time))
+                    count += 1
+                else:
+                    self.remove_from_queue(spec[1])
+        if count == 0:
+            message = ["^4No players in game."]
+        else:
+            message = []
+            if len(red) > 0:
+                message.append(", ".join(red))
+            if len(blue) > 0:
+                message.append(", ".join(blue))
+            if len(free) > 0:
+                message.append(", ".join(free))
+            if len(spectators) > 0:
+                message.append(", ".join(spectators))
+        if channel:
+            channel.reply("^6Play Times^7:\n" + "\n".join(message))
+        elif player or count:
+            self.msg("^6Play Times^7:\n" + "\n".join(message))
+
+    def queue_setting(self, player=None, msg=None, channel=None):
+        if self.get_cvar("qlx_queueSpecByTime", bool) and self.get_cvar("qlx_queueSpecByScore", bool):
+            if self.get_cvar("qlx_queueSpecByPrimary") == "score":
+                self.msg("^6Spectating Uneven players is set to Spectate based on ^1Score ^7then ^2Play Time^7.")
+            else:
+                self.msg("^6Spectating Uneven players is set to Spectate based on ^2Play Time ^7then ^1Score^7.")
+        elif self.get_cvar("qlx_queueSpecByScore", bool):
+            self.msg("^6Spectating Uneven players is set to Spectate based on ^1Score^7.")
+        else:
+            self.msg("^6Spectating Uneven players is set to Spectate based on ^2Play Time^7.")

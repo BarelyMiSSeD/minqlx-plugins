@@ -14,7 +14,7 @@ qlx_listmapsUser "0" - Permission level needed to use !listmaps, which show the 
 import minqlx
 import requests
 
-VERSION = "v1.14"
+VERSION = "v1.15"
 FILE_NAME = "server_{}_map_list.txt"
 MAP_NAME_FILE = 'Map_Names.txt'
 _map_buffer = []
@@ -38,6 +38,7 @@ class listmaps(minqlx.Plugin):
         self.add_command("mapname", self.cmd_mapname, MAPLIST_USER)
 
         listmaps.map_file = FILE_NAME.format(self.get_cvar("net_port"))
+        self.getting_maps = False
 
         self.get_maps()
 
@@ -79,20 +80,22 @@ class listmaps(minqlx.Plugin):
 
     def handle_console_print(self, text):
         """Called whenever the server prints something to the console."""
-        try:
-            if not text:
-                return
+        if self.getting_maps:
+            try:
+                if not text:
+                    return
 
-            if _map_redirection:
-                global _map_buffer
-                if '.bsp' in text:
-                    _map_buffer.append(text)
+                if _map_redirection:
+                    global _map_buffer
+                    if '.bsp' in text:
+                        _map_buffer.append(text)
 
-        except:
-            minqlx.log_exception()
-            return True
+            except:
+                minqlx.log_exception()
+                return True
 
     def get_maps(self, player=None, msg=None, channel=None):
+        self.getting_maps = True
         with self.gather_maps():
             minqlx.console_command("dir maps")
 
@@ -101,6 +104,7 @@ class listmaps(minqlx.Plugin):
 
         minqlx.console_print("The server maps have been stored in the file ^3{}".format(listmaps.map_file))
 
+        self.getting_maps = False
         return True
 
     def gather_maps(self):
