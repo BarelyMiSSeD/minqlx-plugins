@@ -1,4 +1,22 @@
 # minqlx-plugins
+# bots.py
+This is a plugin for the minqlx admin bot.
+This keeps the server populated with bots (up to the set number) and will kick a bot to replace with a human player when they join.
+This is intended to give people a place to play even when no one else is playing.
+
+NOTE: THIS SCRIPT IS WILL NOT WORK WITHOUT THE SPECQUEUE.PY SCRIPT ON THIS PAGE.
+
+//script cvars to be put in server configuration file (default: server.cfg). Default values shown.<br>
+//set map the server will change to when the script is loaded if bot_enable isn't on
+set qlx_botsMap "almostlost"
+//set the maximum number of bots per team
+set qlx_botsMaxBots "4"
+//set weather to set a bot default level or to use the bots standard level set in BOT_DEFAULT_SKILLS
+set qlx_botsUseDefaultSkills "1"
+//use this skill level for all bots if qlx_botsUseDefaultSkills is set to "1"
+set qlx_botsSkillLevel "3"
+<br>
+
 # battleroyale.py
 This is a plugin for the minqlx admin bot.
 It makes a last man standing game style played in FFA with some default weapons.
