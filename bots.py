@@ -36,7 +36,7 @@ import time
 import re
 from threading import Timer
 
-VERSION = "1.6"
+VERSION = "1.7"
 
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -69,8 +69,9 @@ class bots(minqlx.Plugin):
         self.add_hook("round_end", self.handle_round_end)
         self.add_hook("team_switch_attempt", self.handle_team_switch_attempt, priority=minqlx.PRI_HIGHEST)
         self.add_hook("set_configstring", self.handle_set_config_string)
-        self.add_hook("death", self.death_monitor)
         self.add_hook("console_print", self.handle_console_print)
+        self.add_hook("vote_ended", self.handle_vote_ended)
+        self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
 
         # Minqlx bot commands
         # self.add_command("bots", self.bots_settings)
@@ -175,7 +176,7 @@ class bots(minqlx.Plugin):
             self.bot_game_timer.start()
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
-        @minqlx.delay(0.5)
+        @minqlx.delay(0.2)
         def kick_a_bot():
             if self._queue.queue_populated() > 0:
                 self.kicking_bot = True
@@ -203,13 +204,8 @@ class bots(minqlx.Plugin):
                     minqlx.console_print("^1Bots max bots per team has been set to {}".format(self.max_bots))
             set_team_size()
 
-    def death_monitor(self, victim, killer, data):
-        if self.game.state not in ["in_progress", "countdown"]:
-            self.check_bots()
-
     def handle_console_print(self, text):
         if self.bot_map:
-            # map_name = self.get_cvar("mapname")
             if "BotAISetupClient failed" in text or "Fatal:" in text and "aas" in text:
                 self.kicking_bots = True
                 self.bot_map = False
@@ -217,6 +213,20 @@ class bots(minqlx.Plugin):
                 minqlx.console_print("^1Bots not supported on map {}. ^3Will attempt a map change if server is"
                                      " empty of real players.".format(self.get_cvar("mapname")))
                 self.non_bot_map()
+
+    def handle_vote_ended(self, votes, vote, args, passed):
+        if passed and vote == "map":
+            self.kick_all_bots()
+
+    def handle_player_loaded(self, player):
+        if self.game.state not in ["in_progress", "countdown"] and not self.bot_map:
+            @minqlx.delay(1)
+            def msg_player():
+                player.tell("^1This map does not support bots."
+                            " If bots are desired change the map to one where bots are supported.")
+                player.center_print("^1This map does not support bots."
+                                    " If bots are desired change the map to one where bots are supported.")
+            msg_player()
 
     # ==============================================
     #               Plugin functions
@@ -257,7 +267,7 @@ class bots(minqlx.Plugin):
                 self.non_bot_map_message()
                 self._queue.update_bots([0, 0, 0])
 
-    @minqlx.delay(8)
+    @minqlx.delay(12)
     def non_bot_map_message(self):
         self.center_print("^1This map does not support bots."
                           " If bots are desired change the map to one where bots are supported.")
@@ -274,25 +284,6 @@ class bots(minqlx.Plugin):
             if len(bot_players) > 1 and len(bot_players) == len(teams["red"] + teams["blue"] + teams["free"]):
                 minqlx.console_command("qlx {}allready".format(self.get_cvar("qlx_commandPrefix")))
         self.bot_game_timer = None
-
-    @minqlx.thread
-    def check_bots(self):
-        if not self.bot_map:
-            self.check_bots[1] = False
-            return
-        if self.checking_bots[1]:
-            return
-        self.checking_bots[1] = True
-        teams = self.teams()
-        check_bots = []
-        for player in teams["red"] + teams["blue"] + teams["free"]:
-            if str(player.steam_id)[0] == "9":
-                check_bots.append(player)
-        for bot in check_bots:
-            if bot.stats.damage_dealt > 50000:
-                bot.kick()
-                time.sleep(2)
-        self.checking_bots[1] = False
 
     def get_max_team_size(self):
         max_team_size = self.get_cvar("teamsize", int)
@@ -342,7 +333,7 @@ class bots(minqlx.Plugin):
     @minqlx.thread
     def add_bots(self):
         if not self.bot_map:
-            self.check_bots[0] = False
+            self.checking_bots[0] = False
             return
         if self.checking_bots[1] or self.checking_bots[2]:
             Timer(2, self.add_bots).start()
@@ -427,7 +418,7 @@ class bots(minqlx.Plugin):
     @minqlx.thread
     def check_for_extra_bots(self):
         if not self.bot_map:
-            self.check_bots[2] = False
+            self.checking_bots[2] = False
             return
         if self.checking_bots[2]:
             return
@@ -532,7 +523,7 @@ class bots(minqlx.Plugin):
                         if player.score < score:
                             bot = player
                             score = player.score
-                    if self.round_countdown and bot.is_alive:
+                    if not self.round_countdown and bot.is_alive:
                         self.msg("^3Bot will be kicked during next round countdown to make room for the human player.")
                         return
                     else:
@@ -547,7 +538,7 @@ class bots(minqlx.Plugin):
                         if player.score < score:
                             bot = player
                             score = player.score
-                    if self.round_countdown and bot.is_alive:
+                    if not self.round_countdown and bot.is_alive:
                         self.msg("^3Bot will be kicked during next round countdown to make room for the human player.")
                         return
                     else:
@@ -572,7 +563,7 @@ class bots(minqlx.Plugin):
 
         self.update_bot_count()
 
-    @minqlx.delay(2)
+    @minqlx.delay(0.5)
     def kick_all_bots(self):
         self.kicking_bots = True
         for player in self.players():
