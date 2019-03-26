@@ -36,7 +36,7 @@ import time
 import re
 from threading import Timer
 
-VERSION = "1.7"
+VERSION = "1.8"
 
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -158,7 +158,7 @@ class bots(minqlx.Plugin):
                     self.add_bots()
 
             add_a_bot()
-        if not self.bot_game_timer:
+        if self.game.state not in ["in_progress", "countdown"] and not self.bot_game_timer:
             self.bot_game_timer = Timer(60, self.start_all_bots_game)
             self.bot_game_timer.start()
         if not self.bot_map:
@@ -348,6 +348,8 @@ class bots(minqlx.Plugin):
         red = len(teams["red"])
         blue = len(teams["blue"])
         free = len(teams["free"])
+        bot_selection = None
+        team = None
         if self.game.type_short in TEAM_BASED_GAMETYPES:
             while add:
                 if not self.bot_map:
@@ -362,14 +364,12 @@ class bots(minqlx.Plugin):
                         continue
                     bot_selection = self.get_bot()
                     level = skill_level if skill_level > 0 else self.quake_bots[bot_selection]
-                    minqlx.console_print("^3adding bot {} at skill level {} to {}"
-                                         .format(bot_selection, skill_level, team))
-                    minqlx.console_command("addbot {} {} {}".format(bot_selection, level, team))
+                    self.add_bot(bot_selection, level, team)
                     red = red + 1 if team == "^1red" else red
                     blue = blue + 1 if team == "^4blue" else blue
                 except Exception as e:
                     minqlx.console_print("^2Bots Add_Bots to teams Exception: {}".format(e))
-                # time.sleep(0.2)
+                    minqlx.console_print("^3Bot: ^1{} ^3Level: ^1{} ^3Team: {}".format(bot_selection, skill_level, team))
         elif self.game.type_short in NONTEAM_BASED_GAMETYPES:
             while add:
                 if not self.bot_map:
@@ -378,19 +378,21 @@ class bots(minqlx.Plugin):
                     if free < self.max_bots:
                         bot_selection = self.get_bot()
                         level = skill_level if skill_level > 0 else self.quake_bots[bot_selection]
-                        minqlx.console_print("^1adding bot {} at skill level {}"
-                                             .format(bot_selection, level))
-                        minqlx.console_command("addbot {} {}".format(bot_selection, skill_level))
+                        self.add_bot(bot_selection, level)
                         free += 1
                     else:
                         add = False
                 except Exception as e:
                     minqlx.console_print("^2Bots Add_Bots to free Exception: {}".format(e))
-                # time.sleep(0.2)
         time.sleep(1)
         self.update_bot_count()
 
         self.checking_bots[0] = False
+
+    @minqlx.next_frame
+    def add_bot(self, bot, level, team="free"):
+        minqlx.console_print("^3adding bot {} at skill level {} to {}".format(bot, level, team))
+        minqlx.console_command("addbot {} {} {}".format(bot, level, team))
 
     def update_bot_count(self):
         teams = self.teams()
@@ -472,16 +474,16 @@ class bots(minqlx.Plugin):
         self.update_bot_count()
 
     def get_bot(self):
-        selections = [x for x in range(0, len(QUAKE_BOTS)) if QUAKE_BOTS[x] not in self.used_bots]
+        selections = [QUAKE_BOTS[x] for x in range(0, len(QUAKE_BOTS)) if QUAKE_BOTS[x] not in self.used_bots]
         if len(selections) == 0:
             self.used_bots.clear()
-            selections = [x for x in range(0, len(QUAKE_BOTS)) if QUAKE_BOTS[x] not in self.used_bots]
+            selections = [QUAKE_BOTS[x] for x in range(0, len(QUAKE_BOTS))]
             teams = self.teams()
             for player in teams["red"] + teams["blue"] + teams["free"]:
                 if str(player.steam_id)[0] == "9":
                     selections.remove(self.quake_bots[re.sub(r"\^[0-9]", "", player.name)])
                     self.used_bots.append(re.sub(r"\^[0-9]", "", player.name))
-        bot = QUAKE_BOTS[selections[randint(0, len(selections))]]
+        bot = selections[randint(0, len(selections) - 1)]
         self.used_bots.append(bot)
         return bot
 
@@ -489,20 +491,25 @@ class bots(minqlx.Plugin):
     def kick_bot(self, team=None):
         teams = self.teams()
         if team:
-            if team == "red" or team == "blue" or team == "free":
-                team_bots = []
-                for player in teams["{}".format(team)]:
-                    if str(player.steam_id)[0] == "9":
-                        team_bots.append(player)
-                if len(team_bots) == 0:
+            if team == "red" or team == "blue":
+                if not self._queue.queue_populated() > 0 and len(teams["red"]) == len(teams["blue"]):
                     return
-                score = team_bots[0].score
-                bot = team_bots[0]
-                for player in team_bots:
-                    if player.score < score:
-                        bot = player
-                        score = player.score
-                bot.kick()
+            elif team == "free":
+                if not self._queue.queue_populated() > 0 and len(teams["free"]) <= self.get_max_team_size():
+                    return
+            team_bots = []
+            for player in teams["{}".format(team)]:
+                if str(player.steam_id)[0] == "9":
+                    team_bots.append(player)
+            if len(team_bots) == 0:
+                return
+            score = team_bots[0].score
+            bot = team_bots[0]
+            for player in team_bots:
+                if player.score < score:
+                    bot = player
+                    score = player.score
+            bot.kick()
         elif self.game.type_short in TEAM_BASED_GAMETYPES:
             red = []
             blue = []
@@ -527,7 +534,6 @@ class bots(minqlx.Plugin):
                         self.msg("^3Bot will be kicked during next round countdown to make room for the human player.")
                         return
                     else:
-                        self.round_countdown = False
                         blue.remove(bot)
                         waiting_players -= 1
                         bot.kick()
@@ -542,7 +548,6 @@ class bots(minqlx.Plugin):
                         self.msg("^3Bot will be kicked during next round countdown to make room for the human player.")
                         return
                     else:
-                        self.round_countdown = False
                         red.remove(bot)
                         waiting_players -= 1
                         bot.kick()
@@ -559,9 +564,10 @@ class bots(minqlx.Plugin):
                         bot = player
                         score = player.score
                 bot.kick()
-        self._queue.check_for_opening(0.2)
 
         self.update_bot_count()
+
+        self._queue.check_for_opening(0.2)
 
     @minqlx.delay(0.5)
     def kick_all_bots(self):
