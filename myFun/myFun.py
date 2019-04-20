@@ -135,7 +135,7 @@ import random
 import time
 import re
 
-VERSION = "4.7"
+VERSION = "4.9"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -228,6 +228,10 @@ class myFun(minqlx.Plugin):
         self._command_prefix = self.get_cvar("qlx_commandPrefix")
 
     def enable_sound_packs(self, player=None, msg=None, channel=None):
+        self.enable_packs(player)
+
+    @minqlx.thread
+    def enable_packs(self, player):
         packs = self.get_cvar("qlx_funEnableSoundPacks", int)
         binary = bin(packs)[2:]
         length = len(str(binary))
@@ -393,6 +397,10 @@ class myFun(minqlx.Plugin):
         return False
 
     def add_trigger(self, player, msg, channel):
+        self.add_custom_trigger(player, msg)
+
+    @minqlx.thread
+    def add_custom_trigger(self, player, msg):
         if len(msg) < 3:
             player.tell("^3usage^7: ^1{}addtrigger ^7<^2default trigger^7> ^1= ^7<^4added trigger^7>"
                         .format(self._command_prefix))
@@ -428,6 +436,10 @@ class myFun(minqlx.Plugin):
         return minqlx.RET_STOP_ALL
 
     def del_trigger(self, player, msg, channel):
+        self.del_custom_trigger(player, msg)
+
+    @minqlx.thread
+    def del_custom_trigger(self, player, msg):
         if len(msg) < 3:
             player.tell("^3usage^7: ^1!deltrigger ^7<^2default trigger^7> ^1= ^7<^4delete trigger^7>")
             return minqlx.RET_STOP_ALL
@@ -598,8 +610,12 @@ class myFun(minqlx.Plugin):
 
         return None
 
-    # list the disabled sound to the requesting player
     def cmd_sound_off_list(self, player, msg, channel):
+        self.sound_off_list(player, msg, channel)
+
+    @minqlx.thread
+    # list the disabled sound to the requesting player
+    def sound_off_list(self, player, msg, channel):
         disabled_key = "minqlx:players:{0}:flags:myFun".format(player.steam_id)
         sound_list = []
         count = 0
@@ -614,8 +630,12 @@ class myFun(minqlx.Plugin):
         player.tell("^3You have ^4{0} ^3sounds disabled: ^1{1}".format(count, "^7, ^1".join(sound_list)))
         return
 
-    # disable the specified sound on the server
     def cmd_disable_sound(self, player, msg, channel):
+        self.disable_sound(player, msg, channel)
+
+    @minqlx.thread
+    # disable the specified sound on the server
+    def disable_sound(self, player, msg, channel):
         if len(msg) < 2:
             return minqlx.RET_USAGE
         trigger = " ".join(msg[1:]).lower()
@@ -629,8 +649,12 @@ class myFun(minqlx.Plugin):
                         " ^3to find the correct sound trigger.".format(self._command_prefix))
         return minqlx.RET_STOP_ALL
 
-    # enable the specified sound on the server
     def cmd_enable_sound(self, player, msg, channel):
+        self.enable_sound(player, msg, channel)
+
+    @minqlx.thread
+    # enable the specified sound on the server
+    def enable_sound(self, player, msg, channel):
         if len(msg) < 2:
             return minqlx.RET_USAGE
         trigger = " ".join(msg[1:]).lower()
@@ -650,8 +674,12 @@ class myFun(minqlx.Plugin):
                 minqlx.console_print("^1Enable sound exception:: {}".format(e))
         return minqlx.RET_STOP_ALL
 
-    # list the sounds disabled on the server for the requesting player
     def cmd_list_disabled(self, player, msg, channel):
+        self.list_disabled(player, msg, channel)
+
+    @minqlx.thread
+    # list the sounds disabled on the server for the requesting player
+    def list_disabled(self, player, msg, channel):
         sound_list = []
         count = 0
         for key in self.db.keys("minqlx:myFun:disabled:*"):
@@ -692,7 +720,10 @@ class myFun(minqlx.Plugin):
         if "console" == channel:
             minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
 
-        self.play_sound(msg[1])
+        @minqlx.thread
+        def play():
+            self.play_sound(msg[1])
+        play()
 
         return minqlx.RET_STOP_ALL
 
@@ -757,7 +788,7 @@ class myFun(minqlx.Plugin):
         return None
 
     # plays the supplied sound for the players on the server (if the player has the sound(s) enabled)
-    @minqlx.thread
+    # @minqlx.thread
     def play_sound(self, path):
         play = self.last_2_sound()
         active = self.game.state in ["in_progress", "countdown"]
