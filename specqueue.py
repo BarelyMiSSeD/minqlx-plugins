@@ -73,7 +73,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.07.1"
+VERSION = "2.07.2"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -1029,14 +1029,14 @@ class specqueue(minqlx.Plugin):
                 if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                     for player in teams["red"]:
                         self.team_placement(player, "blue")
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                         self.team_placement(player, "red")
                         time.sleep(0.1)
                         if player.steam_id not in self._join:
                             self.add_to_join(player)
                     for player in teams["blue"]:
                         self.team_placement(player, "red")
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                         self.team_placement(player, "blue")
                         time.sleep(0.1)
                         if player.steam_id not in self._join:
@@ -1044,7 +1044,7 @@ class specqueue(minqlx.Plugin):
                 else:
                     for player in teams["free"]:
                         self.team_placement(player, "spectator")
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                         self.team_placement(player, "free")
                         time.sleep(0.1)
                         if player.steam_id not in self._join:

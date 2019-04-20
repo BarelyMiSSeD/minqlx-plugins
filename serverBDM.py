@@ -123,7 +123,7 @@ import random
 import requests
 import re
 
-VERSION = "1.05.0"
+VERSION = "1.05.1"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -878,6 +878,8 @@ class serverBDM(minqlx.Plugin):
                     teams["blue"].append(switch[1])
                     teams["red"].remove(switch[1])
                 switch = self.suggest_switch(teams)
+
+        curr_teams = self.teams()
         if moved_players:
             avg_red = self.team_average(teams["red"])
             avg_blue = self.team_average(teams["blue"])
@@ -890,21 +892,26 @@ class serverBDM(minqlx.Plugin):
             else:
                 message.append(" ^7- ^2EVEN")
             self.msg("".join(message))
-            curr_teams = self.teams()
             for player in teams["red"]:
-                if player in curr_teams["blue"] and not sarge:
-                    player.put("red")
+                if not sarge:
+                    if player in curr_teams["blue"]:
+                        player.put("red")
                 else:
-                    player.put("blue")
-                    time.sleep(0.1)
+                    if player in curr_teams["red"]:
+                        player.put("blue")
+                        time.sleep(0.2)
                     player.put("red")
+                time.sleep(0.1)
             for player in teams["blue"]:
-                if player in curr_teams["red"] and not sarge:
-                    player.put("blue")
+                if not sarge:
+                    if player in curr_teams["red"]:
+                        player.put("blue")
                 else:
-                    player.put("red")
-                    time.sleep(0.1)
+                    if player in curr_teams["blue"]:
+                        player.put("red")
+                        time.sleep(0.2)
                     player.put("blue")
+                time.sleep(0.1)
             if sarge:
                 self.msg("^6Sarge bug fix executed.")
         else:
@@ -912,23 +919,29 @@ class serverBDM(minqlx.Plugin):
                 self.msg("^4Teams look good^1! ^7Nothing to balance.")
             else:
                 for player in teams["red"]:
-                    player.put("blue")
-                    time.sleep(0.1)
+                    if player in curr_teams["red"]:
+                        player.put("blue")
+                        time.sleep(0.2)
                     player.put("red")
+                    time.sleep(0.1)
                 for player in teams["blue"]:
-                    player.put("red")
-                    time.sleep(0.1)
+                    if player in curr_teams["blue"]:
+                        player.put("red")
+                        time.sleep(0.2)
                     player.put("blue")
+                    time.sleep(0.1)
                 self.msg("^4Teams look good^1! ^7Nothing to balance. ^6Sarge bug fix executed.")
         if exclude:
             if sarge:
                 if avg_blue > avg_red:
-                    exclude.put("blue")
-                    time.sleep(0.1)
+                    if exclude in curr_teams["red"]:
+                        exclude.put("blue")
+                        time.sleep(0.2)
                     exclude.put("red")
                 else:
-                    exclude.put("red")
-                    time.sleep(0.1)
+                    if exclude in curr_teams["blue"]:
+                        exclude.put("red")
+                        time.sleep(0.2)
                     exclude.put("blue")
             else:
                 if avg_blue > avg_red:
