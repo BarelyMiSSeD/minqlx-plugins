@@ -123,7 +123,7 @@ import random
 import requests
 import re
 
-VERSION = "1.05.1"
+VERSION = "1.05.2"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
@@ -155,6 +155,7 @@ class serverBDM(minqlx.Plugin):
         self.set_cvar_once("qlx_bdmSetIntitialBDM", "1")
         self.set_cvar_once("qlx_bdmMCalculation", "0.92")
         self.set_cvar_once("qlx_bdmBCalculation", "-250")
+        self.set_cvar_once("qlx_bdmReEvenOnMapChange", "1")
         self.set_cvar_once("qlx_bdmJoinMessage",
                            "^6{0}^7: ^3{6} ^7games here ^2{2} ^4BDM ^7games ^7(quit ^6{5}^7％) ^7rating: ^2{1}^7.")
         # CA
@@ -447,6 +448,7 @@ class serverBDM(minqlx.Plugin):
         self._bdm_gtype = self.game.type_short
         self.create_db()
         self.reset_data()
+        self.even_player_teams()
 
     # ==============================================
     #               Minqlx Bot Commands
@@ -795,6 +797,10 @@ class serverBDM(minqlx.Plugin):
             player.tell("^6Use ^1{}do force ^6to execute the switch even though team makeup has changed."
                         .format(self.get_cvar("qlx_commandPrefix")))
 
+    @minqlx.next_frame
+    def place_player(self, player, team):
+        player.put(team)
+
     @minqlx.delay(1)
     def cmd_bdmbalance(self, player=None, msg=None, channel=None):
         self.exec_bdmbalance(player, msg, channel)
@@ -895,22 +901,22 @@ class serverBDM(minqlx.Plugin):
             for player in teams["red"]:
                 if not sarge:
                     if player in curr_teams["blue"]:
-                        player.put("red")
+                        self.place_player(player, "red")
                 else:
                     if player in curr_teams["red"]:
-                        player.put("blue")
+                        self.place_player(player, "blue")
                         time.sleep(0.2)
-                    player.put("red")
+                    self.place_player(player, "red")
                 time.sleep(0.1)
             for player in teams["blue"]:
                 if not sarge:
                     if player in curr_teams["red"]:
-                        player.put("blue")
+                        self.place_player(player, "blue")
                 else:
                     if player in curr_teams["blue"]:
-                        player.put("red")
+                        self.place_player(player, "red")
                         time.sleep(0.2)
-                    player.put("blue")
+                    self.place_player(player, "blue")
                 time.sleep(0.1)
             if sarge:
                 self.msg("^6Sarge bug fix executed.")
@@ -920,34 +926,34 @@ class serverBDM(minqlx.Plugin):
             else:
                 for player in teams["red"]:
                     if player in curr_teams["red"]:
-                        player.put("blue")
+                        self.place_player(player, "blue")
                         time.sleep(0.2)
-                    player.put("red")
+                    self.place_player(player, "red")
                     time.sleep(0.1)
                 for player in teams["blue"]:
                     if player in curr_teams["blue"]:
-                        player.put("red")
+                        self.place_player(player, "red")
                         time.sleep(0.2)
-                    player.put("blue")
+                    self.place_player(player, "blue")
                     time.sleep(0.1)
                 self.msg("^4Teams look good^1! ^7Nothing to balance. ^6Sarge bug fix executed.")
         if exclude:
             if sarge:
                 if avg_blue > avg_red:
                     if exclude in curr_teams["red"]:
-                        exclude.put("blue")
+                        self.place_player(player, "blue")
                         time.sleep(0.2)
-                    exclude.put("red")
+                    self.place_player(player, "red")
                 else:
                     if exclude in curr_teams["blue"]:
-                        exclude.put("red")
+                        self.place_player(player, "red")
                         time.sleep(0.2)
-                    exclude.put("blue")
+                    self.place_player(player, "blue")
             else:
                 if avg_blue > avg_red:
-                    exclude.put("red")
+                    self.place_player(player, "red")
                 else:
-                    exclude.put("blue")
+                    self.place_player(player, "blue")
             self.msg("^6{} ^4was not included in the balance.".format(exclude))
 
     def cmd_damage_status(self, player=None, msg=None, channel=None):
@@ -1072,6 +1078,12 @@ class serverBDM(minqlx.Plugin):
     # ==============================================
     #               Script Commands
     # ==============================================
+    # Execute a shuffle command if the game is a team based game type
+    @minqlx.delay(12)
+    def even_player_teams(self):
+        if self.get_cvar("qlx_bdmReEvenOnMapChange", bool) and self._bdm_gtype in TEAM_BASED_GAMETYPES:
+            self.shuffle()
+
     # Search for a player name match using the supplied string
     def find_player(self, name):
         found_player = None
