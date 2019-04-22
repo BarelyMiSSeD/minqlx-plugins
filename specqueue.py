@@ -73,7 +73,7 @@ import time
 from threading import Lock
 from random import randint
 
-VERSION = "2.07.2"
+VERSION = "2.07.3"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -378,34 +378,26 @@ class specqueue(minqlx.Plugin):
     def handle_team_switch_attempt(self, player, old_team, new_team):
         if self.q_game_info[0] in SUPPORTED_GAMETYPES and\
                 new_team != "spectator" and old_team == "spectator":
-
-            if self.fix_sarge_active:
-                if player.steam_id not in self._join:
-                    self.add_to_join(player)
-                self.add_to_queue(player)
-                self.remove_from_spec(player)
-                self.check_for_opening(0.2)
-                return minqlx.RET_STOP_ALL
-
-            teams = self.teams()
-            type_action = 0
-            at_max_players = False
-            if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-                type_action = 1
-                if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players():
-                    at_max_players = True
-            elif self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
-                type_action = 2
-                if len(self.teams()["free"]) >= self.get_max_players():
-                    at_max_players = True
-            if type_action and self._queue.size() > 0 or self.red_locked or self.blue_locked or\
-                    self.game.state in ["in_progress", "countdown"] or at_max_players:
-                if player.steam_id not in self._join:
-                    self.add_to_join(player)
-                self.add_to_queue(player)
-                self.remove_from_spec(player)
-                self.check_for_opening(0.2)
-                return minqlx.RET_STOP_ALL
+            if not self.fix_sarge_active:
+                teams = self.teams()
+                type_action = 0
+                at_max_players = False
+                if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                    type_action = 1
+                    if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players():
+                        at_max_players = True
+                elif self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
+                    type_action = 2
+                    if len(self.teams()["free"]) >= self.get_max_players():
+                        at_max_players = True
+                if type_action and self._queue.size() > 0 or self.red_locked or self.blue_locked or\
+                        self.game.state in ["in_progress", "countdown"] or at_max_players:
+                    if player.steam_id not in self._join:
+                        self.add_to_join(player)
+                    self.add_to_queue(player)
+                    self.remove_from_spec(player)
+                    self.check_for_opening(0.2)
+                    return minqlx.RET_STOP_ALL
 
     def handle_set_config_string(self, index, values):
         args = values.split("\\")[1:]
@@ -1051,6 +1043,7 @@ class specqueue(minqlx.Plugin):
                             self.add_to_join(player)
             except Exception as e:
                 minqlx.console_print("^1SpecQueue Sarge Bug Fix Error^7: {}".format(e))
+            time.sleep(1)
             self.fix_sarge_active = False
             self.msg("^4Sarge Bug Fix Executed.")
             self.check_for_opening(0.2)
