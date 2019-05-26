@@ -58,12 +58,12 @@ These extra workshop items need to be loaded on the server for it to work correc
 #Warp Sounds for Quake Live
 1250689005
 #West Coast Crew Sound
-908031086
+1733859113
 
 The minqlx 'workshop' plugin needs to be loaded and the required workshop
 items added to the set qlx_workshopReferences line
 (This example shows only these required workshop items):
-set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 908031086"
+set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 1733859113"
 (Only include the sound pack workshop item numbers that you decide to enable on the server)
 (The Default sounds use sounds already available as part of the Quake Live install)
 
@@ -73,7 +73,7 @@ Soundpacks:
 3) The Funny Sounds Pack for Minqlx can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=620087103
 4) The Duke Nukem Voice Sound Pack for minqlx soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=572453229
 5) The Warp Sounds for Quake Live soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=1250689005
-6) The West Coast Crew Sound soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=908031086
+6) The West Coast Crew Sound soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=1733859113
 
 The soundpacks are all enabled by default. Which soundpacks are enabled can be set.
 set qlx_funEnableSoundPacks "63" : Enables all sound packs.
@@ -135,7 +135,7 @@ import random
 import time
 import re
 
-VERSION = "4.9"
+VERSION = "5.0"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -170,6 +170,9 @@ class myFun(minqlx.Plugin):
         # 2 = only play sounds for people who are dead/spectating when game is active
         # 3 = play sound for everyone with sounds enabled
         self.set_cvar_once("qlx_funLast2Sound", "3")
+        # Enable to use a dictionary to store sounds (0=disable, 1=enable)
+        #  Enabling will cause the server to use more memory, only enable if memory is available.
+        self.set_cvar_once("qlx_funFastSoundLookup", "0")
 
         self.add_hook("chat", self.handle_chat)
         self.add_hook("server_command", self.handle_server_command)
@@ -322,7 +325,8 @@ class myFun(minqlx.Plugin):
     @minqlx.thread
     def scan_chat(self, player, msg, channel):
         # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
-        if msg.startswith("{}".format(self._command_prefix)) or channel != "chat" or player.steam_id in self.muted_players or\
+        if msg.startswith("{}".format(self._command_prefix)) or channel != "chat" or\
+                player.steam_id in self.muted_players or\
                 not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
             return
 
