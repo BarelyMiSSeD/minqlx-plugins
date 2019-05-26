@@ -71,9 +71,10 @@ set qlx_queueAutoSargeFix "0"
 import minqlx
 import time
 from threading import Lock
+from threading import Timer
 from random import randint
 
-VERSION = "2.07.3"
+VERSION = "2.07.7"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -278,6 +279,7 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueMaxSpecTime", "9999")  # time in minutes
         self.set_cvar_once("qlx_queueCheckTeamsDelay", "5")
         self.set_cvar_once("qlx_queueAutoSargeFix", "0")
+        self.set_cvar_once("qlx_queueShuffleOnMapChange", "1")
 
         # Minqlx bot Hooks
         self.add_hook("new_game", self.handle_new_game)
@@ -315,82 +317,93 @@ class specqueue(minqlx.Plugin):
         self._players = []
         self.red_locked = False
         self.blue_locked = False
+        self.free_locked = False
         self.end_screen = False
         self.displaying_queue = False
         self.displaying_spec = False
         self.in_countdown = False
         self.death_count = 0
-        self.q_game_info = []
+        self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
         self._round = 0
         self.uneven_teams_move_to_spec = {}
-        self.fix_sarge_active = False
+        self._ignore = False
+        self._latch_ignore = False
+        self._ignore_msg_already_said = False
 
         # Initialize Commands
         self.add_spectators()
         self.add_join_times()
 
-        self._ignore = False
-        self._latch_ignore = False
-        self._ignore_msg_already_said = False
-
     # ==============================================
     #               Event Handler's
     # ==============================================
     def handle_player_connect(self, player):
-        if len(self.q_game_info) == 0:
-            self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
-        if player.steam_id not in self._queue:
-            self.add_to_spec(player)
-            self.remove_from_queue(player)
-            self.remove_from_join(player)
+        try:
+            if player.steam_id not in self._queue:
+                self.add_to_spec(player)
+                self.remove_from_queue(player)
+                self.remove_from_join(player)
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle player connect Exceptions: {}".format(e))
 
     def handle_player_disconnect(self, player, reason):
-        self.remove_from_spec(player)
-        self.remove_from_queue(player)
-        self.remove_from_join(player)
-        self.check_for_opening(0.5)
-        if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen:
-            self.look_at_teams(1.0)
+        try:
+            self.remove_from_spec(player)
+            self.remove_from_queue(player)
+            self.remove_from_join(player)
+            self.check_for_opening(0.5)
+            if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen:
+                self.look_at_teams(1.0)
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle player disconnect Exceptions: {}".format(e))
 
     def handle_team_switch(self, player, old_team, new_team):
         if new_team != "spectator":
-            self.remove_from_spec(player)
-            self.remove_from_queue(player)
-            if player.steam_id not in self._join:
-                self.add_to_join(player)
+            try:
+                self.remove_from_spec(player)
+                self.remove_from_queue(player)
+                if player.steam_id not in self._join:
+                    self.add_to_join(player)
+            except Exception as e:
+                minqlx.console_print("^1specqueue handle team switch not to spectator Exceptions: {}".format(e))
         else:
-            if not self.end_screen:
-                self.check_for_opening(0.2)
-                if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
-                    self.look_at_teams(1.0)
+            try:
+                if not self.end_screen:
+                    self.check_for_opening(0.2)
+                    if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
+                        self.look_at_teams(1.0)
 
-            @minqlx.delay(1)
-            def check_spectator():
-                if player.steam_id not in self._queue:
-                    self.add_to_spec(player)
-                self.remove_from_join(player)
+                @minqlx.delay(1)
+                def check_spectator():
+                    if player.steam_id not in self._queue:
+                        self.add_to_spec(player)
+                    self.remove_from_join(player)
 
-            if player.steam_id in self.uneven_teams_move_to_spec:
-                del self.uneven_teams_move_to_spec[player.steam_id]
-            else:
-                check_spectator()
+                if player.steam_id in self.uneven_teams_move_to_spec:
+                    del self.uneven_teams_move_to_spec[player.steam_id]
+                else:
+                    check_spectator()
+            except Exception as e:
+                minqlx.console_print("^1specqueue handle team switch to spectator Exceptions: {}".format(e))
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
-        if self.q_game_info[0] in SUPPORTED_GAMETYPES and\
-                new_team != "spectator" and old_team == "spectator":
-            if not self.fix_sarge_active:
+        try:
+            if self.q_game_info[0] in SUPPORTED_GAMETYPES and new_team != "spectator" and old_team == "spectator":
                 teams = self.teams()
                 type_action = 0
                 at_max_players = False
+                join_locked = False
                 if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                     type_action = 1
                     if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players():
                         at_max_players = True
+                    join_locked = self.free_locked
                 elif self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
                     type_action = 2
                     if len(self.teams()["free"]) >= self.get_max_players():
                         at_max_players = True
-                if type_action and self._queue.size() > 0 or self.red_locked or self.blue_locked or\
+                    join_locked = self.red_locked or self.blue_locked
+                if type_action and self._queue.size() > 0 or join_locked or\
                         self.game.state in ["in_progress", "countdown"] or at_max_players:
                     if player.steam_id not in self._join:
                         self.add_to_join(player)
@@ -398,228 +411,312 @@ class specqueue(minqlx.Plugin):
                     self.remove_from_spec(player)
                     self.check_for_opening(0.2)
                     return minqlx.RET_STOP_ALL
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle team switch attempt Exception: {}".format(e))
 
     def handle_set_config_string(self, index, values):
-        args = values.split("\\")[1:]
-        if "teamsize" in args:
-            teamsize = args[args.index("teamsize") + 1]
-            if self.q_game_info[1] != teamsize:
-                self.q_game_info[1] = teamsize
-                self.check_for_opening(1.5)
-        if "fraglimit" in args:
-            fraglimit = args[args.index("fraglimit") + 1]
-            self.q_game_info[2] = fraglimit
+        try:
+            args = values.split("\\")[1:]
+            if "teamsize" in args:
+                teamsize = int(args[args.index("teamsize") + 1])
+                if self.q_game_info[1] != teamsize:
+                    self.q_game_info[1] = teamsize
+                    self.check_for_opening(1.5)
+            if "fraglimit" in args:
+                fraglimit = int(args[args.index("fraglimit") + 1])
+                self.q_game_info[2] = fraglimit
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle set config string Exception: {}".format(e))
 
     def handle_client_command(self, player, command):
-        if command == "team s" and player in self.teams()["spectator"]:
-            self.add_to_spec(player)
-            self.remove_from_queue(player)
-            self.remove_from_join(player)
-            player.center_print("^6You are set to spectate only")
+        try:
+            @minqlx.delay(0.2)
+            def spec_player():
+                if command == "team s" and player in self.teams()["spectator"]:
+                    self.add_to_spec(player)
+                    self.remove_from_queue(player)
+                    self.remove_from_join(player)
+                    player.center_print("^6You are set to spectate only")
+            spec_player()
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle client command Exception: {}".format(e))
 
     def handle_new_game(self):
-        self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
-        self.end_screen = False
-        self.red_locked = False
-        self.blue_locked = False
-        self.displaying_queue = False
-        self.displaying_spec = False
+        try:
+            self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
+            self.end_screen = False
+            self.displaying_queue = False
+            self.displaying_spec = False
 
-        if self.q_game_info[0] not in SUPPORTED_GAMETYPES:
-            self._queue.clear()
-            self.msg("^1This gametype is not supported by the queueing system. Queue functions are not available.")
-        else:
-            self.check_for_opening(2)
+            if self.q_game_info[0] not in SUPPORTED_GAMETYPES:
+                self._queue.clear()
+                self.msg("^1This gametype is not supported by the queueing system. Queue functions are not available.")
+            else:
+                self.check_for_opening(1)
+                self.auto_shuffle_player_teams()
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle new game Exception: {}".format(e))
 
     def handle_game_start(self, data):
-        self.check_spec_time()
+        try:
+            self.check_spec_time()
 
-        @minqlx.thread
-        def t():
-            if self.q_game_info[0] == "ft":
-                countdown = self.get_cvar("g_freezeRoundDelay", int)
-            else:
-                countdown = self.get_cvar("g_roundWarmupDelay", int)
-            time.sleep(max(countdown / 1000 - 0.8, 0))
-            self.even_the_teams()
-        t()
+            @minqlx.thread
+            def t():
+                if self.q_game_info[0] == "ft":
+                    countdown = self.get_cvar("g_freezeRoundDelay", int)
+                else:
+                    countdown = self.get_cvar("g_roundWarmupDelay", int)
+                time.sleep(max(countdown / 1000 - 0.8, 0))
+                self.even_the_teams()
+            t()
 
-        if self.get_cvar("qlx_queueAutoSargeFix", bool):
-            @minqlx.delay(0.5)
-            def fix_sarge():
-                self.sarge_bug()
+            if self.get_cvar("qlx_queueAutoSargeFix", bool):
+                @minqlx.delay(0.5)
+                def fix_sarge():
+                    self.sarge_bug()
+                fix_sarge()
 
-            fix_sarge()
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle game start Exception: {}".format(e))
 
     def handle_map(self, mapname, factory):
-        self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
-        self._ignore = False
-        self._ignore_msg_already_said = False
-        self.end_screen = False
-        self.check_spec_time()
+        try:
+            self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
+            self._ignore = False
+            self._ignore_msg_already_said = False
+            self.end_screen = False
+            self.check_spec_time()
+            self.death_count = 0
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle map Exception: {}".format(e))
 
     def handle_game_end(self, data):
-        if not data["ABORTED"]:
-            self.end_screen = True
+        try:
+            if not data["ABORTED"]:
+                self.end_screen = True
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle game end Exception: {}".format(e))
 
     def handle_round_countdown(self, round_num):
-        self._round = round_num
-        self._ignore = False
-        self._ignore_msg_already_said = False
-        self.check_for_opening(0.2)
-        if self.get_cvar("qlx_queueQueueMsg", bool):
-            self.cmd_list_queue()
-        if self.get_cvar("qlx_queueSpecMsg", bool):
-            self.cmd_list_specs()
-        self.check_queue(0.2)
-        self.check_spec(0.2)
-        if self.q_game_info[0] not in NO_COUNTDOWN_TEAM_GAMES:  # maybe an unnecessary check
-            self.look_at_teams()
-
-    def handle_round_start(self, number):
-        self.check_for_opening(0.2)
-        self.check_queue(2)
-        self.check_spec(2)
-        self.even_the_teams()
-
-    def handle_round_end(self, data):
-        if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
+        try:
+            self._round = round_num
+            self._ignore = False
+            self._ignore_msg_already_said = False
             self.check_for_opening(0.2)
-            self.even_the_teams(True)
             if self.get_cvar("qlx_queueQueueMsg", bool):
                 self.cmd_list_queue()
             if self.get_cvar("qlx_queueSpecMsg", bool):
                 self.cmd_list_specs()
-        self.check_spec_time()
+            self.check_queue(0.2)
+            self.check_spec(0.2)
+            if self.q_game_info[0] not in NO_COUNTDOWN_TEAM_GAMES:  # maybe an unnecessary check
+                self.look_at_teams()
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle round countdown Exception: {}".format(e))
 
-    def death_monitor(self, victim, killer, data):
-        if self.q_game_info[0] in NON_ROUND_BASED_GAMETYPES:
-            self.death_count += 1
-            if self.death_count > 5 and self.death_count > self.q_game_info[2] / 5:
+    def handle_round_start(self, number):
+        try:
+            self.check_for_opening(0.2)
+            self.check_queue(2)
+            self.check_spec(2)
+            self.even_the_teams()
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle round start Exception: {}".format(e))
+
+    def handle_round_end(self, data):
+        try:
+            if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES:
                 self.check_for_opening(0.2)
+                self.even_the_teams(True)
                 if self.get_cvar("qlx_queueQueueMsg", bool):
                     self.cmd_list_queue()
                 if self.get_cvar("qlx_queueSpecMsg", bool):
                     self.cmd_list_specs()
-                self.check_queue(0.2)
-                self.check_spec(0.2)
-                self.death_count = 0
-                self.check_spec_time()
+            self.check_spec_time()
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle round end Exception: {}".format(e))
+
+    def death_monitor(self, victim, killer, data):
+        try:
+            if self.q_game_info[0] in NON_ROUND_BASED_GAMETYPES and self.game.state in ["in_progress", "countdown"]:
+                self.death_count += 1
+                if self.death_count > 5 and self.death_count > self.q_game_info[2] / 5:
+                    self.check_for_opening(0.2)
+                    if self.get_cvar("qlx_queueQueueMsg", bool):
+                        self.cmd_list_queue()
+                    if self.get_cvar("qlx_queueSpecMsg", bool):
+                        self.cmd_list_specs()
+                    self.check_queue(0.2)
+                    self.check_spec(0.2)
+                    self.death_count = 0
+                    self.check_spec_time()
+        except Exception as e:
+            minqlx.console_print("^1specqueue death monitor Exception: {}".format(e))
 
     def handle_console_print(self, text):
-        if 'now locked' in text or 'now unlocked' in text:
-            if text.find('broadcast: print "The RED team is now locked') != -1:
-                self.red_locked = True
-            elif text.find('broadcast: print "The BLUE team is now locked') != -1:
-                self.blue_locked = True
-            elif text.find('broadcast: print "The RED team is now unlocked') != -1:
-                self.red_locked = False
+        try:
+            if "locked" in text:
+                if text.find("The RED team is now locked") != -1:
+                    self.red_locked = True
+                elif text.find("The BLUE team is now locked") != -1:
+                    self.blue_locked = True
+                if text.find("The FREE team is now locked") != -1:
+                    self.free_locked = True
+                elif text.find("The RED team is now unlocked") != -1:
+                    self.red_locked = False
+                elif text.find("The BLUE team is now unlocked") != -1:
+                    self.blue_locked = False
+                elif text.find("The FREE team is now unlocked") != -1:
+                    self.free_locked = False
                 self.check_for_opening(0.2)
-            elif text.find('broadcast: print "The BLUE team is now unlocked') != -1:
-                self.blue_locked = False
-                self.check_for_opening(0.2)
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle console print Exception: {}".format(e))
 
     def handle_vote_ended(self, votes, vote, args, passed):
-        if passed and vote == "teamsize":
-            self.check_for_opening(2.5)
+        try:
+            if passed and vote == "teamsize":
+                self.check_for_opening(2.5)
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle vote ended Exception: {}".format(e))
 
     # ==============================================
     #               Plugin functions
     # ==============================================
+    # Execute a shuffle command if the game is a team based game type
+    @minqlx.delay(12)
+    def auto_shuffle_player_teams(self):
+        if self.get_cvar("qlx_queueShuffleOnMapChange", bool) and self.q_game_info[0] in TEAM_BASED_GAMETYPES and\
+                len(self.players()) > 2 and self.game.state == "warmup":
+            self.shuffle()
 
     def get_max_players(self):
-        max_players = self.get_cvar("teamsize", int)
-        if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-            max_players *= 2
-        if max_players == 0:
-            max_players = self.get_cvar("sv_maxClients", int)
-        return max_players
+        try:
+            max_players = self.get_cvar("teamsize", int)
+            if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                max_players *= 2
+            if max_players == 0:
+                max_players = self.get_cvar("sv_maxClients", int)
+            return max_players
+        except Exception as e:
+            minqlx.console_print("^1specqueue get max players Exception: {}".format(e))
 
     def add_to_queue_pos(self, player, pos):
-        self.remove_from_queue(player)
-        self.remove_from_spec(player)
-        self._queue.add_to_queue_pos(player.steam_id, player, pos)
-        self.cmd_list_queue()
-        self.check_for_opening(0.5)
+        try:
+            self.remove_from_queue(player)
+            self.remove_from_spec(player)
+            self._queue.add_to_queue_pos(player.steam_id, player, pos)
+            self.cmd_list_queue()
+            self.check_for_opening(0.5)
+        except Exception as e:
+            minqlx.console_print("^1specqueue add to queue pos Exception: {}".format(e))
 
     def add_to_queue(self, player):
-        self.remove_from_spec(player)
-        self._queue.add_to_queue(player.steam_id, player)
-        position = self._queue.get_queue_position(player)
-        player.center_print("^7You are in the ^4Queue^7 position ^1{}^7\nType ^4{}q ^7to show the queue"
-                            .format(position + 1, self.get_cvar("qlx_commandPrefix")))
-        self.check_for_opening(0.2)
+        try:
+            self.remove_from_spec(player)
+            self._queue.add_to_queue(player.steam_id, player)
+            position = self._queue.get_queue_position(player)
+            player.center_print("^7You are in the ^4Queue^7 position ^1{}^7\nType ^4{}q ^7to show the queue"
+                                .format(position + 1, self.get_cvar("qlx_commandPrefix")))
+            self.check_for_opening(0.2)
+        except Exception as e:
+            minqlx.console_print("^1specqueue add to queue Exception: {}".format(e))
 
     def remove_from_queue(self, player):
-        self._queue.remove_from_queue(player.steam_id, player)
+        try:
+            self._queue.remove_from_queue(player.steam_id, player)
+        except Exception as e:
+            minqlx.console_print("^1specqueue remove from queue Exception: {}".format(e))
 
     def check_queue(self, delay=0.1):
-        if not self.end_screen and not self.displaying_queue and self._queue.size() > 0\
-                and self.get_cvar("qlx_queueQueueMsg", bool):
-            self.displaying_queue = True
-            self.queue_message(delay)
+        try:
+            if not self.end_screen and not self.displaying_queue and self._queue.size() > 0\
+                    and self.get_cvar("qlx_queueQueueMsg", bool):
+                self.displaying_queue = True
+                self.queue_message(delay)
+        except Exception as e:
+            minqlx.console_print("^1specqueue check queue Exception: {}".format(e))
 
     @minqlx.thread
     def queue_message(self, delay):
-        n = self._queue.get_queue_names()
-        time.sleep(delay)
-        queue_show = self.get_cvar("qlx_queueQueueMsg", int)
-        count = 1
-        for p in n:
+        try:
+            n = self._queue.get_queue_names()
+            time.sleep(delay)
+            queue_show = self.get_cvar("qlx_queueQueueMsg", int)
             if queue_show == 2 and self._round % 5 != 0:
-                continue
-            try:
-                p.center_print("^7You are in ^4Queue ^7position ^1{}".format(count))
-            except Exception as e:
-                minqlx.console_print("SpecQueue Queue Message Exception: {}".format(e))
-            finally:
-                count += 1
-        self.displaying_queue = False
+                self.displaying_queue = False
+                return
+            count = 1
+            for p in n:
+                try:
+                    p.center_print("^7You are in ^4Queue ^7position ^1{}".format(count))
+                except Exception as e:
+                    minqlx.console_print("SpecQueue Queue Message Exception: {}".format(e))
+                finally:
+                    count += 1
+            self.displaying_queue = False
+        except Exception as e:
+            minqlx.console_print("^1specqueue queue message Exception: {}".format(e))
 
     def add_spectators(self):
-        for player in self.teams()["spectator"]:
-            self.add_to_spec(player)
+        try:
+            for player in self.teams()["spectator"]:
+                self.add_to_spec(player)
+        except Exception as e:
+            minqlx.console_print("^1specqueue add spectators Exception: {}".format(e))
 
     def add_to_spec(self, player):
-        self._spec.add_to_spec(player.steam_id)
-        player.center_print("^6Spectate Mode\n^7Type ^4!s ^7to show spectators.")
+        try:
+            self._spec.add_to_spec(player.steam_id)
+            player.center_print("^6Spectate Mode\n^7Type ^4!s ^7to show spectators.")
+        except Exception as e:
+            minqlx.console_print("^1specqueue add to spec Exception: {}".format(e))
 
     def remove_from_spec(self, player):
-        self._spec.remove_from_spec(player.steam_id)
+        try:
+            self._spec.remove_from_spec(player.steam_id)
+        except Exception as e:
+            minqlx.console_print("^1specqueue remove from spec Exception: {}".format(e))
 
     def check_spec(self, delay=0.0):
-        if not self.end_screen and not self.displaying_spec and self._spec.size() > 0\
-                and self.get_cvar("qlx_queueSpecMsg", bool):
-            self.displaying_spec = True
-            self.spec_message(delay)
+        try:
+            if not self.end_screen and not self.displaying_spec and self._spec.size() > 0\
+                    and self.get_cvar("qlx_queueSpecMsg", bool):
+                self.displaying_spec = True
+                self.spec_message(delay)
+        except Exception as e:
+            minqlx.console_print("^1specqueue check spec Exception: {}".format(e))
 
     @minqlx.thread
     def spec_message(self, delay=0.0):
-        time.sleep(delay)
-        spec_show = self.get_cvar("qlx_queueSpecMsg", int)
-        spectators = self.teams()["spectator"]
-        if self._spec.size() > 0 and len(spectators) > 0:
-            s = self._spec.get_spectators()
-            for p, t in s.items():
-                spec = self.player(int(p))
-                if spec in spectators:
-                    if spec_show == 2 and self._round % 5 != 0:
-                        continue
-                    time_in_spec = round((time.time() - t))
-                    if time_in_spec / 60 > 1:
-                        spec_time = "^7{}^4m^7:{}^4s^7".format(int(time_in_spec / 60), time_in_spec % 60)
-                    else:
-                        spec_time = "^7{}^4s^7".format(time_in_spec)
-                    max_spec_time = self.get_cvar("qlx_queueMaxSpecTime", int)
-                    if 0 < max_spec_time < 9999 and\
-                            self.db.get_permission(int(p)) < self.get_cvar("qlx_queueAdmin", int):
-                        spec.center_print("^6Spectate Mode for {}\n^7Join the game to ^1play ^7or enter the ^4Queue.\n"
-                                          "You can remain in spectate for ^1{} ^7minutes."
-                                          .format(spec_time, max_spec_time))
-                    else:
-                        spec.center_print("^6Spectate Mode for {}\n^7Join the game to ^1play ^7or enter the ^4Queue"
-                                          .format(spec_time))
-        self.displaying_spec = False
+        try:
+            time.sleep(delay)
+            spec_show = self.get_cvar("qlx_queueSpecMsg", int)
+            spectators = self.teams()["spectator"]
+            if self._spec.size() > 0 and len(spectators) > 0:
+                s = self._spec.get_spectators()
+                for p, t in s.items():
+                    spec = self.player(int(p))
+                    if spec in spectators:
+                        if spec_show == 2 and self._round % 5 != 0:
+                            continue
+                        time_in_spec = round((time.time() - t))
+                        if time_in_spec / 60 > 1:
+                            spec_time = "^7{}^4m^7:{}^4s^7".format(int(time_in_spec / 60), time_in_spec % 60)
+                        else:
+                            spec_time = "^7{}^4s^7".format(time_in_spec)
+                        max_spec_time = self.get_cvar("qlx_queueMaxSpecTime", int)
+                        if 0 < max_spec_time < 9999 and\
+                                self.db.get_permission(int(p)) < self.get_cvar("qlx_queueAdmin", int):
+                            spec.center_print("^6Spectate Mode for {}\n^7Join the game to ^1play ^7or enter the"
+                                              " ^4Queue.\nYou can remain in spectate for ^1{} ^7minutes."
+                                              .format(spec_time, max_spec_time))
+                        else:
+                            spec.center_print("^6Spectate Mode for {}\n^7Join the game to ^1play ^7or enter the ^4Queue"
+                                              .format(spec_time))
+            self.displaying_spec = False
+        except Exception as e:
+            minqlx.console_print("^1specqueue spec message Exception: {}".format(e))
 
     @minqlx.thread
     def check_for_opening(self, delay=0.0):
@@ -637,29 +734,71 @@ class specqueue(minqlx.Plugin):
             blue_players = len(teams["blue"])
             free_players = len(teams["free"])
             if self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
-                if free_players < max_players:
+                if free_players < max_players and not self.free_locked:
                     self.place_in_team(max_players - free_players, "free")
+                elif state == "warmup" and free_players > max_players:
+                    self.fix_free(free_players, max_players, teams)
 
             elif self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-                ts = int(self.game.teamsize)
-                if ts == 0:
-                    ts = int(max_players / 2)
-                difference = red_players - blue_players
-                if difference < 0 and not self.red_locked:
-                    self.place_in_team(abs(difference), "red")
-                elif difference > 0 and not self.blue_locked:
-                    self.place_in_team(difference, "blue")
-                elif (red_players + blue_players) < max_players:
-                    if self._queue.size() > 1 and not self.red_locked and not self.blue_locked:
-                        self.place_in_both()
-                    elif state == "warmup":
-                        if not self.blue_locked and blue_players < ts:
-                            self.place_in_team(1, "blue")
-                        elif not self.red_locked and red_players < ts:
-                            self.place_in_team(1, "red")
+                team_size = int(max_players / 2)
+                if not self.red_locked and not self.blue_locked and (red_players + blue_players) < max_players:
+                    fix_teams = state == "warmup" and red_players > team_size or blue_players > team_size
+                    if fix_teams:
+                        fixed = self.fix_teams(red_players, blue_players, max_players, teams)
+                    difference = red_players - blue_players
+                    if difference < 0:
+                        self.place_in_team(abs(difference), "red")
+                    elif difference > 0:
+                        self.place_in_team(difference, "blue")
+                    else:
+                        if self._queue.size() > 1:
+                            self.place_in_both()
+                        elif state == "warmup":
+                            if blue_players < team_size:
+                                self.place_in_team(1, "blue")
+                            elif red_players < team_size:
+                                self.place_in_team(1, "red")
+                elif state == "warmup" and (red_players + blue_players) >= max_players or\
+                        red_players > team_size or blue_players > team_size:
+                    self.fix_teams(red_players, blue_players, max_players, teams)
         except Exception as e:
             minqlx.console_print("SpecQueue Check For Space Exception: {}".format(e))
         return
+
+    def fix_teams(self, red, blue, max_players, player_teams):
+        teams = player_teams.copy()
+        total = red + blue
+        team_size = int(max_players / 2)
+        while total > max_players:
+            if red > team_size:
+                self.get_player_for_spec(teams["red"])
+                self.team_placement(self._players[0], "spectator", True)
+                red -= 1
+                total -= 1
+            if blue > team_size:
+                self.get_player_for_spec(teams["blue"])
+                self.team_placement(self._players[0], "spectator", True)
+                blue -= 1
+                total -= 1
+        difference = red - blue
+        while difference > 0:
+            self.team_placement(teams["red"][0], "blue")
+            teams["blue"].append(teams["red"].pop(0))
+            difference -= 1
+        while difference < 0:
+            self.team_placement(teams["blue"][0], "red")
+            teams["red"].append(teams["blue"].pop(0))
+            difference += 1
+        return True
+
+    def fix_free(self, free, max_players, player_teams):
+        teams = player_teams.copy()
+        while free > max_players:
+            self.get_player_for_spec(teams["free"])
+            self.team_placement(self._players[0], "spectator", True)
+            teams.remove(self._players[0])
+            free -= 1
+        return True
 
     def place_in_team(self, amount, team):
         with self.lock:
@@ -755,307 +894,323 @@ class specqueue(minqlx.Plugin):
             return
 
     def get_rating(self, sid):
-        if self.get_cvar("g_factory").lower() == "ictf":
-            game_type = "ictf"
-        else:
-            game_type = self.q_game_info[0]
-        if self.db.exists(BDM_KEY.format(sid, game_type, "rating")):
-            return int(float(self.db.get(BDM_KEY.format(sid, game_type, "rating"))))
-        else:
-            return self.get_cvar("qlx_bdmDefaultBDM", int)
+        try:
+            if self.get_cvar("g_factory").lower() == "ictf":
+                game_type = "ictf"
+            else:
+                game_type = self.q_game_info[0]
+            if self.db.exists(BDM_KEY.format(sid, game_type, "rating")):
+                return int(float(self.db.get(BDM_KEY.format(sid, game_type, "rating"))))
+            else:
+                return self.get_cvar("qlx_bdmDefaultBDM", int)
+        except Exception as e:
+            minqlx.console_print("^1specqueue get rating Exception: {}".format(e))
 
     def team_average(self, team):
-        """Calculates the average rating of a team."""
-        avg = 0
-        if team:
-            for p in team:
-                avg += self.get_rating(p.steam_id)
-            avg /= len(team)
-        return int(round(avg))
+        try:
+            """Calculates the average rating of a team."""
+            avg = 0
+            if team:
+                for p in team:
+                    avg += self.get_rating(p.steam_id)
+                avg /= len(team)
+            return int(round(avg))
+        except Exception as e:
+            minqlx.console_print("^1specqueue team average Exception: {}".format(e))
 
     @minqlx.next_frame
     def team_placement(self, player, team, add_queue=False):
-        player.put(team)
-        if add_queue:
-            self.add_to_queue_pos(player, 0)
+        try:
+            player.put(team)
+            if add_queue:
+                self.add_to_queue_pos(player, 0)
+        except Exception as e:
+            minqlx.console_print("^1specqueue team placement Exception: {}".format(e))
 
     @minqlx.thread
     def add_join_times(self):
-        players = self.players()
-        for player in players:
-            self._join.add_to_jt(player.steam_id)
+        try:
+            players = self.players()
+            for player in players:
+                self._join.add_to_jt(player.steam_id)
+        except Exception as e:
+            minqlx.console_print("^1specqueue add join times Exception: {}".format(e))
 
     def add_to_join(self, player):
-        self._join.add_to_jt(player.steam_id)
+        try:
+            self._join.add_to_jt(player.steam_id)
+        except Exception as e:
+            minqlx.console_print("^1specqueue add to join Exception: {}".format(e))
 
     def remove_from_join(self, player):
-        self._join.remove_from_jt(player.steam_id)
+        try:
+            self._join.remove_from_jt(player.steam_id)
+        except Exception as e:
+            minqlx.console_print("^1specqueue remove from join Exception: {}".format(e))
 
     def get_join_time(self, player):
-        if player.steam_id not in self._join:
-            self.add_to_join(player)
-            return time.time()
-        return self._join.get_join_time(player.steam_id)
+        try:
+            if player.steam_id not in self._join:
+                self.add_to_join(player)
+                return time.time()
+            return self._join.get_join_time(player.steam_id)
+        except Exception as e:
+            minqlx.console_print("^1specqueue get join time Exception: {}".format(e))
 
     def get_join_times(self):
-        return self._join.get_jt()
+        try:
+            return self._join.get_jt()
+        except Exception as e:
+            minqlx.console_print("^1specqueue get join times Exception: {}".format(e))
 
     @minqlx.thread
     def look_at_teams(self, delay=None):
-        if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-            if delay:
-                time.sleep(delay)
-            teams = self.teams()
-            difference = len(teams["red"]) - len(teams["blue"])
-            if abs(difference) > 0 and self._latch_ignore or self._ignore:
-                if not self._ignore_msg_already_said:
-                    self.msg("^6Uneven teams action^7: no action will be taken due to admin setting!")
-                    self._ignore_msg_already_said = True
-                return
-            p_count = len(teams["red"] + teams["blue"])
-            players = []
-            move_players = []
-            where = None
-            spec_player = None
+        try:
+            if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                if delay:
+                    time.sleep(delay)
+                teams = self.teams()
+                difference = len(teams["red"]) - len(teams["blue"])
+                if abs(difference) > 0 and self._latch_ignore or self._ignore:
+                    if not self._ignore_msg_already_said:
+                        self.msg("^6Uneven teams action^7: no action will be taken due to admin setting!")
+                        self._ignore_msg_already_said = True
+                    return
+                p_count = len(teams["red"] + teams["blue"])
+                players = []
+                move_players = []
+                where = None
+                spec_player = None
 
-            if abs(difference) > 0 and \
-                    self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
-                if difference == -1:
-                    self.get_player_for_spec(teams["blue"].copy())
-                    spec_player = self._players[0]
-                elif difference == 1:
-                    self.get_player_for_spec(teams["red"].copy())
-                    spec_player = self._players[0]
-                else:
-                    move = int(abs(difference) / 2)
-                    if (difference % 2) == 0:
-                        spec = 0
-                    else:
-                        spec = 1
-                    if difference < 0:
-                        self.get_uneven_players(teams["blue"].copy(), move + spec)
-                        where = "red"
-                    else:
-                        self.get_uneven_players(teams["red"].copy(), move + spec)
-                        where = "blue"
-                    if (difference % 2) != 0:
+                if abs(difference) > 0 and \
+                        self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
+                    if difference == -1:
+                        self.get_player_for_spec(teams["blue"].copy())
                         spec_player = self._players[0]
-                        self._players.pop(0)
-                    for p in self._players:
-                        players.append(p.name)
-                        move_players.append(p)
-                if not delay:
-                    if len(move_players) > 0:
+                    elif difference == 1:
+                        self.get_player_for_spec(teams["red"].copy())
+                        spec_player = self._players[0]
+                    else:
+                        move = int(abs(difference) / 2)
+                        if (difference % 2) == 0:
+                            spec = 0
+                        else:
+                            spec = 1
+                        if difference < 0:
+                            self.get_uneven_players(teams["blue"].copy(), move + spec)
+                            where = "red"
+                        else:
+                            self.get_uneven_players(teams["red"].copy(), move + spec)
+                            where = "blue"
+                        if (difference % 2) != 0:
+                            spec_player = self._players[0]
+                            self._players.pop(0)
+                        for p in self._players:
+                            players.append(p.name)
+                            move_players.append(p)
+                    if not delay:
+                        if len(move_players) > 0:
+                            self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
+                                     .format("^7, ".join(players), where))
+                        if spec_player:
+                            self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate^7.".format(spec_player))
+                if delay:
+                    if len(players) > 0:
                         self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
                                  .format("^7, ".join(players), where))
-                    if spec_player:
-                        self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate^7.".format(spec_player))
-            if delay:
-                if len(players) > 0:
-                    self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
-                             .format("^7, ".join(players), where))
-                    self.even_the_teams(False)
-                elif spec_player:
-                    delay_time = self.get_cvar("qlx_queueCheckTeamsDelay", int)
-                    self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate ^7if not fixed."
-                             .format(spec_player))
-                    
-                    self.msg("^2Looking at teams again in {} seconds to assess even status.".format(delay_time))
-                    time.sleep(delay_time)
-                    self.even_the_teams(False)
-            else:
-                self.even_the_teams(True)
+                        self.even_the_teams(False)
+                    elif spec_player:
+                        delay_time = self.get_cvar("qlx_queueCheckTeamsDelay", int)
+                        self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate ^7if not fixed."
+                                 .format(spec_player))
+
+                        self.msg("^2Looking at teams again in {} seconds to assess even status.".format(delay_time))
+                        time.sleep(delay_time)
+                        self.even_the_teams(False)
+                else:
+                    self.even_the_teams(True)
+        except Exception as e:
+            minqlx.console_print("^1specqueue look at teams Exception: {}".format(e))
 
     @minqlx.thread
     def even_the_teams(self, delay=False):
-        if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-            if delay:
-                if self.game.type_short == "ft":
-                    countdown = self.get_cvar("g_freezeRoundDelay", int)
-                else:
-                    countdown = self.get_cvar("g_roundWarmupDelay", int)
-                time.sleep(max(countdown / 1000 - 0.3, 0))
-
-            teams = self.teams()
-            difference = len(teams["red"]) - len(teams["blue"])
-            if abs(difference) > 0 and self._latch_ignore or self._ignore:
-                if not self._ignore_msg_already_said:
-                    self.msg("^6Uneven teams action^7: no action will be taken due to admin setting!")
-                    self._ignore_msg_already_said = True
-                return
-            p_count = len(teams["red"] + teams["blue"])
-            players = []
-            move_players = []
-            where = None
-            spec_player = None
-
-            if abs(difference) > 0 and \
-                    self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
-                if difference == -1:
-                    self.get_player_for_spec(teams["blue"].copy())
-                    spec_player = self._players[0]
-                elif difference == 1:
-                    self.get_player_for_spec(teams["red"].copy())
-                    spec_player = self._players[0]
-                else:
-                    move = int(abs(difference) / 2)
-                    if (difference % 2) == 0:
-                        spec = 0
+        try:
+            if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                if delay:
+                    if self.game.type_short == "ft":
+                        countdown = self.get_cvar("g_freezeRoundDelay", int)
                     else:
-                        spec = 1
-                    if difference < 0:
-                        self.get_uneven_players(teams["blue"].copy(), move + spec)
-                        where = "red"
-                    else:
-                        self.get_uneven_players(teams["red"].copy(), move + spec)
-                        where = "blue"
-                    if (difference % 2) != 0:
+                        countdown = self.get_cvar("g_roundWarmupDelay", int)
+                    time.sleep(max(countdown / 1000 - 0.3, 0))
+
+                teams = self.teams()
+                difference = len(teams["red"]) - len(teams["blue"])
+                if abs(difference) > 0 and self._latch_ignore or self._ignore:
+                    if not self._ignore_msg_already_said:
+                        self.msg("^6Uneven teams action^7: no action will be taken due to admin setting!")
+                        self._ignore_msg_already_said = True
+                    return
+                p_count = len(teams["red"] + teams["blue"])
+                players = []
+                move_players = []
+                where = None
+                spec_player = None
+
+                if abs(difference) > 0 and \
+                        self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
+                    if difference == -1:
+                        self.get_player_for_spec(teams["blue"].copy())
                         spec_player = self._players[0]
-                        self._players.pop(0)
-                    for p in self._players:
-                        players.append(p.name)
-                        move_players.append(p)
-                if len(move_players) > 0:
-                    for player in move_players:
-                        self.team_placement(player, where)
-                    self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7.".format("^7, ".join(players), where))
-                if spec_player:
-                    self.uneven_teams_move_to_spec[spec_player.steam_id] = True
-                    self.team_placement(spec_player, "spectator", True)
-                    self.msg("^3Uneven Teams Detected^7: {} ^7was moved to ^3spectate^7.".format(spec_player))
+                    elif difference == 1:
+                        self.get_player_for_spec(teams["red"].copy())
+                        spec_player = self._players[0]
+                    else:
+                        move = int(abs(difference) / 2)
+                        if (difference % 2) == 0:
+                            spec = 0
+                        else:
+                            spec = 1
+                        if difference < 0:
+                            self.get_uneven_players(teams["blue"].copy(), move + spec)
+                            where = "red"
+                        else:
+                            self.get_uneven_players(teams["red"].copy(), move + spec)
+                            where = "blue"
+                        if (difference % 2) != 0:
+                            spec_player = self._players[0]
+                            self._players.pop(0)
+                        for p in self._players:
+                            players.append(p.name)
+                            move_players.append(p)
+                    if len(move_players) > 0:
+                        for player in move_players:
+                            self.team_placement(player, where)
+                        self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7.".format("^7, ".join(players), where))
+                    if spec_player:
+                        self.uneven_teams_move_to_spec[spec_player.steam_id] = True
+                        self.team_placement(spec_player, "spectator", True)
+                        self.msg("^3Uneven Teams Detected^7: {} ^7was moved to ^3spectate^7.".format(spec_player))
+        except Exception as e:
+            minqlx.console_print("^1specqueue even the teams Exception: {}".format(e))
 
     @minqlx.thread
     def get_player_for_spec(self, team):
-        t_players = []
-        s_players = []
-        lowest_time = 0
-        lowest_score = 999
-        for player in team:
-            if self.get_join_time(player) > lowest_time:
-                lowest_time = self.get_join_time(player)
-                t_players = [player]
-            elif self.get_join_time(player) == lowest_time:
-                t_players.append(player)
-            if player.stats.score < lowest_score:
-                lowest_score = player.stats.score
-                s_players = [player]
-            elif player.stats.score == lowest_score:
-                s_players.append(player)
-        if self.get_cvar("qlx_queueSpecByTime", bool) and self.get_cvar("qlx_queueSpecByScore", bool):
-            if self.get_cvar("qlx_queueSpecByPrimary") == "score":
+        try:
+            t_players = []
+            s_players = []
+            lowest_time = 0
+            lowest_score = 999
+            for player in team:
+                if self.get_join_time(player) > lowest_time:
+                    lowest_time = self.get_join_time(player)
+                    t_players = [player]
+                elif self.get_join_time(player) == lowest_time:
+                    t_players.append(player)
+                if player.stats.score < lowest_score:
+                    lowest_score = player.stats.score
+                    s_players = [player]
+                elif player.stats.score == lowest_score:
+                    s_players.append(player)
+            if self.get_cvar("qlx_queueSpecByTime", bool) and self.get_cvar("qlx_queueSpecByScore", bool):
+                if self.get_cvar("qlx_queueSpecByPrimary") == "score":
+                    if len(s_players) > 1:
+                        self._players = [t_players[0]]
+                    else:
+                        self._players = [s_players[0]]
+                else:
+                    if len(t_players) > 1:
+                        self._players = [s_players[0]]
+                    else:
+                        self._players = [t_players[0]]
+            elif self.get_cvar("qlx_queueSpecByScore", bool):
                 if len(s_players) > 1:
-                    self._players = [t_players[0]]
+                    self._players = [s_players[randint(0, len(s_players) - 1)]]
                 else:
                     self._players = [s_players[0]]
             else:
                 if len(t_players) > 1:
-                    self._players = [s_players[0]]
+                    self._players = [t_players[randint(0, len(t_players) - 1)]]
                 else:
                     self._players = [t_players[0]]
-        elif self.get_cvar("qlx_queueSpecByScore", bool):
-            if len(s_players) > 1:
-                self._players = [s_players[randint(0, len(s_players) - 1)]]
-            else:
-                self._players = [s_players[0]]
-        else:
-            if len(t_players) > 1:
-                self._players = [t_players[randint(0, len(t_players) - 1)]]
-            else:
-                self._players = [t_players[0]]
-        return
+            return
+        except Exception as e:
+            minqlx.console_print("^1specqueue get player for spec Exception: {}".format(e))
 
     def return_spec_player(self, team):
-        self.get_player_for_spec(team)
-        return [self._players[0]]
+        try:
+            self.get_player_for_spec(team)
+            return [self._players[0]]
+        except Exception as e:
+            minqlx.console_print("^1specqueue return spec player Exception: {}".format(e))
 
     @minqlx.thread
     def get_uneven_players(self, team, amount):
-        t_players = {}
-        s_players = {}
-        self._players = []
-        for player in team:
-            t_players[str(self.get_join_time(player))] = player
-            s_players[str(player.stats.score)] = player
+        try:
+            t_players = {}
+            s_players = {}
+            self._players = []
+            for player in team:
+                t_players[str(self.get_join_time(player))] = player
+                s_players[str(player.stats.score)] = player
 
-        if self.get_cvar("qlx_queueSpecByTime", bool) and self.get_cvar("qlx_queueSpecByScore", bool):
-            if self.get_cvar("qlx_queueSpecByPrimary") == "score":
+            if self.get_cvar("qlx_queueSpecByTime", bool) and self.get_cvar("qlx_queueSpecByScore", bool):
+                if self.get_cvar("qlx_queueSpecByPrimary") == "score":
+                    sorted_players = sorted(((k, v) for k, v in s_players.items()), reverse=False)
+                else:
+                    sorted_players = sorted(((k, v) for k, v in t_players.items()), reverse=True)
+            elif self.get_cvar("qlx_queueSpecByScore", bool):
                 sorted_players = sorted(((k, v) for k, v in s_players.items()), reverse=False)
             else:
                 sorted_players = sorted(((k, v) for k, v in t_players.items()), reverse=True)
-        elif self.get_cvar("qlx_queueSpecByScore", bool):
-            sorted_players = sorted(((k, v) for k, v in s_players.items()), reverse=False)
-        else:
-            sorted_players = sorted(((k, v) for k, v in t_players.items()), reverse=True)
-        count = 0
-        for s, player in sorted_players:
-            self._players.append(player)
-            count += 1
-            if count == amount:
-                break
-        return
+            count = 0
+            for s, player in sorted_players:
+                self._players.append(player)
+                count += 1
+                if count == amount:
+                    break
+            return
+        except Exception as e:
+            minqlx.console_print("^1specqueue get uneven players Exception: {}".format(e))
 
     @minqlx.thread
     def check_spec_time(self):
-        max_spec_time = self.get_cvar("qlx_queueMaxSpecTime", int)
-        if 0 < max_spec_time < 9999:
-            admin = self.get_cvar("qlx_queueAdmin", int)
-            spectators = self.teams()["spectator"]
-            if self._spec.size() > 0 and len(spectators) > 0:
-                s = self._spec.get_spectators()
-                for p, t in s.items():
-                    spec = self.player(int(p))
-                    if spec in spectators:
-                        if self.db.get_permission(int(p)) >= admin:
-                            continue
-                        time_in_spec = round((time.time() - t)) / 60
-                        if time_in_spec >= max_spec_time:
-                            spec.kick("was in spectate, not the queue, for too long.")
-                    else:
-                        self.remove_from_spec(spec)
+        try:
+            max_spec_time = self.get_cvar("qlx_queueMaxSpecTime", int)
+            if 0 < max_spec_time < 9999:
+                admin = self.get_cvar("qlx_queueAdmin", int)
+                spectators = self.teams()["spectator"]
+                if self._spec.size() > 0 and len(spectators) > 0:
+                    s = self._spec.get_spectators()
+                    for p, t in s.items():
+                        spec = self.player(int(p))
+                        if spec in spectators:
+                            if self.db.get_permission(int(p)) >= admin:
+                                continue
+                            time_in_spec = round((time.time() - t)) / 60
+                            if time_in_spec >= max_spec_time:
+                                spec.kick("was in spectate, not the queue, for too long.")
+                        else:
+                            self.remove_from_spec(spec)
+        except Exception as e:
+            minqlx.console_print("^1specqueue check spec time Exception:{}".format(e))
 
-    @minqlx.thread
-    def cmd_fix_sarge(self):
-        if self.fix_sarge_active:
-            try:
-                teams = self.teams().copy()
-                if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-                    for player in teams["red"]:
-                        self.team_placement(player, "blue")
-                        time.sleep(0.2)
-                        self.team_placement(player, "red")
-                        time.sleep(0.1)
-                        if player.steam_id not in self._join:
-                            self.add_to_join(player)
-                    for player in teams["blue"]:
-                        self.team_placement(player, "red")
-                        time.sleep(0.2)
-                        self.team_placement(player, "blue")
-                        time.sleep(0.1)
-                        if player.steam_id not in self._join:
-                            self.add_to_join(player)
-                else:
-                    for player in teams["free"]:
-                        self.team_placement(player, "spectator")
-                        time.sleep(0.2)
-                        self.team_placement(player, "free")
-                        time.sleep(0.1)
-                        if player.steam_id not in self._join:
-                            self.add_to_join(player)
-            except Exception as e:
-                minqlx.console_print("^1SpecQueue Sarge Bug Fix Error^7: {}".format(e))
-            time.sleep(1)
-            self.fix_sarge_active = False
-            self.msg("^4Sarge Bug Fix Executed.")
-            self.check_for_opening(0.2)
-            return True
+    # executes team unlock commands ... to ensure teams are unlocked after balance execution
+    def unlock_teams(self):
+        if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+            minqlx.console_command("unlock red")
+            minqlx.console_command("unlock blue")
+        else:
+            minqlx.console_command("unlock free")
 
     # ==============================================
     #               Minqlx Bot Commands
     # ==============================================
     def sarge_bug(self, player=None, msg=None, channel=None):
-        if not self.fix_sarge_active:
-            self.fix_sarge_active = True
-            self.cmd_fix_sarge()
+        try:
+            self.shuffle()
+            return True
+        except Exception as e:
+            minqlx.console_print("^1specqueue sarge bug shuffle Exception: {}".format(e))
 
     def sarge_bug_client(self, player=None, msg=None, channel=None):
         if len(msg) < 2:
@@ -1068,67 +1223,96 @@ class specqueue(minqlx.Plugin):
                     raise ValueError
             except ValueError:
                 player.tell("Invalid client ID.")
+                return minqlx.RET_STOP_ALL
             except minqlx.NonexistentPlayerError:
                 player.tell("Invalid client ID.")
+                return minqlx.RET_STOP_ALL
             except Exception as e:
                 minqlx.console_print("SpecQueue Cmd Que Add Exception: {}".format(e))
+                return minqlx.RET_STOP_ALL
             team = target_player.team()
+            minqlx.console_print("^1Locking team(s) to execute sarge fix on a player")
             if team == "red":
+                minqlx.console_command("lock red")
+                minqlx.console_command("lock blue")
+                # Timer to unlock teams if this process get interrupted for any reason
+                Timer(4, self.unlock_teams).start()
                 self.team_placement(target_player, "blue")
                 time.sleep(0.1)
                 self.team_placement(target_player, "red")
+                minqlx.console_command("unlock red")
+                minqlx.console_command("unlock blue")
             elif team == "blue":
+                minqlx.console_command("lock red")
+                minqlx.console_command("lock blue")
+                # Timer to unlock teams if this process get interrupted for any reason
+                Timer(4, self.unlock_teams).start()
                 self.team_placement(target_player, "red")
                 time.sleep(0.1)
                 self.team_placement(target_player, "blue")
+                minqlx.console_command("unlock red")
+                minqlx.console_command("unlock blue")
             else:
+                minqlx.console_command("lock free")
+                # Timer to unlock teams if this process get interrupted for any reason
+                Timer(4, self.unlock_teams).start()
                 self.team_placement(target_player, "spectator")
                 time.sleep(0.1)
                 self.team_placement(target_player, "free")
-        return minqlx.RET_STOP_ALL
+                minqlx.console_command("unlock free")
+        return
 
     def ignore_imbalance(self, player, msg, channel):
-        self.msg("^3The move to ^1spectate ^3action will be ignored this round")
-        self._ignore = True
+        try:
+            self.msg("^3The move to ^1spectate ^3action will be ignored this round")
+            self._ignore = True
+        except Exception as e:
+            minqlx.console_print("^1specqueue ignore imbalance Exception: {}".format(e))
 
     def ignore_imbalance_latch(self, player, msg, channel):
-        if len(msg) < 2:
-            player.tell("^3Command must include 'ignore', 'spec', or 'setting'")
-            return minqlx.RET_STOP_ALL
-        else:
-            setting = msg[1].lower()
-            if setting == "ignore":
-                self.msg("^3The move to spectate actions will be ^1ignored ^3until ^4re-enabled")
-                self._latch_ignore = True
-            elif setting == "spec" or setting == "spectate":
-                self.msg("^3The move to spectate actions have been ^4re-enabled")
-                self._latch_ignore = False
-            elif setting == "setting" or setting == "set":
-                self.msg("^3The move to ^1spectate ^3actions are set to {}"
-                         .format("ignore" if self._latch_ignore else "spectate"))
-            else:
+        try:
+            if len(msg) < 2:
                 player.tell("^3Command must include 'ignore', 'spec', or 'setting'")
                 return minqlx.RET_STOP_ALL
+            else:
+                setting = msg[1].lower()
+                if setting == "ignore":
+                    self.msg("^3The move to spectate actions will be ^1ignored ^3until ^4re-enabled")
+                    self._latch_ignore = True
+                elif setting == "spec" or setting == "spectate":
+                    self.msg("^3The move to spectate actions have been ^4re-enabled")
+                    self._latch_ignore = False
+                elif setting == "setting" or setting == "set":
+                    self.msg("^3The move to ^1spectate ^3actions are set to {}"
+                             .format("ignore" if self._latch_ignore else "spectate"))
+                else:
+                    player.tell("^3Command must include 'ignore', 'spec', or 'setting'")
+                    return minqlx.RET_STOP_ALL
+        except Exception as e:
+            minqlx.console_print("^1specqueue ignore imbalance latch Exception: {}".format(e))
 
     def cmd_queue_add(self, player, msg, channel):
-        if len(msg) < 2:
-            self.add_to_queue(player)
-        elif self.db.has_permission(player.steam_id, self.get_cvar("qlx_queueAdmin", int)):
-            try:
-                i = int(msg[1])
-                target_player = self.player(i)
-                if not (0 <= i < 64) or not target_player:
-                    raise ValueError
-            except ValueError:
-                player.tell("Invalid ID.")
-                return
-            except minqlx.NonexistentPlayerError:
-                player.tell("Invalid client ID.")
-                return
-            except Exception as e:
-                minqlx.console_print("SpecQueue Cmd Que Add Exception: {}".format(e))
-                return
-            self.add_to_queue(target_player)
+        try:
+            if len(msg) < 2:
+                self.add_to_queue(player)
+            elif self.db.has_permission(player.steam_id, self.get_cvar("qlx_queueAdmin", int)):
+                try:
+                    i = int(msg[1])
+                    target_player = self.player(i)
+                    if not (0 <= i < 64) or not target_player:
+                        raise ValueError
+                except ValueError:
+                    player.tell("Invalid ID.")
+                    return
+                except minqlx.NonexistentPlayerError:
+                    player.tell("Invalid client ID.")
+                    return
+                except Exception as e:
+                    minqlx.console_print("SpecQueue Cmd Que Add Exception: {}".format(e))
+                    return
+                self.add_to_queue(target_player)
+        except Exception as e:
+            minqlx.console_print("^1specqueue cmd queue add Exception: {}".format(e))
 
     def cmd_qversion(self, player, msg, channel):
         channel.reply("^7This server has installed ^2{0} version {1} by BarelyMiSSeD\n"
@@ -1140,56 +1324,61 @@ class specqueue(minqlx.Plugin):
 
     @minqlx.thread
     def exec_list_queue(self, player=None, msg=None, channel=None):
-        spectators = self.teams()["spectator"]
-        count = 0
-        message = []
-        if self._queue.size() > 0 and len(spectators) > 0:
-            for n in range(0, self._queue.size()):
-                spec = self._queue[n]
-                if spec[1] in spectators:
-                    t = self._queue.get_queue_time(spec[0])
-                    time_in_queue = round((time.time() - t))
-                    if time_in_queue / 60 > 1:
-                        queue_time = "^7{}^4m^7:{}^4s^7".format(int(time_in_queue / 60), time_in_queue % 60)
+        try:
+            spectators = self.teams()["spectator"]
+            count = 0
+            message = []
+            if self._queue.size() > 0 and len(spectators) > 0:
+                for n in range(0, self._queue.size()):
+                    spec = self._queue[n]
+                    if spec[1] in spectators:
+                        t = self._queue.get_queue_time(spec[0])
+                        time_in_queue = round((time.time() - t))
+                        if time_in_queue / 60 > 1:
+                            queue_time = "^7{}^4m^7:{}^4s^7".format(int(time_in_queue / 60), time_in_queue % 60)
+                        else:
+                            queue_time = "^7{}^4s^7".format(time_in_queue)
+                        message.append("{} ^7[{}] ^7{}".format(spec[1], count + 1, queue_time))
+                        count += 1
                     else:
-                        queue_time = "^7{}^4s^7".format(time_in_queue)
-                    message.append("{} ^7[{}] ^7{}".format(spec[1], count + 1, queue_time))
-                    count += 1
-                else:
-                    self.remove_from_queue(spec[1])
-        if count == 0:
-            message = ["^4No one is in the queue."]
-        if channel:
-            channel.reply("^2Queue^7: " + ", ".join(message))
-        elif player or count:
-            self.msg("^2Queue^7: " + ", ".join(message))
+                        self.remove_from_queue(spec[1])
+            if count == 0:
+                message = ["^4No one is in the queue."]
+            if channel:
+                channel.reply("^2Queue^7: " + ", ".join(message))
+            elif player or count:
+                self.msg("^2Queue^7: " + ", ".join(message))
+        except Exception as e:
+            minqlx.console_print("^1specqueue cmd list queue Exception: {}".format(e))
 
     def cmd_list_specs(self, player=None, msg=None, channel=None):
         self.exec_list_specs(player, msg, channel)
 
     @minqlx.thread
     def exec_list_specs(self, player=None, msg=None, channel=None):
-        spectators = self.teams()["spectator"]
-        count = 0
-        message = []
-        if self._spec.size() > 0 and len(spectators) > 0:
-            s = self._spec.get_spectators()
-            for p, t in s.items():
-                spec = self.player(int(p))
-                if spec in spectators:
-                    time_in_spec = round((time.time() - t))
-                    if time_in_spec / 60 > 1:
-                        spec_time = "^7{}^4m^7:{}^4s^7".format(int(time_in_spec / 60), time_in_spec % 60)
+        try:
+            spectators = self.teams()["spectator"]
+            count = 0
+            message = []
+            if self._spec.size() > 0 and len(spectators) > 0:
+                s = self._spec.get_spectators()
+                for p, t in s.items():
+                    spec = self.player(int(p))
+                    if spec in spectators:
+                        time_in_spec = round((time.time() - t))
+                        if time_in_spec / 60 > 1:
+                            spec_time = "^7{}^4m^7:{}^4s^7".format(int(time_in_spec / 60), time_in_spec % 60)
+                        else:
+                            spec_time = "^7{}^4s^7".format(time_in_spec)
+                        message.append("{} ^7{}".format(spec, spec_time))
+                        count += 1
                     else:
-                        spec_time = "^7{}^4s^7".format(time_in_spec)
-                    message.append("{} ^7{}".format(spec, spec_time))
-                    count += 1
-                else:
-                    self.remove_from_spec(spec)
-        if count == 0:
-            message = ["^4No one is set to spectate only."]
-        if channel:
-            channel.reply("^4Spectators^7: " + ", ".join(message))
-        elif player or count:
-            self.msg("^4Spectators^7: " + ", ".join(message))
-
+                        self.remove_from_spec(spec)
+            if count == 0:
+                message = ["^4No one is set to spectate only."]
+            if channel:
+                channel.reply("^4Spectators^7: " + ", ".join(message))
+            elif player or count:
+                self.msg("^4Spectators^7: " + ", ".join(message))
+        except Exception as e:
+            minqlx.console_print("^1specqueue exec list specs Exception: {}".format(e))
