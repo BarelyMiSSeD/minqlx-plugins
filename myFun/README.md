@@ -1,4 +1,4 @@
-This is my replacement for the minqlx fun.py so if you use this file make sure not to load fun.py<br>
+# *** This is my replacement for the minqlx fun.py so if you use this file make sure not to load fun.py ***<br>
 
 This plugin plays sounds for players on the Quake Live server<br>
 It plays the sounds included in fun.py and some from other workshop item sound packs.<br>
@@ -7,19 +7,44 @@ This can limit sound spamming to the server.<br>
 It only allows one sound to be played at a time and each user is limited in the frequency they can play sounds.<br>
 If you desire no restriction then set both of the 2 following cvars to "0".<br>
 The default qlx_funSoundDelay setting will require 5 seconds from the start of any sound<br>
- before another sound can be played by anyone.<br>
+before another sound can be played by anyone.<br>
 The default qlx_funPlayerSoundRepeat setting will require 30 seconds from the start of a player called sound before<br>
- that player can call another sound.<br>
+that player can call another sound.<br>
 
-To set the time required between any sound add this line to your server.cfg and edit the "5":<br>
-<b>set qlx_funSoundDelay "5"</b><br>
+#To set the time required between any sound add this line to your server.cfg and edit the "5":<br>
+set qlx_funSoundDelay "5"<br>
 
-To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":<br>
-<b>set qlx_funPlayerSoundRepeat "30"</b><br>
+#To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":<br>
+set qlx_funPlayerSoundRepeat "30"<br>
+
+#Play Join Sound when players connect (set to "path/file" like below example to play sound)<br>
+#*** Disable the MOTD sound to use this with set qlx_motdSound "0" ****<br>
+set qlx_funJoinSound "sound/feedback/welcome_02.wav"<br>
+
+#Play Join Sound even if players have sounds disabled<br>
+set qlx_funJoinSoundForEveryone "0"<br>
+
+#Play Join Sound on every map change (set to "1" to play join sound every map change)<br>
+set qlx_funJoinSoundEveryMap "0"<br>
+
+#Join sound path/file<br>
+set qlx_funJoinSound "sound/feedback/welcome_02.wav"<br>
+
+#Play Sound when last 2 players alive (should set to "3" to play sounds always)<br>
+#0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains<br>
+#1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains<br>
+#2 = only play sounds for people who are dead/spectating when game is active<br>
+#3 = play sound for everyone with sounds enabled<br>
+set qlx_funLast2Sound "3"<br>
+
+#Enable to use a dictionary to store sounds, faster responses to trigger text (0=disable, 1=enable)
+#Enabling will cause the server to use more memory, only enable if memory is available.
+#Must be enabled on server startup or it will not work.
+set qlx_funFastSoundLookup "0"<br>
 
 
-These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:<br>
-(put the workshop item numbers in your workshop.txt file)<br>
+#These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:<br>
+#(put the workshop item numbers in your workshop.txt file)<br>
 #Prestige Worldwide Soundhonks<br>
 585892371<br>
 #Funny Sounds Pack for Minqlx<br>
@@ -29,14 +54,14 @@ These extra workshop items need to be loaded on the server for it to work correc
 #Warp Sounds for Quake Live<br>
 1250689005<br>
 #West Coast Crew Sound<br>
-908031086<br>
+1733859113<br>
 
-The minqlx 'workshop' plugin needs to be loaded and the required workshop<br>
- items added to the set qlx_workshopReferences line<br>
-  (This example shows only these required workshop items):<br>
+#The minqlx 'workshop' plugin needs to be loaded and the required workshop<br>
+#items added to the set qlx_workshopReferences line<br>
+#(This example shows only these required workshop items):<br>
 set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 908031086"<br>
-  (Only include the sound pack workshop item numbers that you decide to enable on the server)<br>
-  (The Default sounds use sounds already available as part of the Quake Live install)<br>
+#(Only include the sound pack workshop item numbers that you decide to enable on the server)<br>
+#(The Default sounds use sounds already available as part of the Quake Live install)<br>
 
 <b>Soundpacks</b>:<br>
 <b>1)</b> The <b>Default</b> soundpack uses sounds that are already included in the Quake Live install.<br>
@@ -44,7 +69,7 @@ set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 9080310
 <b>3)</b> The <b>Funny Sounds Pack for Minqlx</b> can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=620087103">HERE</a>.<br>
 <b>4)</b> The <b>Duke Nukem Voice Sound Pack for minqlx</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=572453229">HERE</a>.<br>
 <b>5)</b> The <b>Warp Sounds for Quake Live</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=1250689005">HERE</a>.<br>
-<b>6)</b> The <b>West Coast Crew Sound</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=908031086">HERE</a>.<br>
+<b>6)</b> The <b>West Coast Crew Sound</b> soundpack can be seen <a href="http://steamcommunity.com/sharedfiles/filedetails/?id=1733859113">HERE</a>.<br>
 
 The soundpacks are all enabled by default. Which soundpacks are enabled can be set.<br>
 set qlx_funEnableSoundPacks "63"   : Enables all sound packs.<br>
