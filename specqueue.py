@@ -64,17 +64,29 @@ set qlx_queueMaxSpecTime "9999"
 //  as uneven before putting a player in spectate
 set qlx_queueCheckTeamsDelay "5"
 // Enable the fix the sarge player bug to execute at the start of a game
-//  ***NOTE: DO NOT ENABLE IF serverBDM EXECUTES THE FIX SARGE BUG WHEN AUTO BALANCING TEAMS***
-set qlx_queueAutoSargeFix "0"
+//  This will wait 2 seconds after the start of the game and set everyone's player model to the model being reported by
+//   the server. It will not change what the player has set unless the server did not correctly receive the
+//   player model information. This is an attempt to fix any ocurrence of a player showing up as the Sarge character
+//   of brown color, appearing like they are not on a team. (0=disable, 1=enable)
+set qlx_queueResetPlayerModels "0"
+// Enable to shuffle teams whenever the map changes, even if the same map is loaded again, or when a game is aborted
+// (0=disable, 1=enable)
+set qlx_queueShuffleOnMapChange "1"
+// If shuffle on map change is enabled, sets the amount of time to wait before shuffling teams
+// (must have qlx_queueShuffleOnMapChange enabled to work)
+set qlx_queueShuffleTime "20"
+// If shuffle on map change is enabled, displays a message to players counting down to the shuffle
+// (0=disable, 1=center print every second, 2=center print every 5 seconds,
+//    3=chat message every second, 4=chat message every 5 seconds)
+set qlx_queueShuffleMessage "2"
 """
 
 import minqlx
 import time
 from threading import Lock
-from threading import Timer
 from random import randint
 
-VERSION = "2.07.7"
+VERSION = "2.07.8"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
@@ -278,8 +290,10 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueSpecByPrimary", "time")
         self.set_cvar_once("qlx_queueMaxSpecTime", "9999")  # time in minutes
         self.set_cvar_once("qlx_queueCheckTeamsDelay", "5")
-        self.set_cvar_once("qlx_queueAutoSargeFix", "0")
+        self.set_cvar_once("qlx_queueResetPlayerModels", "0")
         self.set_cvar_once("qlx_queueShuffleOnMapChange", "1")
+        self.set_cvar_once("qlx_queueShuffleTime", "20")
+        self.set_cvar_once("qlx_queueShuffleMessage", "2")
 
         # Minqlx bot Hooks
         self.add_hook("new_game", self.handle_new_game)
@@ -307,7 +321,7 @@ class specqueue(minqlx.Plugin):
 
         self.add_command("ignore", self.ignore_imbalance, 3)
         self.add_command("latch", self.ignore_imbalance_latch, 3)
-        self.add_command("fix", self.sarge_bug_client, 3)
+        self.add_command("fix", self.reset_client_model, 3)
 
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
@@ -344,7 +358,7 @@ class specqueue(minqlx.Plugin):
                 self.remove_from_queue(player)
                 self.remove_from_join(player)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle player connect Exceptions: {}".format(e))
+            minqlx.console_print("^1specqueue handle_player_connect Exceptions: {}".format(e))
 
     def handle_player_disconnect(self, player, reason):
         try:
@@ -355,7 +369,7 @@ class specqueue(minqlx.Plugin):
             if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen:
                 self.look_at_teams(1.0)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle player disconnect Exceptions: {}".format(e))
+            minqlx.console_print("^1specqueue handle_player_disconnect Exceptions: {}".format(e))
 
     def handle_team_switch(self, player, old_team, new_team):
         if new_team != "spectator":
@@ -365,7 +379,7 @@ class specqueue(minqlx.Plugin):
                 if player.steam_id not in self._join:
                     self.add_to_join(player)
             except Exception as e:
-                minqlx.console_print("^1specqueue handle team switch not to spectator Exceptions: {}".format(e))
+                minqlx.console_print("^1specqueue handle_team_switch not to spectator Exceptions: {}".format(e))
         else:
             try:
                 if not self.end_screen:
@@ -384,7 +398,7 @@ class specqueue(minqlx.Plugin):
                 else:
                     check_spectator()
             except Exception as e:
-                minqlx.console_print("^1specqueue handle team switch to spectator Exceptions: {}".format(e))
+                minqlx.console_print("^1specqueue handle_team_switch to spectator Exceptions: {}".format(e))
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
         try:
@@ -412,7 +426,7 @@ class specqueue(minqlx.Plugin):
                     self.check_for_opening(0.2)
                     return minqlx.RET_STOP_ALL
         except Exception as e:
-            minqlx.console_print("^1specqueue handle team switch attempt Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_team_switch_attempt Exception: {}".format(e))
 
     def handle_set_config_string(self, index, values):
         try:
@@ -426,7 +440,7 @@ class specqueue(minqlx.Plugin):
                 fraglimit = int(args[args.index("fraglimit") + 1])
                 self.q_game_info[2] = fraglimit
         except Exception as e:
-            minqlx.console_print("^1specqueue handle set config string Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_set_config_string Exception: {}".format(e))
 
     def handle_client_command(self, player, command):
         try:
@@ -439,7 +453,7 @@ class specqueue(minqlx.Plugin):
                     player.center_print("^6You are set to spectate only")
             spec_player()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle client command Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_client_command Exception: {}".format(e))
 
     def handle_new_game(self):
         try:
@@ -453,9 +467,8 @@ class specqueue(minqlx.Plugin):
                 self.msg("^1This gametype is not supported by the queueing system. Queue functions are not available.")
             else:
                 self.check_for_opening(1)
-                self.auto_shuffle_player_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle new game Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_new_game Exception: {}".format(e))
 
     def handle_game_start(self, data):
         try:
@@ -471,14 +484,14 @@ class specqueue(minqlx.Plugin):
                 self.even_the_teams()
             t()
 
-            if self.get_cvar("qlx_queueAutoSargeFix", bool):
+            if self.get_cvar("qlx_queueResetPlayerModels", bool):
                 @minqlx.delay(0.5)
-                def fix_sarge():
-                    self.sarge_bug()
-                fix_sarge()
+                def fix_models():
+                    self.reset_player_models()
+                fix_models()
 
         except Exception as e:
-            minqlx.console_print("^1specqueue handle game start Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_game_start Exception: {}".format(e))
 
     def handle_map(self, mapname, factory):
         try:
@@ -488,15 +501,18 @@ class specqueue(minqlx.Plugin):
             self.end_screen = False
             self.check_spec_time()
             self.death_count = 0
+            self.auto_shuffle_player_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle map Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_map Exception: {}".format(e))
 
     def handle_game_end(self, data):
         try:
             if not data["ABORTED"]:
                 self.end_screen = True
+            else:
+                self.auto_shuffle_player_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle game end Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_game_end Exception: {}".format(e))
 
     def handle_round_countdown(self, round_num):
         try:
@@ -513,7 +529,7 @@ class specqueue(minqlx.Plugin):
             if self.q_game_info[0] not in NO_COUNTDOWN_TEAM_GAMES:  # maybe an unnecessary check
                 self.look_at_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle round countdown Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_round_countdown Exception: {}".format(e))
 
     def handle_round_start(self, number):
         try:
@@ -522,7 +538,7 @@ class specqueue(minqlx.Plugin):
             self.check_spec(2)
             self.even_the_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle round start Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_round_start Exception: {}".format(e))
 
     def handle_round_end(self, data):
         try:
@@ -535,7 +551,7 @@ class specqueue(minqlx.Plugin):
                     self.cmd_list_specs()
             self.check_spec_time()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle round end Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_round_end Exception: {}".format(e))
 
     def death_monitor(self, victim, killer, data):
         try:
@@ -552,7 +568,7 @@ class specqueue(minqlx.Plugin):
                     self.death_count = 0
                     self.check_spec_time()
         except Exception as e:
-            minqlx.console_print("^1specqueue death monitor Exception: {}".format(e))
+            minqlx.console_print("^1specqueue death_monitor Exception: {}".format(e))
 
     def handle_console_print(self, text):
         try:
@@ -571,24 +587,46 @@ class specqueue(minqlx.Plugin):
                     self.free_locked = False
                 self.check_for_opening(0.2)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle console print Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_console_print Exception: {}".format(e))
 
     def handle_vote_ended(self, votes, vote, args, passed):
         try:
             if passed and vote == "teamsize":
                 self.check_for_opening(2.5)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle vote ended Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_vote_ended Exception: {}".format(e))
 
     # ==============================================
     #               Plugin functions
     # ==============================================
     # Execute a shuffle command if the game is a team based game type
-    @minqlx.delay(12)
+    @minqlx.thread
     def auto_shuffle_player_teams(self):
         if self.get_cvar("qlx_queueShuffleOnMapChange", bool) and self.q_game_info[0] in TEAM_BASED_GAMETYPES and\
                 len(self.players()) > 2 and self.game.state == "warmup":
-            self.shuffle()
+            count = 0
+            shuffle_time = self.get_cvar("qlx_queueShuffleTime", int)
+            message_setting = self.get_cvar("qlx_queueShuffleMessage", int)
+            if message_setting:
+                while count < shuffle_time:
+                    if message_setting == 1:
+                        self.center_print("^7Shuffling teams in {} seconds".format(shuffle_time - count))
+                    elif message_setting == 2:
+                        if not count % 5:
+                            self.center_print("^7Shuffling teams in {} seconds".format(shuffle_time - count))
+                    elif message_setting == 3:
+                        self.msg("^6Shuffling teams in {} seconds".format(shuffle_time - count))
+                    elif message_setting == 4:
+                        if not count % 5:
+                            self.msg("^6Shuffling teams in {} seconds".format(shuffle_time - count))
+                    count += 1
+                    time.sleep(1)
+            else:
+                time.sleep(shuffle_time)
+            self.msg("^6Shuffling teams")
+            if 0 < message_setting < 3:
+                self.center_print("^7Shuffling teams")
+            minqlx.console_command("forceshuffle")
 
     def get_max_players(self):
         try:
@@ -651,7 +689,7 @@ class specqueue(minqlx.Plugin):
                 try:
                     p.center_print("^7You are in ^4Queue ^7position ^1{}".format(count))
                 except Exception as e:
-                    minqlx.console_print("SpecQueue Queue Message Exception: {}".format(e))
+                    minqlx.console_print("^1specqueue Queue Message Exception: {}".format(e))
                 finally:
                     count += 1
             self.displaying_queue = False
@@ -674,7 +712,8 @@ class specqueue(minqlx.Plugin):
 
     def remove_from_spec(self, player):
         try:
-            self._spec.remove_from_spec(player.steam_id)
+            if player:
+                self._spec.remove_from_spec(player.steam_id)
         except Exception as e:
             minqlx.console_print("^1specqueue remove from spec Exception: {}".format(e))
 
@@ -762,7 +801,7 @@ class specqueue(minqlx.Plugin):
                         red_players > team_size or blue_players > team_size:
                     self.fix_teams(red_players, blue_players, max_players, teams)
         except Exception as e:
-            minqlx.console_print("SpecQueue Check For Space Exception: {}".format(e))
+            minqlx.console_print("^1specqueue Check For Space Exception: {}".format(e))
         return
 
     def fix_teams(self, red, blue, max_players, player_teams):
@@ -819,7 +858,7 @@ class specqueue(minqlx.Plugin):
                             self.msg("{} ^7has joined the {}.".format(p[1], placement))
                             count += 1
             except Exception as e:
-                minqlx.console_print("SpecQueue Place in Team Exception: {}".format(e))
+                minqlx.console_print("^1specqueue Place in Team Exception: {}".format(e))
                 for player in self.teams()["spectator"]:
                     player.tell("^1Error in player placement in team. ^6Check your position in the queue.")
             return
@@ -888,7 +927,7 @@ class specqueue(minqlx.Plugin):
                             else:
                                 self.add_to_queue_pos(player1[1], 0)
             except Exception as e:
-                minqlx.console_print("SpecQueue Place in Both Exception: {}".format(e))
+                minqlx.console_print("^1specqueue Place in Both Exception: {}".format(e))
                 for player in self.teams()["spectator"]:
                     player.tell("^1Error in player(s) placement in team. ^6Check your position in the queue.")
             return
@@ -1194,25 +1233,27 @@ class specqueue(minqlx.Plugin):
         except Exception as e:
             minqlx.console_print("^1specqueue check spec time Exception:{}".format(e))
 
-    # executes team unlock commands ... to ensure teams are unlocked after balance execution
-    def unlock_teams(self):
-        if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-            minqlx.console_command("unlock red")
-            minqlx.console_command("unlock blue")
-        else:
-            minqlx.console_command("unlock free")
-
     # ==============================================
     #               Minqlx Bot Commands
     # ==============================================
-    def sarge_bug(self, player=None, msg=None, channel=None):
+    @minqlx.thread
+    def reset_player_models(self, player=None, msg=None, channel=None):
         try:
-            self.shuffle()
+            time.sleep(2)
+            teams = self.teams()
+            if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+                for player in teams["red"] + teams["blue"]:
+                    player.model = player.model
+                    time.sleep(0.05)
+            else:
+                for player in teams["free"]:
+                    player.model = player.model
+                    time.sleep(0.05)
             return True
         except Exception as e:
-            minqlx.console_print("^1specqueue sarge bug shuffle Exception: {}".format(e))
+            minqlx.console_print("^1specqueue reset_player_models Exception: {}".format(e))
 
-    def sarge_bug_client(self, player=None, msg=None, channel=None):
+    def reset_client_model(self, player=None, msg=None, channel=None):
         if len(msg) < 2:
             player.msg("^6Usage: ^1{}fix <client_id>".format(self.get_cvar("qlx_commandPrefix")))
         else:
@@ -1228,38 +1269,9 @@ class specqueue(minqlx.Plugin):
                 player.tell("Invalid client ID.")
                 return minqlx.RET_STOP_ALL
             except Exception as e:
-                minqlx.console_print("SpecQueue Cmd Que Add Exception: {}".format(e))
+                minqlx.console_print("^1specqueue reset_client_model Exception: {}".format(e))
                 return minqlx.RET_STOP_ALL
-            team = target_player.team()
-            minqlx.console_print("^1Locking team(s) to execute sarge fix on a player")
-            if team == "red":
-                minqlx.console_command("lock red")
-                minqlx.console_command("lock blue")
-                # Timer to unlock teams if this process get interrupted for any reason
-                Timer(4, self.unlock_teams).start()
-                self.team_placement(target_player, "blue")
-                time.sleep(0.1)
-                self.team_placement(target_player, "red")
-                minqlx.console_command("unlock red")
-                minqlx.console_command("unlock blue")
-            elif team == "blue":
-                minqlx.console_command("lock red")
-                minqlx.console_command("lock blue")
-                # Timer to unlock teams if this process get interrupted for any reason
-                Timer(4, self.unlock_teams).start()
-                self.team_placement(target_player, "red")
-                time.sleep(0.1)
-                self.team_placement(target_player, "blue")
-                minqlx.console_command("unlock red")
-                minqlx.console_command("unlock blue")
-            else:
-                minqlx.console_command("lock free")
-                # Timer to unlock teams if this process get interrupted for any reason
-                Timer(4, self.unlock_teams).start()
-                self.team_placement(target_player, "spectator")
-                time.sleep(0.1)
-                self.team_placement(target_player, "free")
-                minqlx.console_command("unlock free")
+            target_player.model = target_player.model
         return
 
     def ignore_imbalance(self, player, msg, channel):
@@ -1308,7 +1320,7 @@ class specqueue(minqlx.Plugin):
                     player.tell("Invalid client ID.")
                     return
                 except Exception as e:
-                    minqlx.console_print("SpecQueue Cmd Que Add Exception: {}".format(e))
+                    minqlx.console_print("^1specqueue Cmd Que Add Exception: {}".format(e))
                     return
                 self.add_to_queue(target_player)
         except Exception as e:
