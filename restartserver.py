@@ -24,7 +24,7 @@ time - will report the current server time.
 import minqlx
 import time
 
-VERSION = "1.3"
+VERSION = "1.4"
 
 
 class restartserver(minqlx.Plugin):
@@ -42,7 +42,7 @@ class restartserver(minqlx.Plugin):
         self.add_command("time", self.get_server_time)
 
         # Script Variables
-        self.start_time = [time.strftime("%j"), time.strftime("%H:%M:%S")]
+        self.start_time = [time.strftime("%Y"), time.strftime("%j"), time.strftime("%H:%M:%S")]
         self.checking_restart = False
         self.restart_time = None
 
@@ -69,19 +69,18 @@ class restartserver(minqlx.Plugin):
         try:
             if not self.checking_restart:
                 self.checking_restart = True
-                if not self.restart_time:
-                    restart_time = ["0", self.get_cvar("qlx_restartTime")]
+                restart_time = [time.strftime("%Y"), "00:00", (self.restart_time if self.restart_time else
+                                                               self.get_cvar("qlx_restartTime"))]
+                if time.strftime("%H:%M") >= restart_time[2]:
+                    restart_time[1] = str(int(self.start_time[1]) + 1)
                 else:
-                    restart_time = ["0", self.restart_time]
-                if time.strftime("%H:%M") >= restart_time[1]:
-                    restart_time[0] = str(int(self.start_time[0]) + 1)
-                else:
-                    restart_time[0] = self.start_time[0]
+                    restart_time[1] = self.start_time[1]
                 while self.checking_restart:
-                    if restart_time[0] <= time.strftime("%j") and time.strftime("%H:%M") >= restart_time[1]:
+                    if (restart_time[1] <= time.strftime("%j") or restart_time[0] < self.start_time[1]) and\
+                            time.strftime("%H:%M") >= restart_time[2]:
                         minqlx.console_print("^1Restart Server script is issuing a quit command to"
                                              " restart the empty server after the scheduled time of {}"
-                                             .format(restart_time[1]))
+                                             .format(restart_time[2]))
                         minqlx.console_command("quit")
                     time.sleep(60)
                     if len(self.players()) > 0:
@@ -109,7 +108,8 @@ class restartserver(minqlx.Plugin):
 
     def get_server_time(self, player, msg, channel):
         if self.get_cvar("qlx_restartUseTime", bool):
-            self.msg("^3The current server time is ^2{}".format(time.strftime("%b %d %Y %H:%M:%S")))
+            self.msg("^3The current server time is ^2{}  ^7Day: ^2{}"
+                     .format(time.strftime("%b %d %Y %H:%M:%S"), time.strftime("%j")))
 
     def restart_server(self, player, msg, channel):
         if self.get_cvar("qlx_restartCmdEnable", bool):
@@ -145,23 +145,32 @@ class restartserver(minqlx.Plugin):
                         if len(check_time_format) == 2 and 0 <= int(check_time_format[0]) <= 24 and\
                                 0 <= int(check_time_format[1]) <= 59:
                             if time.strftime("%H:%M") < msg[1]:
-                                self.restart_time = msg[1]
                                 if self.checking_restart:
-                                    self.checking_restart = False
-                                    player.tell("^1The server restart check is being stopped. Restart command will"
-                                                " be sent in 65 seconds.")
-
                                     @minqlx.delay(65)
                                     def restart_init():
                                         player.tell("^1The server restart command has been sent to restart the"
                                                     " server at {}".format(self.restart_time if self.restart_time else
                                                                            self.get_cvar("qlx_restartTime")))
                                         self.check_restart_time()
-                                    restart_init()
+
+                                    if int(check_time_format[1]) - int(time.strftime("%M")) < 2:
+                                        player.tell("^6The time you set is too close to or earlier than the current"
+                                                    " time. Chose a time further in the future but in the same day.")
+                                    else:
+                                        self.checking_restart = False
+                                        self.restart_time = msg[1]
+                                        player.tell("^1The server restart check is being stopped. Restart command will"
+                                                    " be sent in 65 seconds.")
+                                        restart_init()
                                 else:
-                                    player.tell("^1The server restart command has been sent to restart the server at {}"
-                                                .format(self.restart_time))
-                                    self.check_restart_time()
+                                    if int(check_time_format[1]) - int(time.strftime("%M")) < 1:
+                                        player.tell("^6The time you set is too close to or earlier than the current"
+                                                    " time. Chose a time further in the future but in the same day.")
+                                    else:
+                                        self.restart_time = msg[1]
+                                        player.tell("^1The server restart command has been sent to restart the"
+                                                    " server at {}".format(self.restart_time))
+                                        self.check_restart_time()
                             else:
                                 player.tell("^3Scheduling a restart time only works if the time is in the future.")
                         else:
