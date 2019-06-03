@@ -24,7 +24,7 @@ time - will report the current server time.
 import minqlx
 import time
 
-VERSION = "1.4"
+VERSION = "1.5"
 
 
 class restartserver(minqlx.Plugin):
@@ -40,6 +40,7 @@ class restartserver(minqlx.Plugin):
         # player commands
         self.add_command("restart", self.restart_server, 4)
         self.add_command("time", self.get_server_time)
+        self.add_command("start", self.server_start_time, 4)
 
         # Script Variables
         self.start_time = [time.strftime("%Y"), time.strftime("%j"), time.strftime("%H:%M:%S")]
@@ -53,6 +54,11 @@ class restartserver(minqlx.Plugin):
             def check_restart():
                 self.check_restart_time()
             check_restart()
+
+    def server_start_time(self, player, msg, channel):
+        player.tell("^3The server was started {}"
+                    .format(time.strftime("%B %d %Y  %H:%M:%S",
+                                          time.strptime(" ".join(self.start_time), "%Y %j %H:%M:%S"))))
 
     def handle_player_disconnect(self, player, reason):
         try:
