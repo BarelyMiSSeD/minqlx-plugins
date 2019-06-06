@@ -2,15 +2,9 @@
 # -Restart the server at a certain time, or as soon as the server empties, once the restart time has passed.
 # -The server restarting requires that a management program, such as supervisor, is installed and controlling
 #   and monitoring the server to restart the process once the quit command is issued.
+# -The quit command, to restart the server, is issued anytime during the set minute.
 # Created by BarelyMiSSeD on 5-31-2019
 #
-"""
-// Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
-set qlx_restartTime "06:00"    // Sets the time the server restarts. Format "HH:MM" to match to time on server (24 hour format)
-set qlx_restartCmdEnable "1"   // Allow restart command usage (0=disable, 1=enable)
-set qlx_restartUseTime "1"     // Allow time command usage (0=disable, 1=enable). Disables other script time commands.
-"""
-
 """
 Script COMMANDS (both of these commands need to be enabled with the cvars before they will function):
 restart - will restart the server, with an optional modifier included. If no modifier is included the server will issue an
@@ -20,13 +14,19 @@ restart - will restart the server, with an optional modifier included. If no mod
   reported.
 time - will report the current server time.
 start - will report the time this script was loaded, typically that is the server start time
+
+// Copy below here for your server's config file
+// Set these cvars in your server.cfg (or wherever you set your minqlx variables):
+set qlx_restartTime "06:00"    // Sets the time the server restarts. Format "HH:MM" to match to time on server (24 hour format)
+set qlx_restartCmdEnable "1"   // Allow restart command usage (0=disable, 1=enable)
+set qlx_restartUseTime "1"     // Allow time command usage (0=disable, 1=enable). Disables other script time commands.
 """
 
 import minqlx
 import time
 from threading import Timer
 
-VERSION = "1.8"
+VERSION = "1.9"
 
 
 class restartserver(minqlx.Plugin):
@@ -74,14 +74,20 @@ class restartserver(minqlx.Plugin):
             if self.checking_restart:
                 return
             self.checking_restart = True
-            restart_time = [time.strftime("%Y"), "00:00", (self.restart_time if self.restart_time else
-                                                           self.get_cvar("qlx_restartTime"))]
-            if time.strftime("%H:%M") >= restart_time[2]:
-                restart_time[1] = str(int(self.start_time[1]) + 1)
-            else:
+            restart_time = [time.strftime("%Y"), "0", (self.restart_time if self.restart_time else
+                                                       self.get_cvar("qlx_restartTime"))]
+
+            if time.strptime(" ".join(self.start_time), "%Y %j %H:%M:%S") <\
+                    time.strptime("{} {} {}".format(time.strftime("%Y"),
+                                                    time.strftime("%j"), restart_time[2]), "%Y %j %H:%M"):
                 restart_time[1] = self.start_time[1]
+            elif time.strftime("%H:%M") < restart_time[2]:
+                restart_time[1] = time.strftime("%j")
+            else:
+                restart_time[1] = str(int(time.strftime("%j")) + 1)
+
             while self.checking_restart:
-                if (restart_time[1] <= time.strftime("%j") or restart_time[0] < self.start_time[1]) and\
+                if (restart_time[1] <= time.strftime("%j") or restart_time[0] < self.start_time[0]) and\
                         time.strftime("%H:%M") >= restart_time[2]:
                     minqlx.console_print("^1Restart Server script is issuing a quit command to"
                                          " restart the empty server after the scheduled time of {}"
@@ -110,6 +116,7 @@ class restartserver(minqlx.Plugin):
                             loaded_scripts[script].remove_command(cmd.name, cmd.handler)
                 except:
                     continue
+        self.check_restart_time()
 
     def get_server_time(self, player, msg, channel):
         if self.get_cvar("qlx_restartUseTime", bool):
