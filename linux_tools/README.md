@@ -8,5 +8,5 @@ Line 14: is the location and filename of steamcmd.sh and then the install direct
 
 
 If the status messages are not appearing correctly you may have a workshop.txt that is not correctly formatted for Linux.<br>
-Try running dos2unix on the file. EX: dos2unix workshop.txt
+Try running dos2unix on the file. EX: dos2unix workshop.txt<br>
 This will convert the line feeds from windows format to the standard linux format.
