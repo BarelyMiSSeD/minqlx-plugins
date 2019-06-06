@@ -63,11 +63,13 @@ PLAYER_KEY = "minqlx:players:{}"
 # Find your gametype in game with the !kgt or !killsgametype command.
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ffa", "ictf", "ad")
 
+
 class kills(minqlx.Plugin):
     def __init__(self):
         self.set_cvar_once("qlx_killsMonitorKillTypes", "511")
         self.set_cvar_once("qlx_killsPlaySounds", "1")
         self.set_cvar_once("qlx_killsSpeedMinimum", "800")
+        self.set_cvar_once("qlx_killsEndGameMsg", "1")
 
         self.add_hook("kill", self.handle_kill)
         self.add_hook("game_end", self.handle_end_game)
@@ -111,9 +113,6 @@ class kills(minqlx.Plugin):
         self.kills_gametype = self.game.type_short
 
     def handle_kill(self, victim, killer, data):
-        #player = self.player(2)
-        #player.tell("{} \n Gamestate: {}\nSPEED: {}".format(str(data), self.game.state, int(data["KILLER"]["SPEED"])))
-        #minqlx.console_print("{} \n Gamestate: {}".format(str(data), self.game.state))
         if self.kills_gametype in SUPPORTED_GAMETYPES:
             mod = data["MOD"]
             msg = None
@@ -329,91 +328,92 @@ class kills(minqlx.Plugin):
         self.kills_roundActive = 0
 
     def handle_end_game(self, data):
-        self.kills_gametype = self.game.type_short
-        if self.kills_gametype in SUPPORTED_GAMETYPES:
-            count = 0
-
-            msg = "^3Pummel ^1Killers^7: "
-            for k, v in self.kills_pummel.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
+        if self.get_cvar("qlx_killsEndGameMsg", bool):
+            self.kills_gametype = self.game.type_short
+            if self.kills_gametype in SUPPORTED_GAMETYPES:
                 count = 0
 
-            msg = "^3Air Gauntlet ^1Killers^7: "
-            for k, v in self.kills_airpummel.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                count = 0
+                msg = "^3Pummel ^1Killers^7: "
+                for k, v in self.kills_pummel.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            msg = "^3Grenade ^1Killers^7: "
-            for k, v in self.kills_grenades.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                count = 0
+                msg = "^3Air Gauntlet ^1Killers^7: "
+                for k, v in self.kills_airpummel.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            msg = "^3Air Rocket ^1Killers^7: "
-            for k, v in self.kills_rockets.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                count = 0
+                msg = "^3Grenade ^1Killers^7: "
+                for k, v in self.kills_grenades.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            msg = "^3Air Plasma ^1Killers^7: "
-            for k, v in self.kills_plasma.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                count = 0
+                msg = "^3Air Rocket ^1Killers^7: "
+                for k, v in self.kills_rockets.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            msg = "^3Air Rail ^1Killers^7: "
-            for k, v in self.kills_airrail.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                count = 0
+                msg = "^3Air Plasma ^1Killers^7: "
+                for k, v in self.kills_plasma.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            msg = "^3Telefrag ^1Killers^7: "
-            for k, v in self.kills_telefrag.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                count = 0
+                msg = "^3Air Rail ^1Killers^7: "
+                for k, v in self.kills_airrail.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            msg = "^3Team Telefrag ^1Killers^7: "
-            for k, v in self.kills_teamtelefrag.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                count = 0
+                msg = "^3Telefrag ^1Killers^7: "
+                for k, v in self.kills_telefrag.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            msg = "^3Speed ^1Killers^7: "
-            for k, v in self.kills_speed.items():
-                msg += "{}^7:^1{}^7 ".format(k, v)
-                count += 1
-            if count > 0:
-                self.msg(msg)
-                #count = 0
+                msg = "^3Team Telefrag ^1Killers^7: "
+                for k, v in self.kills_teamtelefrag.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
 
-            self.kills_pummel = {}
-            self.kills_airpummel = {}
-            self.kills_grenades = {}
-            self.kills_rockets = {}
-            self.kills_plasma = {}
-            self.kills_airrail = {}
-            self.kills_telefrag = {}
-            self.kills_teamtelefrag = {}
-            self.kills_speed = {}
+                msg = "^3Speed ^1Killers^7: "
+                for k, v in self.kills_speed.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    #count = 0
+
+                self.kills_pummel = {}
+                self.kills_airpummel = {}
+                self.kills_grenades = {}
+                self.kills_rockets = {}
+                self.kills_plasma = {}
+                self.kills_airrail = {}
+                self.kills_telefrag = {}
+                self.kills_teamtelefrag = {}
+                self.kills_speed = {}
 
     def cmd_kills_gametype(self, player, msg, channel):
         player.tell("^2The current gametype is \'{}\'".format(self.kills_gametype))
@@ -425,8 +425,11 @@ class kills(minqlx.Plugin):
         else:
             self.msg("^4Speed Kill ^7stats are not enabled on this server.")
 
-    @minqlx.thread
     def cmd_pummel(self, player, msg, channel):
+        self.exec_cmd_pummel(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_pummel(self, player, msg, channel):
         if not self.kills_killMonitor[0]:
                 self.msg("^4Pummel Kill ^7stats are not enabled on this server.")
         else:
@@ -452,8 +455,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4pummeled^7 anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_airpummel(self, player, msg, channel):
+        self.exec_cmd_airpummel(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_airpummel(self, player, msg, channel):
         if not self.kills_killMonitor[1]:
                 self.msg("^4Air Pummel Kill ^7stats are not enabled on this server.")
         else:
@@ -479,8 +485,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_grenades(self, player, msg, channel):
+        self.exec_cmd_grenades(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_grenades(self, player, msg, channel):
         if not self.kills_killMonitor[2]:
                 self.msg("^4Grenade Kill ^7stats are not enabled on this server.")
         else:
@@ -506,8 +515,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4grenade^7 killed anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_rocket(self, player, msg, channel):
+        self.exec_cmd_rocket(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_rocket(self, player, msg, channel):
         if not self.kills_killMonitor[3]:
                 self.msg("^4Air Rocket Kill ^7stats are not enabled on this server.")
         else:
@@ -533,8 +545,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4air rocket^7 killed anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_plasma(self, player, msg, channel):
+        self.exec_cmd_plasma(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_plasma(self, player, msg, channel):
         if not self.kills_killMonitor[4]:
                 self.msg("^4Air Plasma Kill ^7stats are not enabled on this server.")
         else:
@@ -560,8 +575,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4air plasma^7 killed anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_airrail(self, player, msg, channel):
+        self.exec_cmd_airrail(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_airrail(self, player, msg, channel):
         if not self.kills_killMonitor[5]:
                 self.msg("^4Air Rail Kill ^7stats are not enabled on this server.")
         else:
@@ -587,8 +605,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} ^7has not ^4air railed^7 anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_telefrag(self, player, msg, channel):
+        self.exec_cmd_telefrag(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_telefrag(self, player, msg, channel):
         if not self.kills_killMonitor[6]:
                 self.msg("^4Telefrag Kill ^7stats are not enabled on this server.")
         else:
@@ -614,8 +635,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4telefrag^7 killed anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_teamtelefrag(self, player, msg, channel):
+        self.exec_cmd_teamtelefrag(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_teamtelefrag(self, player, msg, channel):
         if not self.kills_killMonitor[7]:
                 self.msg("^4Team Telefrag Kill ^7stats are not enabled on this server.")
         else:
@@ -641,8 +665,11 @@ class kills(minqlx.Plugin):
             else:
                 self.msg("{} has not ^4team telefrag^7 killed anybody on this server.".format(player))
 
-    @minqlx.thread
     def cmd_speedkill(self, player, msg, channel):
+        self.exec_cmd_speedkill(player, msg, channel)
+
+    @minqlx.thread
+    def exec_cmd_speedkill(self, player, msg, channel):
         if not self.kills_killMonitor[8]:
                 self.msg("^4Speed Kill ^7stats are not enabled on this server.")
         else:
@@ -775,4 +802,4 @@ class kills(minqlx.Plugin):
             return minqlx.RET_STOP_ALL
 
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.14")
+        self.msg("^7This server is running ^4Kills^7 Version^1 1.15")
