@@ -21,43 +21,47 @@ before another sound can be played by anyone.
 The default qlx_funPlayerSoundRepeat setting will require 30 seconds from the start of a player called sound before
 that player can call another sound.
 
-To set the time required between any sound add this line to your server.cfg and edit the "5":
+ To set the time required between any sound add this line to your server.cfg and edit the "5":
 set qlx_funSoundDelay "5"
 
-To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
+ To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
 set qlx_funPlayerSoundRepeat "30"
 
-#Play Join Sound when players connect (set to "path/file" like below example to play sound)
+ The amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
+ This is to keep admins from being able to totally bypass the sound call restrictions by using !playsound
+set qlx_funAdminSoundCall "5"
+
+ Play Join Sound when players connect (set to "path/file" like below example to play sound)
  (*** Disable the MOTD sound to use this with set qlx_motdSound "0" ****)
 set qlx_funJoinSound "sound/feedback/welcome_02.wav"
 
-#Play Join Sound even if players have sounds disabled
+ Play Join Sound even if players have sounds disabled
 set qlx_funJoinSoundForEveryone "0"
 
-#Play Join Sound on every map change (set to "1" to play join sound every map change)
+ Play Join Sound on every map change (set to "1" to play join sound every map change)
 set qlx_funJoinSoundEveryMap "0"
 
-#Join sound path/file
+ Join sound path/file
 set qlx_funJoinSound "sound/feedback/welcome_02.wav"
 
-# Play Sound when last 2 players alive (should set to "3" to play sounds always)
-# 0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains
-# 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
-# 2 = only play sounds for people who are dead/spectating when game is active
-# 3 = play sound for everyone with sounds enabled
-set qlx_funLast2Sound "3"
+ Play Sound when last 2 players alive (should set to "3" to play sounds always)
+ 0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains
+ 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
+ 2 = only play sounds for people who are dead/spectating when game is active
+ 3 = play sound for everyone with sounds enabled
+set qlx_funLast2Sound "1"
 
-These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:
-(put the workshop item numbers in your workshop.txt file)
-#Prestige Worldwide Soundhonks
+ These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:
+ (put the workshop item numbers in your workshop.txt file)
+ Prestige Worldwide Soundhonks
 585892371
-#Funny Sounds Pack for Minqlx
+ Funny Sounds Pack for Minqlx
 620087103
-#Duke Nukem Voice Sound Pack for minqlx
+ Duke Nukem Voice Sound Pack for minqlx
 572453229
-#Warp Sounds for Quake Live
+ Warp Sounds for Quake Live
 1250689005
-#West Coast Crew Sound
+ West Coast Crew Sound
 1733859113
 
 The minqlx 'workshop' plugin needs to be loaded and the required workshop
@@ -75,11 +79,11 @@ Soundpacks:
 5) The Warp Sounds for Quake Live soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=1250689005
 6) The West Coast Crew Sound soundpack can be seen Here: http://steamcommunity.com/sharedfiles/filedetails/?id=1733859113
 
-The soundpacks are all enabled by default. Which soundpacks are enabled can be set.
+ The soundpacks are all enabled by default. Which soundpacks are enabled can be set.
 set qlx_funEnableSoundPacks "63" : Enables all sound packs.
-****** How to set which sound packs are enabled ******
-Add the values for each sound pack listed below and set that value to the
- qlx_funEnableSoundPacks in the same location as the rest of your minqlx cvar's.
+ ****** How to set which sound packs are enabled ******
+ Add the values for each sound pack listed below and set that value to the
+  qlx_funEnableSoundPacks in the same location as the rest of your minqlx cvar's.
 
  ****Sound Pack Values****
                                Default:  1
@@ -128,6 +132,33 @@ Default
 haha yeah haha hahaha yeah yeah hahaha yeahhh
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.
 
+// Copy after this line into your server config
+// Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no admin player time restriction)
+set qlx_funUnrestrictAdmin "0"
+// Delay between sounds being played
+set qlx_funSoundDelay "5"
+// **** Used for limiting players spamming sounds. ****
+//  Amount of seconds player has to wait before allowed to play another sound
+set qlx_funPlayerSoundRepeat "30"
+// Amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
+set qlx_funAdminSoundCall "5"
+// Keep muted players from playing sounds
+set qlx_funDisableMutedPlayers "1"
+// Enable/Disable sound pack files
+set qlx_funEnableSoundPacks "63"
+// Join sound path/file ("0" disables sound)
+set qlx_funJoinSound "0"
+// Play Join Sound even if players have sounds disabled
+set qlx_funJoinSoundForEveryone "0"
+// Play Join Sound on every map change
+set qlx_funJoinSoundEveryMap "0"
+// Play Sound when last 2 players alive (should set to "3" to play sounds always)
+// 0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains
+// 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
+// 2 = only play sounds for people who are dead/spectating when game is active
+// 3 = play sound for everyone with sounds enabled
+set qlx_funLast2Sound "1"
+
 """
 
 import minqlx
@@ -135,7 +166,7 @@ import random
 import time
 import re
 
-VERSION = "5.0"
+VERSION = "5.1"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -154,6 +185,8 @@ class myFun(minqlx.Plugin):
         # **** Used for limiting players spamming sounds. ****
         #  Amount of seconds player has to wait before allowed to play another sound
         self.set_cvar_once("qlx_funPlayerSoundRepeat", "30")
+        # Amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
+        self.set_cvar_once("qlx_funAdminSoundCall", "5")
         # Keep muted players from playing sounds
         self.set_cvar_once("qlx_funDisableMutedPlayers", "1")
         # Enable/Disable sound pack files
@@ -169,10 +202,7 @@ class myFun(minqlx.Plugin):
         # 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
         # 2 = only play sounds for people who are dead/spectating when game is active
         # 3 = play sound for everyone with sounds enabled
-        self.set_cvar_once("qlx_funLast2Sound", "3")
-        # Enable to use a dictionary to store sounds (0=disable, 1=enable)
-        #  Enabling will cause the server to use more memory, only enable if memory is available.
-        self.set_cvar_once("qlx_funFastSoundLookup", "0")
+        self.set_cvar_once("qlx_funLast2Sound", "1")
 
         self.add_hook("chat", self.handle_chat)
         self.add_hook("server_command", self.handle_server_command)
@@ -184,7 +214,7 @@ class myFun(minqlx.Plugin):
         self.add_command(("off", "soundoff"), self.sound_off, client_cmd_perm=0)
         self.add_command(("on", "soundon"), self.sound_on, client_cmd_perm=0)
         self.add_command(("offlist", "soundofflist"), self.cmd_sound_off_list, client_cmd_perm=0)
-        self.add_command("playsound", self.cmd_sound, 3)
+        self.add_command(("playsound", "sound"), self.cmd_sound, 3)
         self.add_command("playtrigger", self.cmd_play_trigger, 3)
         self.add_command("disablesound", self.cmd_disable_sound, client_cmd_perm=5, usage="<sound trigger>")
         self.add_command("enablesound", self.cmd_enable_sound, client_cmd_perm=5, usage="<sound trigger>")
@@ -205,6 +235,8 @@ class myFun(minqlx.Plugin):
         self.last_sound = None
         # Dictionary used to store player sound call times.
         self.sound_limiting = {}
+        # Dictionary used to store admin play sound times.
+        self.admin_limiting = {}
         # List to store steam ids of muted players
         self.muted_players = []
         # List to store the enable/disabled status of the soundpacks
@@ -229,6 +261,23 @@ class myFun(minqlx.Plugin):
         self.playedWelcome = []
         # command prefix
         self._command_prefix = self.get_cvar("qlx_commandPrefix")
+        # Execute function to remove loaded !sound commands in other scripts
+        self.remove_conflicting_sound_commands()
+
+    @minqlx.delay(5)
+    def remove_conflicting_sound_commands(self):
+        loaded_scripts = minqlx.Plugin._loaded_plugins
+        scripts = set(loaded_scripts)
+        command = {"sound"}
+        for script in scripts:
+            if script == "myFun":
+                continue
+            try:
+                for cmd in loaded_scripts[script].commands.copy():
+                    if command.intersection(cmd.name):
+                        loaded_scripts[script].remove_command(cmd.name, cmd.handler)
+            except:
+                continue
 
     def enable_sound_packs(self, player=None, msg=None, channel=None):
         self.enable_packs(player)
@@ -325,8 +374,7 @@ class myFun(minqlx.Plugin):
     @minqlx.thread
     def scan_chat(self, player, msg, channel):
         # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
-        if msg.startswith("{}".format(self._command_prefix)) or channel != "chat" or\
-                player.steam_id in self.muted_players or\
+        if msg.startswith("{}".format(self._command_prefix)) or channel != "chat" or player.steam_id in self.muted_players or\
                 not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
             return
 
@@ -721,13 +769,32 @@ class myFun(minqlx.Plugin):
             player.tell("^1Invalid sound.")
             return minqlx.RET_STOP_ALL
 
-        if "console" == channel:
-            minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
-
         @minqlx.thread
         def play():
             self.play_sound(msg[1])
-        play()
+
+        if "console" == channel:
+            minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
+            play()
+            return minqlx.RET_STOP_ALL
+
+        try:
+            saved_time = self.admin_limiting[player.steam_id]
+            play_time = time.time() - saved_time
+            if play_time > self.get_cvar("qlx_funAdminSoundCall", int):
+                allow = False
+            else:
+                allow = int(self.get_cvar("qlx_funAdminSoundCall", int) - play_time)
+        except KeyError:
+            allow = False
+
+        if not allow:
+            minqlx.console_print("^3Admin {} called sound {}".format(player, msg[1]))
+            self.admin_limiting[player.steam_id] = time.time()
+            play()
+        else:
+            minqlx.console_print("^3Admin {} tried calling sound {} before timeout expired.".format(player, msg[1]))
+            player.tell("^3You have {} seconds before you can call another sound.".format(allow))
 
         return minqlx.RET_STOP_ALL
 
@@ -759,7 +826,6 @@ class myFun(minqlx.Plugin):
             minqlx.console_print("^1Playing sound^7: ^4{}".format(msg_lower))
 
         self.play_sound(sound)
-
         return minqlx.RET_STOP_ALL
 
     # Compares the msg with the sound triggers to determine if there is a match
@@ -792,7 +858,6 @@ class myFun(minqlx.Plugin):
         return None
 
     # plays the supplied sound for the players on the server (if the player has the sound(s) enabled)
-    # @minqlx.thread
     def play_sound(self, path):
         play = self.last_2_sound()
         active = self.game.state in ["in_progress", "countdown"]
