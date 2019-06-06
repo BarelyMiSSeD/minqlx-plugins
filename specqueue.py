@@ -66,12 +66,12 @@ set qlx_queueCheckTeamsDelay "5"
 // Enable the fix the sarge player bug to execute at the start of a game
 //  This will wait 2 seconds after the start of the game and set everyone's player model to the model being reported by
 //   the server. It will not change what the player has set unless the server did not correctly receive the
-//   player model information. This is an attempt to fix any ocurrence of a player showing up as the Sarge character
-//   of brown color, appearing like they are not on a team. (0=disable, 1=enable)
+//   player model information on player connect. This is an attempt to fix any occurrence of a player showing up as
+//   the Sarge character of brown color, appearing like they are not on a team. (0=disable, 1=enable)
 set qlx_queueResetPlayerModels "0"
 // Enable to shuffle teams whenever the map changes, even if the same map is loaded again, or when a game is aborted
 // (0=disable, 1=enable)
-set qlx_queueShuffleOnMapChange "1"
+set qlx_queueShuffleOnMapChange "0"
 // If shuffle on map change is enabled, sets the amount of time to wait before shuffling teams
 // (must have qlx_queueShuffleOnMapChange enabled to work)
 set qlx_queueShuffleTime "20"
@@ -85,12 +85,13 @@ import minqlx
 import time
 from threading import Lock
 from random import randint
+import re
 
-VERSION = "2.07.8"
+VERSION = "2.08.0"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
-NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
+NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 NON_ROUND_BASED_GAMETYPES = ("ffa", "race", "tdm", "ctf", "har", "dom", "rr")
 BDM_KEY = "minqlx:players:{}:bdm:{}:{}"
@@ -291,7 +292,7 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueMaxSpecTime", "9999")  # time in minutes
         self.set_cvar_once("qlx_queueCheckTeamsDelay", "5")
         self.set_cvar_once("qlx_queueResetPlayerModels", "0")
-        self.set_cvar_once("qlx_queueShuffleOnMapChange", "1")
+        self.set_cvar_once("qlx_queueShuffleOnMapChange", "0")
         self.set_cvar_once("qlx_queueShuffleTime", "20")
         self.set_cvar_once("qlx_queueShuffleMessage", "2")
 
@@ -304,6 +305,7 @@ class specqueue(minqlx.Plugin):
         self.add_hook("round_end", self.handle_round_end)
         self.add_hook("death", self.death_monitor)
         self.add_hook("player_connect", self.handle_player_connect)
+        self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("team_switch", self.handle_team_switch)
         self.add_hook("team_switch_attempt", self.handle_team_switch_attempt, priority=minqlx.PRI_HIGH)
@@ -318,10 +320,11 @@ class specqueue(minqlx.Plugin):
         self.add_command(("s", "specs"), self.cmd_list_specs)
         self.add_command(("addqueue", "addq"), self.cmd_queue_add)
         self.add_command(("qversion", "qv"), self.cmd_qversion)
-
         self.add_command("ignore", self.ignore_imbalance, 3)
         self.add_command("latch", self.ignore_imbalance_latch, 3)
         self.add_command("fix", self.reset_client_model, 3)
+        self.add_command(("queuestatus", "qs"), self.get_current_settings, 3)
+        self.add_command(("resetqueue", "rq", "fq"), self.reset_queue_statuses, 3)
 
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
@@ -343,10 +346,12 @@ class specqueue(minqlx.Plugin):
         self._ignore = False
         self._latch_ignore = False
         self._ignore_msg_already_said = False
+        self._player_models = {}
 
         # Initialize Commands
         self.add_spectators()
         self.add_join_times()
+        self.record_player_models()
 
     # ==============================================
     #               Event Handler's
@@ -360,6 +365,12 @@ class specqueue(minqlx.Plugin):
         except Exception as e:
             minqlx.console_print("^1specqueue handle_player_connect Exceptions: {}".format(e))
 
+    def handle_player_loaded(self, player):
+        try:
+            self._player_models[player.steam_id] = player.model
+        except Exception as e:
+            minqlx.console_print("^1specqueue handle_player_loaded Exceptions: {}".format(e))
+
     def handle_player_disconnect(self, player, reason):
         try:
             self.remove_from_spec(player)
@@ -368,8 +379,10 @@ class specqueue(minqlx.Plugin):
             self.check_for_opening(0.5)
             if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen:
                 self.look_at_teams(1.0)
+            if player.steam_id in self._player_models:
+                del self._player_models[player.steam_id]
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_player_disconnect Exceptions: {}".format(e))
+            minqlx.console_print("^1specqueue handle_player_disconnect Exception: {}".format(e))
 
     def handle_team_switch(self, player, old_team, new_team):
         if new_team != "spectator":
@@ -404,21 +417,18 @@ class specqueue(minqlx.Plugin):
         try:
             if self.q_game_info[0] in SUPPORTED_GAMETYPES and new_team != "spectator" and old_team == "spectator":
                 teams = self.teams()
-                type_action = 0
                 at_max_players = False
                 join_locked = False
                 if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
-                    type_action = 1
                     if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players():
                         at_max_players = True
                     join_locked = self.free_locked
                 elif self.q_game_info[0] in NONTEAM_BASED_GAMETYPES:
-                    type_action = 2
                     if len(self.teams()["free"]) >= self.get_max_players():
                         at_max_players = True
                     join_locked = self.red_locked or self.blue_locked
-                if type_action and self._queue.size() > 0 or join_locked or\
-                        self.game.state in ["in_progress", "countdown"] or at_max_players:
+                if self._queue.size() > 0 or join_locked or self.game.state in ["in_progress", "countdown"] or\
+                        at_max_players:
                     if player.steam_id not in self._join:
                         self.add_to_join(player)
                     self.add_to_queue(player)
@@ -485,10 +495,7 @@ class specqueue(minqlx.Plugin):
             t()
 
             if self.get_cvar("qlx_queueResetPlayerModels", bool):
-                @minqlx.delay(0.5)
-                def fix_models():
-                    self.reset_player_models()
-                fix_models()
+                self.reset_players_models()
 
         except Exception as e:
             minqlx.console_print("^1specqueue handle_game_start Exception: {}".format(e))
@@ -555,18 +562,21 @@ class specqueue(minqlx.Plugin):
 
     def death_monitor(self, victim, killer, data):
         try:
-            if self.q_game_info[0] in NON_ROUND_BASED_GAMETYPES and self.game.state in ["in_progress", "countdown"]:
-                self.death_count += 1
-                if self.death_count > 5 and self.death_count > self.q_game_info[2] / 5:
+            if self.game.state in ["in_progress", "countdown"]:
+                if self.q_game_info[0] in NON_ROUND_BASED_GAMETYPES:
+                    self.death_count += 1
+                    if self.death_count > 5 and self.death_count > self.q_game_info[2] / 5:
+                        self.check_for_opening(0.2)
+                        if self.get_cvar("qlx_queueQueueMsg", bool):
+                            self.cmd_list_queue()
+                        if self.get_cvar("qlx_queueSpecMsg", bool):
+                            self.cmd_list_specs()
+                        self.check_queue(0.2)
+                        self.check_spec(0.2)
+                        self.death_count = 0
+                        self.check_spec_time()
+                if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                     self.check_for_opening(0.2)
-                    if self.get_cvar("qlx_queueQueueMsg", bool):
-                        self.cmd_list_queue()
-                    if self.get_cvar("qlx_queueSpecMsg", bool):
-                        self.cmd_list_specs()
-                    self.check_queue(0.2)
-                    self.check_spec(0.2)
-                    self.death_count = 0
-                    self.check_spec_time()
         except Exception as e:
             minqlx.console_print("^1specqueue death_monitor Exception: {}".format(e))
 
@@ -623,7 +633,6 @@ class specqueue(minqlx.Plugin):
                     time.sleep(1)
             else:
                 time.sleep(shuffle_time)
-            self.msg("^6Shuffling teams")
             if 0 < message_setting < 3:
                 self.center_print("^7Shuffling teams")
             minqlx.console_command("forceshuffle")
@@ -776,7 +785,9 @@ class specqueue(minqlx.Plugin):
                 if free_players < max_players and not self.free_locked:
                     self.place_in_team(max_players - free_players, "free")
                 elif state == "warmup" and free_players > max_players:
-                    self.fix_free(free_players, max_players, teams)
+                    fixed = self.fix_free(free_players, max_players, teams)
+                    if not fixed:
+                        minqlx.console_print("^1specqueue check_for_opening Fix Free error.")
 
             elif self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 team_size = int(max_players / 2)
@@ -784,6 +795,8 @@ class specqueue(minqlx.Plugin):
                     fix_teams = state == "warmup" and red_players > team_size or blue_players > team_size
                     if fix_teams:
                         fixed = self.fix_teams(red_players, blue_players, max_players, teams)
+                        if not fixed:
+                            minqlx.console_print("^1specqueue check_for_opening Fix Teams error.")
                     difference = red_players - blue_players
                     if difference < 0:
                         self.place_in_team(abs(difference), "red")
@@ -849,12 +862,12 @@ class specqueue(minqlx.Plugin):
                         p = self._queue.get_next()
                         if p[1] in teams["spectator"]and p[1].connection_state == "active":
                             self.team_placement(p[1], team)
-                            if team in "red":
+                            if team == "red":
                                 placement = "^1red ^7team"
                             elif team == "blue":
                                 placement = "^4blue ^7team"
                             else:
-                                placement = "battle"
+                                placement = "^2battle"
                             self.msg("{} ^7has joined the {}.".format(p[1], placement))
                             count += 1
             except Exception as e:
@@ -974,6 +987,14 @@ class specqueue(minqlx.Plugin):
                 self._join.add_to_jt(player.steam_id)
         except Exception as e:
             minqlx.console_print("^1specqueue add join times Exception: {}".format(e))
+
+    @minqlx.thread
+    def record_player_models(self):
+        try:
+            for player in self.players():
+                self._player_models[player.steam_id] = player.model
+        except Exception as e:
+            minqlx.console_print("^1specqueue record_player_models Exception: {}".format(e))
 
     def add_to_join(self, player):
         try:
@@ -1233,45 +1254,148 @@ class specqueue(minqlx.Plugin):
         except Exception as e:
             minqlx.console_print("^1specqueue check spec time Exception:{}".format(e))
 
+    # Search for a player name match using the supplied string
+    def find_player(self, name):
+        found_player = None
+        found_count = 0
+        # Remove color codes from the supplied string
+        player_name = re.sub(r"\^[0-9]", "", name).lower()
+        # search through the list of connected players for a name match
+        for player in self.players():
+            if player_name in re.sub(r"\^[0-9]", "", player.name).lower():
+                # if match is found return player, player id
+                found_player = player
+                found_count += 1
+        # if only one match was found return player, player id
+        if found_count == 1:
+            return found_player, int(str([found_player]).split(":")[0].split("(")[1])
+        # if more than one match is found return 0, -1
+        elif found_count > 1:
+            return 0, -1
+        # if no match is found return -1, -1
+        else:
+            return -1, -1
+
     # ==============================================
     #               Minqlx Bot Commands
     # ==============================================
+    def get_current_settings(self, player, msg, channel):
+        message = ["^6SpecQueue current variable states:"]
+        if self._queue.size() > 0:
+            message.append("^3Queue: {} Size: {}".format(str(self._queue.get_queue()), self._queue.size()))
+        else:
+            message.append("^3Queue is empty")
+        if self._spec.size() > 0:
+            message.append("^3Specs: {} Size: {}".format(str(self._spec.get_spectators()), self._spec.size()))
+        else:
+            message.append("^3Specs is empty")
+        if self._join.size() > 0:
+            message.append("^3Join Times: {} Size: {}".format(str(self._join.get_jt()), self._join.size()))
+        else:
+            message.append("^3Join Times is empty")
+        if len(self._player_models) > 0:
+            message.append("^3Player Models^7: {}".format(str(self._player_models)))
+        else:
+            message.append("^3Player Models is empty")
+        message.append("^1Red Locked^7: {}^7, ^4Blue Locked^7: {}^7, ^2Free Locked^7: {}"
+                       .format("^5True" if self.red_locked else "^6False", "^5True" if self.blue_locked else "^6False",
+                               "^5True" if self.free_locked else "^6False"))
+        message.append("^3End Screen status^7: {}".format("^5True" if self.end_screen else "^6False"))
+        message.append("^3Displaying status^7- ^2Queue {}^7, ^4Spec {}"
+                       .format("^5True" if self.displaying_queue else "^6False",
+                               "^5True" if self.displaying_spec else "^6False"))
+        message.append("^3In Countdown^7: {}".format("^5True" if self.in_countdown else "^6False"))
+        message.append("^3Game Info^7: {}".format(self.q_game_info))
+        message.append("^3Ignore Status^7: {} ^3Latch^7: {}"
+                       .format("^5True" if self._ignore else "^6False", "^5True" if self._latch_ignore else "^6False"))
+        if channel != "console":
+            player.tell("\n".join(message))
+        minqlx.console_print(message[0])
+        minqlx.console_print(message[1])
+        minqlx.console_print(message[2])
+        minqlx.console_print(message[3])
+        minqlx.console_print(message[4])
+        minqlx.console_print(" ".join(message[5:8]))
+        minqlx.console_print(" ".join(message[8:]))
+        return minqlx.RET_STOP_ALL
+
+    def reset_queue_statuses(self, player, msg, channel):
+        minqlx.console_command("unlock red")
+        minqlx.console_command("unlock blue")
+        minqlx.console_command("unlock free")
+        if self.red_locked:
+            self.red_locked = False
+        if self.blue_locked:
+            self.blue_locked = False
+        if self.free_locked:
+            self.free_locked = False
+        if self.end_screen:
+            self.end_screen = False
+        if self.in_countdown:
+            self.in_countdown = False
+        if self.displaying_queue:
+            self.displaying_queue = False
+        if self.displaying_spec:
+            self.displaying_spec = False
+        if self._ignore:
+            self._ignore = False
+        if self._latch_ignore:
+            self._latch_ignore = False
+        self.check_for_opening(0.2)
+        if len(self.teams()['spectator']):
+            for player in self.teams()['spectator']:
+                player.tell("^1The queue statuses have been reset. Check your position in the queue.")
+        return minqlx.RET_STOP_ALL
+
     @minqlx.thread
-    def reset_player_models(self, player=None, msg=None, channel=None):
+    def reset_players_models(self, player=None, msg=None, channel=None):
         try:
             time.sleep(2)
             teams = self.teams()
             if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 for player in teams["red"] + teams["blue"]:
-                    player.model = player.model
+                    if player.steam_id in self._player_models:
+                        player.model = self._player_models[player.steam_id]
+                    else:
+                        player.model = player.model
                     time.sleep(0.05)
             else:
                 for player in teams["free"]:
-                    player.model = player.model
+                    if player.steam_id in self._player_models:
+                        player.model = self._player_models[player.steam_id]
+                    else:
+                        player.model = player.model
                     time.sleep(0.05)
             return True
         except Exception as e:
-            minqlx.console_print("^1specqueue reset_player_models Exception: {}".format(e))
+            minqlx.console_print("^1specqueue reset_players_models Exception: {}".format(e))
 
     def reset_client_model(self, player=None, msg=None, channel=None):
-        if len(msg) < 2:
-            player.msg("^6Usage: ^1{}fix <client_id>".format(self.get_cvar("qlx_commandPrefix")))
+        if len(msg) > 1:
+            if msg[1] == "all":
+                self.reset_players_models()
+                player.tell("^3Player models have been reset")
+                return minqlx.RET_STOP_ALL
+            else:
+                try:
+                    pid = int(msg[1])
+                    p = self.player(pid)
+                except minqlx.NonexistentPlayerError:
+                    player.tell("Invalid client ID.")
+                    return
+                except ValueError:
+                    p, pid = self.find_player(" ".join(msg[1:]))
+                    if pid == -1:
+                        if p == 0:
+                            player.tell("^1Too Many players matched your player name")
+                        else:
+                            player.tell("^1No player matching that name found")
+                        return minqlx.RET_STOP_ALL
+                player = p
+        if player.steam_id in self._player_models:
+            player.model = self._player_models[player.steam_id]
         else:
-            try:
-                i = int(msg[1])
-                target_player = self.player(i)
-                if not (0 <= i < 64) or not target_player:
-                    raise ValueError
-            except ValueError:
-                player.tell("Invalid client ID.")
-                return minqlx.RET_STOP_ALL
-            except minqlx.NonexistentPlayerError:
-                player.tell("Invalid client ID.")
-                return minqlx.RET_STOP_ALL
-            except Exception as e:
-                minqlx.console_print("^1specqueue reset_client_model Exception: {}".format(e))
-                return minqlx.RET_STOP_ALL
-            target_player.model = target_player.model
+            player.model = player.model
         return
 
     def ignore_imbalance(self, player, msg, channel):
