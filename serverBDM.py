@@ -10,9 +10,9 @@
 # https://github.com/BarelyMiSSeD/minqlx-plugins/blob/master/balance.py or the commands will conflict. ****
 # That balance.py should replace the one included with the minqlx bot. It will still allow the !elo and !elos commands
 #  to display the elo ratings but no action will be taken on player elo ratings.
-"""
-"""
-**** CVARs ****
+
+
+**** CVARs **** Copy after this line into your server config
 // Minqlx Bot Permission level needed to perform admin functions
 set qlx_bdmAdmin "3"
 // The default BDM rating given to new players
@@ -63,6 +63,7 @@ set qlx_bdmSetIntitialBDM "1"
 //   to calculate the initial bdm. Adjust the values if needed to get the desired initial bdm.
 set qlx_bdmMCalculation "0.92"
 set qlx_bdmBCalculation "-250"
+
 // The BDM Player join message can be modified with the following cvar. The formatting instructions are:
 //    The cvar is the structure of the join message. You have the ability to put any of the following information into
 //    the join message (the numbers in front of the information will be used in the message format).
@@ -88,7 +89,6 @@ set qlx_bdmBCalculation "-250"
 //   desire in between curly brackets and in the correct location in your line of text.
 // *** Note: Quake Live will put your join message onto multiple lines if it is too long. ***
 set "qlx_bdmJoinMessage" "^6{0}^7: ^3{6} ^7games here ^2{2} ^4BDM ^7games ^7(quit ^6{5}^7％) ^7rating: ^2{1}^7."
-
 
 // *** Clan Arena Settings ***
 set qlx_bdmCaKillPts "50"
@@ -133,7 +133,7 @@ import random
 import requests
 import re
 
-VERSION = "2.00.2"
+VERSION = "2.00.3"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
@@ -319,75 +319,13 @@ class serverBDM(minqlx.Plugin):
         try:
             if self.get_cvar("qlx_bdmPrintJoinMsg", bool):
                 sid = str(player.steam_id)
-                if sid[0] == "9":
-                    return
-                if not self.get_cvar("qlx_bdmPrintBdmStatsEveryMap", bool):
-                    if sid in self.player_join_rating_displayed:
-                        return
+                if sid[0] != "9":
+                    if self.get_cvar("qlx_bdmPrintBdmStatsEveryMap", bool):
+                        self.display_join_message(player)
                     else:
-                        self.player_join_rating_displayed.append(sid)
-                if self.get_cvar("g_factory").lower() == "ictf":
-                    game_type = "ictf"
-                else:
-                    game_type = self._bdm_gtype
-                try:
-                    games_completed = int(self.get_db_field(player, "minqlx:players:{}:games_completed"))
-                except TypeError:
-                    games_completed = 0
-                except ValueError:
-                    games_completed = 0
-                except Exception as e:
-                    games_completed = 0
-                    minqlx.console_print("Games Completed retrieval error: {}".format(e))
-                try:
-                    games_left = int(self.get_db_field(player, "minqlx:players:{}:games_left"))
-                except TypeError:
-                    games_left = 0
-                except ValueError:
-                    games_left = 0
-                except Exception as e:
-                    games_left = 0
-                    minqlx.console_print("Games Left retrieval error: {}".format(e))
-                games_played = games_completed + games_left
-                try:
-                    if games_completed > 0:
-                        quit_percentage = round((games_left / games_completed) * 100)
-                    else:
-                        quit_percentage = 0
-                except Exception as e:
-                    quit_percentage = 0
-                    minqlx.console_print("Games Quit Percentage calculation error for {}^7: {}".format(player, e))
-                try:
-                    bdm_rating = self.get_bdm_field(player, game_type, "rating")
-                except Exception as e:
-                    bdm_rating = self.get_cvar("qlx_bdmDefaultBDM", int)
-                    minqlx.console_print("BDM Rating retrieval error: {}".format(e))
-                try:
-                    bdm_completed = self.get_bdm_field(player, game_type, "games_completed")
-                except Exception as e:
-                    bdm_completed = 0
-                    minqlx.console_print("BDM Completed retrieval error: {}".format(e))
-                try:
-                    bdm_left = self.get_bdm_field(player, game_type, "games_left")
-                except Exception as e:
-                    bdm_left = 0
-                    minqlx.console_print("BDM Left retrieval error: {}".format(e))
-                bdm_total = bdm_completed + bdm_left
-                try:
-                    if bdm_completed != 0:
-                        bdm_quit_percentage = round(bdm_left / bdm_completed * 100)
-                    else:
-                        bdm_quit_percentage = 0
-                except Exception as e:
-                    bdm_quit_percentage = 0
-                    minqlx.console_print("Quit calculation error: {}".format(e))
-                join_msg = self.get_cvar("qlx_bdmJoinMessage").replace("%", "％")
-                try:
-                    self.msg(join_msg.format(player, bdm_rating, bdm_completed, bdm_left, bdm_total,
-                                             bdm_quit_percentage, games_played, games_completed, games_left,
-                                             quit_percentage))
-                except Exception as e:
-                    minqlx.console_print("Print Join Message error: {}".format(e))
+                        if sid not in self.player_join_rating_displayed:
+                            self.player_join_rating_displayed.append(sid)
+                            self.display_join_message(player)
         except Exception as e:
             minqlx.console_print("^serverBDM handle_player_loaded Exception: {}".format(e))
 
@@ -1285,6 +1223,71 @@ class serverBDM(minqlx.Plugin):
     # ==============================================
     #               Script Commands
     # ==============================================
+    # Displays the join message for the supplied player
+    def display_join_message(self, player):
+        if self.get_cvar("g_factory").lower() == "ictf":
+            game_type = "ictf"
+        else:
+            game_type = self._bdm_gtype
+        try:
+            games_completed = int(self.get_db_field(player, "minqlx:players:{}:games_completed"))
+        except TypeError:
+            games_completed = 0
+        except ValueError:
+            games_completed = 0
+        except Exception as e:
+            games_completed = 0
+            minqlx.console_print("Games Completed retrieval error: {}".format(e))
+        try:
+            games_left = int(self.get_db_field(player, "minqlx:players:{}:games_left"))
+        except TypeError:
+            games_left = 0
+        except ValueError:
+            games_left = 0
+        except Exception as e:
+            games_left = 0
+            minqlx.console_print("Games Left retrieval error: {}".format(e))
+        games_played = games_completed + games_left
+        try:
+            if games_completed > 0:
+                quit_percentage = round((games_left / games_completed) * 100)
+            else:
+                quit_percentage = 0
+        except Exception as e:
+            quit_percentage = 0
+            minqlx.console_print("Games Quit Percentage calculation error for {}^7: {}".format(player, e))
+        try:
+            bdm_rating = self.get_bdm_field(player, game_type, "rating")
+        except Exception as e:
+            bdm_rating = self.get_cvar("qlx_bdmDefaultBDM", int)
+            minqlx.console_print("BDM Rating retrieval error: {}".format(e))
+        try:
+            bdm_completed = self.get_bdm_field(player, game_type, "games_completed")
+        except Exception as e:
+            bdm_completed = 0
+            minqlx.console_print("BDM Completed retrieval error: {}".format(e))
+        try:
+            bdm_left = self.get_bdm_field(player, game_type, "games_left")
+        except Exception as e:
+            bdm_left = 0
+            minqlx.console_print("BDM Left retrieval error: {}".format(e))
+        bdm_total = bdm_completed + bdm_left
+        try:
+            if bdm_completed != 0:
+                bdm_quit_percentage = round(bdm_left / bdm_completed * 100)
+            else:
+                bdm_quit_percentage = 0
+        except Exception as e:
+            bdm_quit_percentage = 0
+            minqlx.console_print("Quit calculation error: {}".format(e))
+        join_msg = self.get_cvar("qlx_bdmJoinMessage").replace("%", "％")
+        try:
+            self.msg(join_msg.format(player, bdm_rating, bdm_completed, bdm_left, bdm_total,
+                                     bdm_quit_percentage, games_played, games_completed, games_left,
+                                     quit_percentage))
+        except Exception as e:
+            minqlx.console_print("Print Join Message error: {}".format(e))
+
     # executes team unlock commands ... to ensure teams are unlocked after balance execution
     def unlock_teams(self):
         if self._bdm_gtype in TEAM_BASED_GAMETYPES:
