@@ -7,11 +7,11 @@
 #
 """
 Script COMMANDS (both of these commands need to be enabled with the cvars before they will function):
-restart - will restart the server, with an optional modifier included. If no modifier is included the server will issue an
- immediate restart command, even if the server is not empty. If a time is included the server will restart at the
+restart - will restart the server, with an optional modifier included. If no modifier is included the server will issue
+  an immediate restart command, even if the server is not empty. If a time is included the server will restart at the
   supplied time or as soon as the server has emptied after the supplied time has passed. If "clear" is included, the
   custom restart time, if previously set, will be cleared. if "time" is included the current restart time will be
-  reported.
+  reported. Including "help" will describe the use of including "time".
 time - will report the current server time.
 start - will report the time this script was loaded, typically that is the server start time
 
