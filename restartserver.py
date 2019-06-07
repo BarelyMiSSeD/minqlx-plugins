@@ -26,7 +26,7 @@ import minqlx
 import time
 from threading import Timer
 
-VERSION = "1.9"
+VERSION = "2.0"
 
 
 class restartserver(minqlx.Plugin):
@@ -48,6 +48,7 @@ class restartserver(minqlx.Plugin):
         self.start_time = [time.strftime("%Y"), time.strftime("%j"), time.strftime("%H:%M:%S")]
         self.checking_restart = False
         self.restart_time = None
+        self.check_timer = None
 
         # Initialize commands
         self.remove_conflicting_time_commands()
@@ -60,11 +61,10 @@ class restartserver(minqlx.Plugin):
 
     def handle_player_disconnect(self, player, reason):
         try:
-            @minqlx.delay(5)
             def check_player_count():
                 if len(self.players()) == 0:
                     self.check_restart_time()
-            check_player_count()
+            Timer(10, check_player_count).start()
         except Exception as e:
             minqlx.console_print("^1restartserver handle_player_disconnect Exceptions: {}".format(e))
 
@@ -74,6 +74,14 @@ class restartserver(minqlx.Plugin):
             if self.checking_restart:
                 return
             self.checking_restart = True
+            try:
+                if self.check_timer.is_alive():
+                    self.check_timer.cancel()
+            except AttributeError:
+                pass
+            except Exception as e:
+                minqlx.console_print("^1restartserver check_restart_time Timer Exception: {}".format(e))
+
             restart_time = [time.strftime("%Y"), "0", (self.restart_time if self.restart_time else
                                                        self.get_cvar("qlx_restartTime"))]
 
@@ -89,8 +97,7 @@ class restartserver(minqlx.Plugin):
             while self.checking_restart:
                 if (restart_time[1] <= time.strftime("%j") or restart_time[0] < self.start_time[0]) and\
                         time.strftime("%H:%M") >= restart_time[2]:
-                    minqlx.console_print("^1Restart Server script is issuing a quit command to"
-                                         " restart the empty server after the scheduled time of {}"
+                    minqlx.console_print("^1RestartServer^7: Restarting the empty server after the scheduled time of {}"
                                          .format(restart_time[2]))
                     minqlx.console_command("quit")
                 time.sleep(60)
@@ -100,6 +107,8 @@ class restartserver(minqlx.Plugin):
             minqlx.console_print("^1restartserver check_time Exceptions: {}".format(e))
         finally:
             self.checking_restart = False
+            self.check_timer = Timer(3600, self.check_restart_time)
+            self.check_timer.start()
 
     @minqlx.delay(5)
     def remove_conflicting_time_commands(self):
