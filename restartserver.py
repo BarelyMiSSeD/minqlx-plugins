@@ -7,11 +7,11 @@
 #
 """
 Script COMMANDS (both of these commands need to be enabled with the cvars before they will function):
-restart - will restart the server, with an optional modifier included. If no modifier is included the server will issue
-  an immediate restart command, even if the server is not empty. If a time is included the server will restart at the
+restart - will restart the server, with an optional modifier included. If no modifier is included the server will issue an
+ immediate restart command, even if the server is not empty. If a time is included the server will restart at the
   supplied time or as soon as the server has emptied after the supplied time has passed. If "clear" is included, the
   custom restart time, if previously set, will be cleared. if "time" is included the current restart time will be
-  reported. Including "help" will describe the use of including "time".
+  reported.
 time - will report the current server time.
 start - will report the time this script was loaded, typically that is the server start time
 
@@ -26,7 +26,7 @@ import minqlx
 import time
 from threading import Timer
 
-VERSION = "2.0"
+VERSION = "2.1"
 
 
 class restartserver(minqlx.Plugin):
@@ -54,7 +54,7 @@ class restartserver(minqlx.Plugin):
         self.remove_conflicting_time_commands()
 
     def server_start_time(self, player, msg, channel):
-        player.tell("^3The server was started {}  ^7Day: ^2{}"
+        player.tell("^3The server was started ^2{}  ^7Day: ^2{}"
                     .format(time.strftime("%B %d %Y  %H:%M:%S",
                                           time.strptime(" ".join(self.start_time), "%Y %j %H:%M:%S")),
                             self.start_time[1]))
@@ -84,19 +84,22 @@ class restartserver(minqlx.Plugin):
 
             restart_time = [time.strftime("%Y"), "0", (self.restart_time if self.restart_time else
                                                        self.get_cvar("qlx_restartTime"))]
-
-            if time.strptime(" ".join(self.start_time), "%Y %j %H:%M:%S") <\
+            if time.strptime(" ".join(self.start_time), "%Y %j %H:%M:%S") < \
                     time.strptime("{} {} {}".format(time.strftime("%Y"),
                                                     time.strftime("%j"), restart_time[2]), "%Y %j %H:%M"):
                 restart_time[1] = self.start_time[1]
-            elif time.strftime("%H:%M") < restart_time[2]:
+            elif time.strptime(time.strftime("%H:%M"), "%H:%M") < time.strptime(restart_time[2], "%H:%M"):
                 restart_time[1] = time.strftime("%j")
             else:
                 restart_time[1] = str(int(time.strftime("%j")) + 1)
 
+            restart_time[0] = int(restart_time[0])
+            restart_time[1] = int(restart_time[1])
+            year = int(self.start_time[0])
+
             while self.checking_restart:
-                if (restart_time[1] <= time.strftime("%j") or restart_time[0] < self.start_time[0]) and\
-                        time.strftime("%H:%M") >= restart_time[2]:
+                if (restart_time[1] <= int(time.strftime("%j")) or restart_time[0] < year) and\
+                        time.strptime(time.strftime("%H:%M"), "%H:%M") >= time.strptime(restart_time[2], "%H:%M"):
                     minqlx.console_print("^1RestartServer^7: Restarting the empty server after the scheduled time of {}"
                                          .format(restart_time[2]))
                     minqlx.console_command("quit")
@@ -158,8 +161,17 @@ class restartserver(minqlx.Plugin):
                         player.tell("^3There was not a custom restart time set. The server will restart at the default"
                                     " time of {}".format(self.get_cvar("qlx_restartTime")))
                 elif msg[1] == "time":
-                    player.tell("^3The set restart time is {}".format(self.restart_time if self.restart_time else
-                                                                      self.get_cvar("qlx_restartTime")))
+                    restart_time = [time.strftime("%Y"), "0", (self.restart_time if self.restart_time else
+                                                               self.get_cvar("qlx_restartTime"))]
+                    if time.strptime(" ".join(self.start_time), "%Y %j %H:%M:%S") < \
+                            time.strptime("{} {} {}".format(time.strftime("%Y"),
+                                                            time.strftime("%j"), restart_time[2]), "%Y %j %H:%M"):
+                        restart_time[1] = self.start_time[1]
+                    elif time.strptime(time.strftime("%H:%M"), "%H:%M") < time.strptime(restart_time[2], "%H:%M"):
+                        restart_time[1] = time.strftime("%j")
+                    else:
+                        restart_time[1] = str(int(time.strftime("%j")) + 1)
+                    player.tell("^3The set restart time is ^2{}".format(" ".join(restart_time)))
                 else:
                     check_time_format = [int(s) for s in msg[1].split(":")]
                     current_time = [int(time.strftime("%H")), int(time.strftime("%M"))]
