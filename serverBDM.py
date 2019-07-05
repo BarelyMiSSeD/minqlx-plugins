@@ -137,7 +137,7 @@ import random
 import requests
 import re
 
-VERSION = "2.01.0"
+VERSION = "2.01.1"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
@@ -718,8 +718,7 @@ class serverBDM(minqlx.Plugin):
 
                 if abs(suggestion[3]) < abs(suggestion[2]) and\
                         abs(suggestion[2]) >= self.get_cvar("qlx_bdmMinimumSuggestionDiff", int):
-                    if not self._agreeing_players or self._agreeing_players[0] != suggestion[0] or \
-                            self._agreeing_players[1] != suggestion[1]:
+                    if not self.same_suggested_players(suggestion[0].id, suggestion[1].id):
                         self._agreeing_players = (suggestion[0].id, suggestion[1].id)
                         self._players_agree = [False, False]
                     self._suggested_switch = 1
@@ -733,6 +732,17 @@ class serverBDM(minqlx.Plugin):
                 self.clear_suggestion()
         except Exception as e:
             minqlx.console_print("^1serverBDM bteams_cmd Exception: {}".format(e))
+
+    def same_suggested_players(self, p1_id, p2_id):
+        match = False
+        try:
+            if self._agreeing_players[0] == p1_id and self._agreeing_players[1] == p2_id:
+                match = True
+            elif self._agreeing_players[0] == p2_id and self._agreeing_players[1] == p1_id:
+                match = True
+        except:
+            pass
+        return match
 
     def cmd_mark_agree(self, player=None, msg=None, channel=None):
         try:
@@ -907,13 +917,11 @@ class serverBDM(minqlx.Plugin):
             while red_number != blue_number:
                 if red_number > blue_number:
                     move_player = teams["red"].pop()
-                    self.place_player(move_player.id, "blue")
                     teams["blue"].append(move_player)
                     red_number -= 1
                     blue_number += 1
                 else:
                     move_player = teams["blue"].pop()
-                    self.place_player(move_player.id, "red")
                     teams["red"].append(move_player)
                     blue_number -= 1
                     red_number += 1
@@ -968,12 +976,10 @@ class serverBDM(minqlx.Plugin):
             self.msg("".join(message))
             curr_teams = self.teams().copy()
             for number in range(red_number):
-                r_player = teams["red"][number]
-                if r_player.steam_id in curr_teams["blue"]:
-                    self.place_player(r_player.id, "red")
-                b_player = teams["blue"][number]
-                if b_player.steam_id in curr_teams["red"]:
-                    self.place_player(b_player.id, "blue")
+                if teams["red"][number].steam_id in curr_teams["blue"]:
+                    self.place_player(teams["red"][number].id, "red")
+                if teams["blue"][number].steam_id in curr_teams["red"]:
+                    self.place_player(teams["blue"][number].id, "blue")
             if exclude:
                 if avg_blue > avg_red:
                     if exclude in curr_teams["blue"]:
