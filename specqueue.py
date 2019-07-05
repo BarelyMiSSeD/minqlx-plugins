@@ -87,7 +87,7 @@ from threading import Lock
 from random import randint
 import re
 
-VERSION = "2.08.6"
+VERSION = "2.08.8"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -784,16 +784,14 @@ class specqueue(minqlx.Plugin):
     def check_for_opening(self, delay=0.0):
         if self._checking_opening or self._queue.size() == 0 or self.end_screen:
             return
+        self._checking_opening = True
         if delay > 0.0:
             time.sleep(delay)
         finished = False
         try:
-            if self._checking_opening:
-                return
-            self._checking_opening = True
+            teams = self.teams()
             state = self.game.state
             max_players = self.get_max_players()
-            teams = self.teams()
             red_players = len(teams["red"])
             blue_players = len(teams["blue"])
             free_players = len(teams["free"])
