@@ -634,7 +634,8 @@ class specqueue(minqlx.Plugin):
                 if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                     self.check_for_opening(0.2)
         except Exception as e:
-            minqlx.console_print("^1specqueue death_monitor Exception: {}".format(e))
+            if "NoneType" not in e:
+                minqlx.console_print("^1specqueue death_monitor Exception: {}".format(e))
 
     def handle_console_print(self, text):
         try:
