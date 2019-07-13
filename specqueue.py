@@ -9,8 +9,7 @@
 # along with minqlx. If not, see <http://www.gnu.org/licenses/>.
 
 # This is a queueing plugin for the minqlx admin bot.
-# This plugin requires the server to be using the serverBDM.py plugin if when placing 2 players into a team
-#  you desire the plugin to attempt to keep the teams as balanced as possible.
+# This plugin can be used alone or with the serverBDM.py plugin.
 #
 # This plugin is intended to help keep the game as enjoyable as possible,
 #  without the hassles of people making teams uneven, or someone joining later than others,
