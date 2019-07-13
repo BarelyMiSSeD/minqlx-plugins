@@ -113,15 +113,14 @@ set qlx_mmChangeWhenEmpty "1"           //Enable to change to default map when a
 
 
 # specqueue.py
-<b>This script works with serverBDM.py</b><br>
+<b>This script works as a standalone or with serverBDM.py</b><br>
 This is a queueing plugin for the minqlx admin bot.
-This plugin requires the server to be using the serverBDM.py plugin
 
 This plugin is intended to help keep the game as enjoyable as possible, without
 the hassles of people making teams uneven, or someone joining later than others,
 but happening to hit the join button first and cutting in line when a play spot opens.
 
-The plugin will also attempt to keep team games even, when adding 2 players at once,
+With serverBDM.py the plugin can also attempt to keep team games even, when adding 2 players at once,
 by putting players into the most appropriate team, based on team scores or player BDMs.
 
 This plugin will spectate people when teams are uneven. It will, by default settings, first look at player score
@@ -133,6 +132,7 @@ kicked. This will only kick the player, not do any kind of ban, so the player ca
 This feature will not kick people with permission levels at or above the qlx_queueAdmin level, or people 
 who are in the queue.
 
+// This section can be copied directly into the server.cfg and edited to your specifications<br>
 //set the minqlx permission level needed to admin this script<br>
 set qlx_queueAdmin", "3"<br>
 //enable to use BDM in placement into teams when 2 players are put in together<br>
@@ -143,7 +143,7 @@ set qlx_queueUseBDMPlacement "1"<br>
 set qlx_queuePlaceByTeamScores "1"<br>
 //Set the score difference used if qlx_queuePlaceByTeamScores is on<br>
 set qlx_queueTeamScoresDiff "3"<br>
-//Display the Queue message at the start of each round<br>
+//Display the Queue message at the start of each round (0=off, 1=on, 2=display every 5th round)<br>
 set qlx_queueQueueMsg "1"<br>
 //Display the Spectate message at the start of each round<br>
 set qlx_queueSpecMsg "1"<br>
@@ -160,6 +160,32 @@ set qlx_queueSpecByPrimary "score"<br>
 //set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will<br>
 // kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")<br>
 set qlx_queueMaxSpecTime "9999"<br>
+// The amount of time in NO_COUNTDOWN_TEAM_GAMES it will give when teams are detected<br>
+//  as uneven before putting a player in spectate<br>
+set qlx_queueCheckTeamsDelay "5"<br>
+// Enable the fix the sarge player bug to execute at the start of a game<br>
+//  This will wait 2 seconds after the start of the game and set everyone's player model to the model being reported by<br>
+//   the server. It will not change what the player has set unless the server did not correctly receive the<br>
+//   player model information on player connect. This is an attempt to fix any occurrence of a player showing up as<br>
+//   the Sarge character of brown color, appearing like they are not on a team. (0=disable, 1=enable)<br>
+set qlx_queueResetPlayerModels "0"<br>
+// Enable to shuffle teams whenever the map changes, even if the same map is loaded again, or when a game is aborted<br>
+// (0=disable, 1=enable) (enabling not recommended if server is set to auto balance teams)<br>
+set qlx_queueShuffleOnMapChange "0"<br>
+// If shuffle on map change is enabled, sets the amount of time to wait before shuffling teams<br>
+// (must have qlx_queueShuffleOnMapChange enabled to work and a min of 10 and max of 30 seconds is required)<br>
+set qlx_queueShuffleTime "10"<br>
+// If shuffle on map change is enabled, displays a message to players counting down to the shuffle<br>
+// (0=disable, 1=center print every second, 2=center print every 5 seconds,<br>
+//    3=chat message every second, 4=chat message every 5 seconds)<br>
+set qlx_queueShuffleMessage "2"<br>
+// This will enable/disable the labeling of spectators with their spec/queue status (0=disable, 1=enable)<br>
+set qlx_queueShowQPosition""1"<br>
+// Chose the style of character surrounding the spec/queue label (default is brackets [] , ex. [1] )<br>
+// Start counting at 0 and chose the character position from the POSITION_LABEL list, so {} would be 2.<br>
+// POSITION_LABEL = ("[]", "()", "{}", "  ") 0=[], 1=(), 2={}, 3=SpaceSpace<br>
+// You can add to or edit the list below, there must be a leading and trailing character surrounded by quotes.<br>
+set qlx_queuePositionLabel "0"<br>
 
 <b>Commands:</b><br>
 !q or !queue: displays the players currently in the queue<br>
