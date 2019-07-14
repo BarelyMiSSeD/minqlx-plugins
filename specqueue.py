@@ -33,7 +33,7 @@
 
 """
 //set the minqlx permission level needed to admin this script
-set qlx_queueAdmin", "3"
+set qlx_queueAdmin "3"
 //enable to use BDM in placement into teams when 2 players are put in together
 //disable to use as generic queue system (0=off, 1=on)
 set qlx_queueUseBDMPlacement "1"
@@ -79,7 +79,7 @@ set qlx_queueShuffleTime "10"
 //    3=chat message every second, 4=chat message every 5 seconds)
 set qlx_queueShuffleMessage "2"
 // This will enable/disable the labeling of spectators with their spec/queue status (0=disable, 1=enable)
-set qlx_queueShowQPosition""1"
+set qlx_queueShowQPosition "1"
 // Chose the style of character surrounding the spec/queue label (default is brackets [] , ex. [1] )
 // Start counting at 0 and chose the character position from the POSITION_LABEL list, so {} would be 2.
 // You can add to or edit the list below, there must be a leading and trailing character surrounded by quotes.
