@@ -82,8 +82,10 @@ set qlx_queueShuffleMessage "2"
 set qlx_queueShowQPosition "1"
 // Chose the style of character surrounding the spec/queue label (default is brackets [] , ex. [1] )
 // Start counting at 0 and chose the character position from the POSITION_LABEL list, so {} would be 2.
-// You can add to or edit the list below, there must be a leading and trailing character surrounded by quotes.
-set qlx_queuePositionLabel "0"
+// You set to one of these numbers or set it to a custom string, custom setting must have two positions in quotes.
+// 0="[]", 1="()", 2="{}", 3="<>", 4="--", 5="==", 6="||", 7="!!", 8="''", 9="..", 10="**", 11="〔〕", 12="《》"
+// 13="〚〛", 14="  " (spaces)
+set qlx_queuePositionLabel "0"  // custom ex: set qlx_queuePositionLabel "~~"
 """
 
 import minqlx
@@ -92,7 +94,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.09.0"
+VERSION = "2.09.2"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -100,185 +102,174 @@ NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 NON_ROUND_BASED_GAMETYPES = ("ffa", "race", "tdm", "ctf", "har", "dom", "rr")
 BDM_KEY = "minqlx:players:{}:bdm:{}:{}"
-POSITION_LABEL = ("[]", "()", "{}", "  ")
-
-
-class JoinTime:
-    def __init__(self):
-        self.join_times = {}
-        self.count = 0
-        self.lock = Lock()
-
-    def __contains__(self, player):
-        return player in self.join_times
-
-    def add_to_jt(self, player):
-        with self.lock:
-            if player not in self.join_times:
-                self.join_times[player] = time.time()
-                self.count += 1
-
-    def remove_from_jt(self, player):
-        if self.count > 0:
-            with self.lock:
-                if player in self.join_times:
-                    del self.join_times[player]
-                    self.count -= 1
-
-    def get_join_time(self, player):
-        if player in self.join_times:
-            return self.join_times[player]
-        else:
-            return None
-
-    def size(self):
-        return self.count
-
-    def get_jt(self):
-        with self.lock:
-            return self.join_times.copy()
-
-
-class Spectators:
-    def __init__(self):
-        self.spectators = {}
-        self.count = 0
-        self.lock = Lock()
-
-    def __contains__(self, player):
-        return player in self.spectators
-
-    def add_to_spec(self, player):
-        with self.lock:
-            if player not in self.spectators:
-                self.spectators[player] = time.time()
-                self.count += 1
-
-    def remove_from_spec(self, player):
-        if self.count > 0:
-            with self.lock:
-                if player in self.spectators:
-                    del self.spectators[player]
-                    self.count -= 1
-
-    def size(self):
-        return self.count
-
-    def get_spectators(self):
-        with self.lock:
-            return self.spectators.copy()
+POSITION_LABELS = ("[]", "()", "{}", "<>", "--", "==", "||", "!!", "''", "..", "**", "〔〕", "《》", "〚〛", "  ")
 
 
 class PlayerQueue:
     def __init__(self):
-        self.queue = []
-        self.queue_player = []
-        self.queue_time = {}
-        self.count = 0
-        self.lock = Lock()
+        self._queue = []
+        self._queue_player = []
+        self._queue_times = {}
+        self._q_count = 0
+        self._lock = Lock()
 
     def __contains__(self, player):
-        return player in self.queue or player in self.queue_player
+        return player in self._queue or player in self._queue_player or player in self._queue_times
 
     def __getitem__(self, index):
-        return [self.queue[index], self.queue_player[index]]
+        return [self._queue[index], self._queue_player[index]]
 
-    def add_to_queue(self, sid, player):
-        with self.lock:
-            added = 0
-            if sid not in self.queue:
-                self.queue.append(sid)
-                self.queue_player.append(player)
-                added = 1
-                self.count += 1
-                self.queue_time[str(sid)] = time.time()
-            return added
+    def __bool__(self):
+        return self._q_count > 0
 
-    def add_to_queue_pos(self, sid, player, pos):
-        with self.lock:
-            added = 0
-            if sid not in self.queue:
-                self.queue.insert(pos, sid)
-                self.queue_player.insert(pos, player)
-                added = 2
-                self.count += 1
-                self.queue_time[str(sid)] = time.time()
-            return added
+    def __len__(self):
+        return self._q_count
 
+    def size(self):
+        return self._q_count
+
+    @property
+    def count(self):
+        return self.count
+
+    @property
     def next(self):
-        return [self.queue[0], self.queue_player[0]]
+        return [self._queue[0], self._queue_player[0]]
+
+    @next.setter
+    def next(self, player):
+        sid = player.steam_id
+        if sid not in self._queue:
+            self._queue.insert(0, sid)
+            self._queue_player.insert(0, player)
+            self._q_count += 1
+            self._queue_times[str(sid)] = time.time()
+
+    def add_to_queue(self, sid, player, pos=False):
+        with self._lock:
+            added = False
+            if sid not in self._queue:
+                pos = 0 if not pos or pos < 0 else pos
+                if pos > self._q_count:
+                    pos = self._q_count
+                self._queue.insert(pos, sid)
+                self._queue_player.insert(pos, player)
+                added = True
+                self._q_count += 1
+                self._queue_times[str(sid)] = time.time()
+            return added
 
     def get_next(self):
-        return self.get_from_queue()
+        return self.get_from_index()
 
-    def get_from_queue(self, pos=None):
-        if self.count > 0:
-            with self.lock:
-                self.count -= 1
-                if pos:
-                    if pos == -1:
-                        sid = self.queue.pop()
-                        player = self.queue_player.pop()
-                    else:
-                        sid = self.queue.pop(pos)
-                        player = self.queue_player.pop(pos)
-                else:
-                    sid = self.queue.pop(0)
-                    player = self.queue_player.pop(0)
-                del self.queue_time[str(sid)]
-                return [sid, player]
+    def get_from_queue(self, pos=False):
+        if self._q_count > 0:
+            pos = 0 if not pos or pos <= 0 else pos - 1
+            if pos >= self._q_count:
+                pos = self._q_count - 1
+            return self.get_from_index(pos)
 
-    def get_two_from_queue(self):
-        if self.count > 1:
-            with self.lock:
-                self.count -= 2
-                sid1 = self.queue.pop(0)
-                player1 = self.queue_player.pop(0)
-                del self.queue_time[str(sid1)]
-                sid2 = self.queue.pop(0)
-                player2 = self.queue_player.pop(0)
-                del self.queue_time[str(sid2)]
-                return [sid1, player1, sid2, player2]
+    def get_from_index(self, pos=False):
+        if self._q_count > 0:
+            with self._lock:
+                pos = 0 if not pos or pos < 0 else pos
+                if pos > self._q_count:
+                    pos = self._q_count
+                self._q_count -= 1
+                sid = self._queue.pop(pos)
+                player = self._queue_player.pop(pos)
+                try:
+                    ptime = self._queue_times.pop(str(sid))
+                except IndexError:
+                    ptime = 0
+                return [sid, player, ptime]
+
+    def get_two(self):
+        if self._q_count > 1:
+            with self._lock:
+                self._q_count -= 2
+                sid1 = self._queue.pop(0)
+                player1 = self._queue_player.pop(0)
+                p1time = None
+                try:
+                    p1time = self._queue_times.pop(str(sid1))
+                except KeyError:
+                    pass
+                sid2 = self._queue.pop(0)
+                player2 = self._queue_player.pop(0)
+                p2time = None
+                try:
+                    p2time = self._queue_times.pop(str(sid2))
+                except KeyError:
+                    pass
+                return [sid1, player1, sid2, player2, p1time, p2time]
 
     def remove_from_queue(self, sid, player):
-        if self.count > 0:
-            with self.lock:
-                if sid in self.queue:
-                    self.count -= 1
-                    self.queue.remove(sid)
-                    self.queue_player.remove(player)
-                    del self.queue_time[str(sid)]
-
-    def get_queue_time(self, sid):
-        if str(sid) in self.queue_time:
-            return self.queue_time[str(sid)]
-        else:
-            return None
+        if self._q_count > 0:
+            with self._lock:
+                if sid in self._queue:
+                    self._q_count -= 1
+                    self._queue.remove(sid)
+                    self._queue_player.remove(player)
+                    try:
+                        del self._queue_times[str(sid)]
+                    except KeyError:
+                        pass
 
     def get_queue_position(self, player):
-        if player in self.queue:
-            return self.queue.index(player)
-        if player in self.queue_player:
-            return self.queue_player.index(player)
+        if player in self._queue:
+            return self._queue.index(player)
+        if player in self._queue_player:
+            return self._queue_player.index(player)
         else:
             return -1
 
-    def get_queue(self):
-        with self.lock:
-            return self.queue.copy()
+    def get_queue_time(self, sid):
+        if str(sid) in self._queue_times:
+            return self._queue_times[str(sid)]
+        else:
+            return None
 
-    def get_queue_names(self):
-        with self.lock:
-            return self.queue_player.copy()
+    def add_to_times(self, player):
+        with self._lock:
+            if player not in self._queue_times:
+                self._queue_times[player] = time.time()
+                self._q_count += 1
 
-    def size(self):
-        return self.count
+    def remove_from_times(self, player):
+        if self._q_count > 0:
+            with self._lock:
+                if player in self._queue_times:
+                    del self._queue_times[player]
+                    self._q_count -= 1
+
+    def get_time(self, player):
+        if player in self._queue_times:
+            return self._queue_times[player]
+        else:
+            return None
 
     def clear(self):
-        self.queue = []
-        self.queue_player = []
-        self.queue_time = {}
-        self.count = 0
+        self._queue = []
+        self._queue_player = []
+        self._queue_times = {}
+        self._q_count = 0
+
+    def queue(self):
+        with self._lock:
+            return [self._queue.copy(), self._queue_player.copy(), self._queue_times.copy()]
+
+    def sids(self):
+        with self._lock:
+            return self._queue.copy()
+
+    def players(self):
+        with self._lock:
+            return self._queue_player.copy()
+
+    def times(self):
+        with self._lock:
+            return self._queue_times.copy()
 
 
 class specqueue(minqlx.Plugin):
@@ -338,8 +329,8 @@ class specqueue(minqlx.Plugin):
         # Script Variables, Lists, and Dictionaries
         self.lock = Lock()
         self._queue = PlayerQueue()
-        self._spec = Spectators()
-        self._join = JoinTime()
+        self._spec = PlayerQueue()
+        self._join = PlayerQueue()
         self._players = []
         self.red_locked = False
         self.blue_locked = False
@@ -444,7 +435,7 @@ class specqueue(minqlx.Plugin):
                     if len(self.teams()["free"]) >= self.get_max_players():
                         at_max_players = True
                     join_locked = self.red_locked or self.blue_locked
-                if self._queue.size() > 0 or join_locked or self.game.state in ["in_progress", "countdown"] or\
+                if self._queue or join_locked or self.game.state in ["in_progress", "countdown"] or\
                         at_max_players:
                     self.add_to_queue(player)
                     self.remove_from_spec(player)
@@ -465,33 +456,36 @@ class specqueue(minqlx.Plugin):
             if "fraglimit" in args:
                 fraglimit = int(args["fraglimit"])
                 self.q_game_info[2] = fraglimit
-            if self.get_cvar("qlx_queueShowQPosition", bool) and "n" in args and index and 529 <= index <= 593:
-                player = self.player(index - 529)
-                location = "minqlx:players:{}:clantag".format(player.steam_id)
-                if player in self.teams()["spectator"]:
-                    label = self.get_cvar("qlx_queuePositionLabel", int)
-                    if player in self._queue:
-                        args["xcn"] = args["cn"] = "{}{}{}"\
-                            .format(POSITION_LABEL[label][0], self._queue.get_queue_position(player) + 1,
-                                    POSITION_LABEL[label][1])
+            if self.get_cvar("qlx_queueShowQPosition", bool) and "st" in args:
+                player = self.player(int(args["st"]))
+                if player:
+                    location = "minqlx:players:{}:clantag".format(args["st"])
+                    if player.team == "spectator":
+                        label = self.get_cvar("qlx_queuePositionLabel", str)
+                        try:
+                            ind = int(label)
+                            label = "{}{}".format(POSITION_LABELS[ind][0], POSITION_LABELS[ind][1])
+                        except ValueError:
+                            pass
+                        if int(args["st"]) in self._queue:
+                            args["xcn"] = args["cn"] = "{}{}{}"\
+                                .format(label[0], self._queue.get_queue_position(player) + 1, label[1])
+                        else:
+                            if location in self.db:
+                                clan = self.db[location]
+                            else:
+                                clan = None
+                            if clan and clan == "afk":
+                                args["xcn"] = args["cn"] = "{}afk{}".format(label[0], label[1])
+                            else:
+                                args["xcn"] = args["cn"] = "{}s{}".format(label[0], label[1])
+                        return "".join(["\\{}\\{}".format(key, args[key]) for key in args])
                     else:
                         if location in self.db:
-                            clan = self.db[location]
+                            args["xcn"] = args["cn"] = self.db[location]
                         else:
-                            clan = None
-                        if clan and clan == "afk":
-                            args["xcn"] = args["cn"] = "{}afk{}".format(POSITION_LABEL[label][0],
-                                                                        POSITION_LABEL[label][1])
-                        else:
-                            args["xcn"] = args["cn"] = "{}s{}".format(POSITION_LABEL[label][0],
-                                                                      POSITION_LABEL[label][1])
-                    return "".join(["\\{}\\{}".format(key, args[key]) for key in args])
-                else:
-                    if location in self.db:
-                        args["xcn"] = args["cn"] = self.db[location]
-                    else:
-                        args["xcn"] = args["cn"] = ""
-                    return "".join(["\\{}\\{}".format(key, args[key]) for key in args])
+                            args["xcn"] = args["cn"] = ""
+                        return "".join(["\\{}\\{}".format(key, args[key]) for key in args])
         except minqlx.NonexistentPlayerError:
             return
         except Exception as e:
@@ -714,7 +708,7 @@ class specqueue(minqlx.Plugin):
         try:
             self.remove_from_queue(player)
             self.remove_from_spec(player)
-            self._queue.add_to_queue_pos(player.steam_id, player, pos)
+            self._queue.add_to_queue(player.steam_id, player, pos)
             self.cmd_list_queue()
             self.check_for_opening(0.5)
         except Exception as e:
@@ -741,7 +735,7 @@ class specqueue(minqlx.Plugin):
 
     def check_queue(self, delay=0.1):
         try:
-            if not self.end_screen and not self.displaying_queue and self._queue.size() > 0\
+            if not self.end_screen and not self.displaying_queue and self._queue\
                     and self.get_cvar("qlx_queueQueueMsg", bool):
                 self.displaying_queue = True
                 self.queue_message(delay)
@@ -751,7 +745,7 @@ class specqueue(minqlx.Plugin):
     @minqlx.thread
     def queue_message(self, delay):
         try:
-            n = self._queue.get_queue_names()
+            n = self._queue.players()
             time.sleep(delay)
             queue_show = self.get_cvar("qlx_queueQueueMsg", int)
             if queue_show == 2 and self._round % 5 != 0:
@@ -778,7 +772,7 @@ class specqueue(minqlx.Plugin):
 
     def add_to_spec(self, player):
         try:
-            self._spec.add_to_spec(player.steam_id)
+            self._spec.add_to_times(player.steam_id)
             player.center_print("^6Spectate Mode\n^7Type ^4!s ^7to show spectators.")
         except Exception as e:
             minqlx.console_print("^1specqueue add to spec Exception: {}".format(e))
@@ -786,13 +780,13 @@ class specqueue(minqlx.Plugin):
     def remove_from_spec(self, player):
         try:
             if player:
-                self._spec.remove_from_spec(player.steam_id)
+                self._spec.remove_from_times(player.steam_id)
         except Exception as e:
             minqlx.console_print("^1specqueue remove from spec Exception: {}".format(e))
 
     def check_spec(self, delay=0.0):
         try:
-            if not self.end_screen and not self.displaying_spec and self._spec.size() > 0\
+            if not self.end_screen and not self.displaying_spec and self._spec.count > 0\
                     and self.get_cvar("qlx_queueSpecMsg", bool):
                 self.displaying_spec = True
                 self.spec_message(delay)
@@ -805,8 +799,8 @@ class specqueue(minqlx.Plugin):
             time.sleep(delay)
             spec_show = self.get_cvar("qlx_queueSpecMsg", int)
             spectators = self.teams()["spectator"]
-            if self._spec.size() > 0 and len(spectators) > 0:
-                s = self._spec.get_spectators()
+            if self._spec.count > 0 and len(spectators) > 0:
+                s = self._spec.times()
                 for p, t in s.items():
                     spec = self.player(int(p))
                     if spec in spectators:
@@ -839,7 +833,7 @@ class specqueue(minqlx.Plugin):
     def check_for_opening(self, delay=0.0):
         if self.end_screen:
             return
-        if self._checking_opening or self._queue.size() == 0:
+        if self._checking_opening or not self._queue:
             self.check_queue_status()
             return
         self._checking_opening = time.time()
@@ -875,7 +869,7 @@ class specqueue(minqlx.Plugin):
                     elif difference > 0:
                         finished = self.place_in_team(difference, "blue")
                     else:
-                        if self._queue.size() > 1:
+                        if self._queue.count > 1:
                             if red_players < team_size and blue_players < team_size:
                                 finished = self.place_in_both()
                         elif state == "warmup":
@@ -897,7 +891,7 @@ class specqueue(minqlx.Plugin):
                 if not self.end_screen:
                     count = 0
                     teams = self.teams()
-                    while count < amount and self._queue.size():
+                    while count < amount and self._queue:
                         p = self._queue.get_next()
                         if p[1] in teams["spectator"]and p[1].connection_state == "active":
                             self.team_placement(p[1], team)
@@ -918,7 +912,7 @@ class specqueue(minqlx.Plugin):
     def place_in_both(self):
         with self.lock:
             try:
-                if not self.end_screen and self._queue.size() > 1:
+                if not self.end_screen and self._queue.count > 1:
                     teams = self.teams()
                     spectators = teams["spectator"]
                     p1_sid = self._queue[0][0]
@@ -964,19 +958,19 @@ class specqueue(minqlx.Plugin):
                                 self.msg("{} ^7has joined the {}{} ^7team."
                                          .format(player2[1], "^1" if placement[1] == "red" else "^4", placement[1]))
                             else:
-                                self.add_to_queue_pos(player1[1], 0)
+                                self._queue.next = player1[1]
                     else:
                         player1 = self._queue.get_next()
                         if player1[1] in spectators and player1[1].connection_state == "active":
                             player2 = self._queue.get_next()
                             if player2[1] in spectators and player2[1].connection_state == "active":
-                                players = self._queue.get_two_from_queue()
+                                players = self._queue.get_two()
                                 self.team_placement(player1[1], "blue")
                                 self.msg("{} ^7has joined the ^4blue ^7team.".format(players[1]))
                                 self.team_placement(player2[1], "red")
                                 self.msg("{} ^7has joined the ^1red ^7team.".format(players[3]))
                             else:
-                                self.add_to_queue_pos(player1[1], 0)
+                                self._queue.next = player1[1]
             except Exception as e:
                 minqlx.console_print("^1specqueue Place in Both Exception: {}".format(e))
                 for player in self.teams()["spectator"]:
@@ -1063,7 +1057,7 @@ class specqueue(minqlx.Plugin):
         try:
             teams = self.teams()
             for player in teams["red"] + teams["blue"] + teams["free"]:
-                self._join.add_to_jt(player.steam_id)
+                self._join.add_to_times(player.steam_id)
         except Exception as e:
             minqlx.console_print("^1specqueue add join times Exception: {}".format(e))
 
@@ -1077,13 +1071,13 @@ class specqueue(minqlx.Plugin):
 
     def add_to_join(self, player):
         try:
-            self._join.add_to_jt(player.steam_id)
+            self._join.add_to_times(player.steam_id)
         except Exception as e:
             minqlx.console_print("^1specqueue add to join Exception: {}".format(e))
 
     def remove_from_join(self, player):
         try:
-            self._join.remove_from_jt(player.steam_id)
+            self._join.remove_from_times(player.steam_id)
         except Exception as e:
             minqlx.console_print("^1specqueue remove from join Exception: {}".format(e))
 
@@ -1092,13 +1086,13 @@ class specqueue(minqlx.Plugin):
             if player.steam_id not in self._join:
                 self.add_to_join(player)
                 return time.time()
-            return self._join.get_join_time(player.steam_id)
+            return self._join.get_time(player.steam_id)
         except Exception as e:
             minqlx.console_print("^1specqueue get join time Exception: {}".format(e))
 
     def get_join_times(self):
         try:
-            return self._join.get_jt()
+            return self._join.times()
         except Exception as e:
             minqlx.console_print("^1specqueue get join times Exception: {}".format(e))
 
@@ -1344,8 +1338,8 @@ class specqueue(minqlx.Plugin):
             if 0 < max_spec_time < 9999:
                 admin = self.get_cvar("qlx_queueAdmin", int)
                 spectators = self.teams()["spectator"]
-                if self._spec.size() > 0 and len(spectators) > 0:
-                    s = self._spec.get_spectators()
+                if self._spec.count > 0 and len(spectators) > 0:
+                    s = self._spec.times()
                     for p, t in s.items():
                         spec = self.player(int(p))
                         if spec in spectators:
@@ -1390,16 +1384,16 @@ class specqueue(minqlx.Plugin):
     def get_current_settings(self, player, msg, channel):
         try:
             message = ["^6SpecQueue current variable states:"]
-            if self._queue.size() > 0:
-                message.append("^3Queue: {} Size: {}".format(str(self._queue.get_queue()), self._queue.size()))
+            if self._queue:
+                message.append("^3Queue: {} Size: {}".format(str(self._queue.players()), self._queue.count))
             else:
                 message.append("^3Queue is empty")
-            if self._spec.size() > 0:
-                message.append("^3Specs: {} Size: {}".format(str(self._spec.get_spectators()), self._spec.size()))
+            if self._spec.count > 0:
+                message.append("^3Specs: {} Size: {}".format(str(self._spec.times()), self._spec.count))
             else:
                 message.append("^3Specs is empty")
-            if self._join.size() > 0:
-                message.append("^3Join Times: {} Size: {}".format(str(self._join.get_jt()), self._join.size()))
+            if self._join.count > 0:
+                message.append("^3Join Times: {} Size: {}".format(str(self._join.times()), self._join.count))
             else:
                 message.append("^3Join Times is empty")
             if len(self._player_models) > 0:
@@ -1569,7 +1563,14 @@ class specqueue(minqlx.Plugin):
                 except Exception as e:
                     minqlx.console_print("^1specqueue Cmd Que Add Exception: {}".format(e))
                     return
-                self.add_to_queue(target_player)
+                if len(msg) > 2:
+                    try:
+                        pos = int(msg[2])
+                        self.add_to_queue_pos(target_player, pos)
+                    except ValueError:
+                        self.add_to_queue(target_player)
+                else:
+                    self.add_to_queue(target_player)
         except Exception as e:
             minqlx.console_print("^1specqueue cmd queue add Exception: {}".format(e))
         self.update_queue_tags()
@@ -1589,8 +1590,8 @@ class specqueue(minqlx.Plugin):
             spectators = self.teams()["spectator"]
             count = 0
             message = []
-            if self._queue.size() > 0 and len(spectators) > 0:
-                for n in range(0, self._queue.size()):
+            if self._queue and len(spectators) > 0:
+                for n in range(0, self._queue.count):
                     spec = self._queue[n]
                     if spec[1] in spectators:
                         t = self._queue.get_queue_time(spec[0])
@@ -1621,8 +1622,8 @@ class specqueue(minqlx.Plugin):
             spectators = self.teams()["spectator"]
             count = 0
             message = []
-            if self._spec.size() > 0 and len(spectators) > 0:
-                s = self._spec.get_spectators()
+            if self._spec.count > 0 and len(spectators) > 0:
+                s = self._spec.times()
                 for p, t in s.items():
                     spec = self.player(int(p))
                     if spec in spectators:
