@@ -130,7 +130,7 @@ class PlayerQueue:
 
     @property
     def count(self):
-        return self.count
+        return self._q_count
 
     @property
     def next(self):
