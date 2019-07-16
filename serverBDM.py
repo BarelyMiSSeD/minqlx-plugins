@@ -137,7 +137,7 @@ import random
 import requests
 import re
 
-VERSION = "2.01.1"
+VERSION = "2.01.2"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
@@ -1225,6 +1225,7 @@ class serverBDM(minqlx.Plugin):
             teams = self.teams()
             if len(teams["red"] + teams["blue"] + teams["free"] + teams["spectator"]) == 0:
                 minqlx.console_print("^3No players connected")
+                return
             if self.game.state not in ["in_progress", "countdown"]:
                 minqlx.console_print("^3Match is not in progress")
             if self._bdm_gtype in TEAM_BASED_GAMETYPES:
