@@ -145,15 +145,18 @@ class PlayerQueue:
             self._q_count += 1
             self._queue_times[str(sid)] = time.time()
 
-    def add_to_queue(self, sid, player, pos=False):
+    def add_to_queue(self, sid, player, pos=None):
         with self._lock:
             added = False
             if sid not in self._queue:
-                pos = 0 if not pos or pos < 0 else pos
-                if pos > self._q_count:
-                    pos = self._q_count
-                self._queue.insert(pos, sid)
-                self._queue_player.insert(pos, player)
+                if pos or pos == 0:
+                    if pos > self._q_count:
+                        pos = self._q_count
+                    self._queue.insert(pos, sid)
+                    self._queue_player.insert(pos, player)
+                else:
+                    self._queue.append(sid)
+                    self._queue_player.append(player)
                 added = True
                 self._q_count += 1
                 self._queue_times[str(sid)] = time.time()
