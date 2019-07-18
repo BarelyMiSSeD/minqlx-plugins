@@ -34,8 +34,10 @@ The remaining variables should not need to be edited.<br>
 
 # download_new.sh
 *** This should be ran when the server is not running .. because the server will not know of the existence of the workshop items until it is started again and editing the appworkshop_282440.acf when the server is running is problematic. *** <br>
-This file is for downloading new workshop items added to your workshop items file. <br>
+This file is for downloading new workshop items added to your workshop items file,<br>
+or items that did not load with redownload.sh. <br>
 It will skip items that have already been downloaded.<br>
+The download messages from steamcmd will be displayed using this file so you can see if a workshop item does not exist.<br>
 Line 10: Edit the workshopFile name to match the name of your server's workshop file.<br>
 Line 11: Edit the steamCMD to match the containing directory structure of the steamcmd.sh file.<br>
 Line 12: Edit the installLocation to match the directory where your quake live server is installed.<br>
