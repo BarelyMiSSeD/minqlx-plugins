@@ -3,7 +3,7 @@ I put these files together to allow server admins to update their maps on their 
 Here is how I use them:<br>
 1) Shut down all the servers running on the same Quake Live server install<br>
 2) Run the redownload.sh using one of your workshop.txt files. (If you only have one workshop file, this is the last step you need to do)<br>
-3) Run the download_new.sh for each of the workshop files you have, including the one you ran the redownload on so you can catch any taht were missed or see why they didn't download. (you can rename the files to something like download_new_server2.sh, but make sure to have a .sh file for each workshop.txt file)<br>
+3) Run the download_new.sh for each of the workshop files you have, including the one you ran the redownload on, so you can catch any that were missed or see why they didn't download. (you can rename the files to something like download_new_server2.sh, but make sure to have a .sh file for each workshop.txt file)<br>
 4) restart your servers.<br>
 
 The autodownload.sh is there if you like the way it downloads and overwrites the current files, but I don't use this file.<br>
