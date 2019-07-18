@@ -1,4 +1,5 @@
 I put these files together to allow server admins to update their maps on their server by just running these bash shell scripts.<br>
+*** Make sure to set execute permissions on these .sh files ***<br>
 
 Here is how I use them:<br>
 1) Shut down all the servers running on the same Quake Live server install<br>
