@@ -19,7 +19,7 @@ while [ $counter -lt $numOfIDs ]; do
 	workshopIDs=`echo $workshopIDs | cut -d ' ' -f2-`
 	if [ ! -d "$installLocation/steamapps/workshop/content/282440/$currentID" ]; then
 		echo -e "$(timestamp) Downloading item $(expr $counter + 1) of $numOfIDs from Steam with id $currentID"
-		$steamCMD/steamcmd.sh +login anonymous +force_install_dir $installLocation/ +workshop_download_item 282440 $currentID +quit > /dev/null
+		$steamCMD/steamcmd.sh +login anonymous +force_install_dir $installLocation/ +workshop_download_item 282440 $currentID +quit
 		if [ $? -ne 0 ]; then
 			echo -e "$(timestamp) Download of id $currentID failed with steamcmd error code $?"
 		else
