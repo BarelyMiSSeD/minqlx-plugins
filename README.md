@@ -1,4 +1,64 @@
 # minqlx-plugins
+
+# specqueue.py
+<b>This is a queueing plugin for the minqlx admin bot.</b><br>
+This plugin can be used alone or with the serverBDM.py plugin.<br>
+
+This plugin is intended to help keep the game as enjoyable as possible,<br>
+ without the hassles of people making teams uneven, or someone joining later than others,<br>
+ but happening to hit the join button first and cutting in line when a play spot opens.<br>
+
+The plugin will also attempt to keep team games even, when adding 2 players at once,<br>
+ by putting players into the most appropriate team, based on team scores or player BDMs.<br>
+
+This plugin will spectate people when teams are uneven. It will, by default settings,<br>
+ first look at player times then player scores to determine who, on the team with more players,<br>
+ gets put to spectate. When a player gets put to spectate they will automatically get put into the<br>
+ queue at the beginning of the line.<br>
+
+There is also the option to have the players in spectate for too long (set with qlx_queueMaxSpecTime)<br>
+ to be kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.<br>
+This feature will not kick people with permission levels at or above the qlx_queueAdmin level,<br>
+ or people who are in the queue.<br>
+
+Use the command '!fix' to fix a player that is shown as sarge and not seen as an enemy or a team mate.<br>
+This will set each player's model the the model recorded when they joined the server.<br>
+
+Read the top of the file to know how to set the required cvars for your server once the default values are not desired.<br>
+There are a lot of settings to help server admins set up the server to better admin the server how they desire.<br>
+
+<b>Commands:</b><br>
+!q or !queue: displays the players currently in the queue<br>
+!s or !specs: Displays the players currently set to spectate only<br>
+!addqueue or !addq: puts a player into the next available queue slot<br>
+!qversion or !qv: displays the queue version number<br>
+!ignore: will ignore uneven teams for the next round start<br>
+!latch <ignore|spec|setting>: will latch the ignore setting to the action included (setting tells current state)<br>
+!fix <all>: sets all players models to what was recorded by the script when the player connected (sarge bug fix)<br>
+
+# serverBDM.py
+This script collects data on the players on the server and calculates a Basic Damage Metric (BDM) rating. It works for game types Clan Arena, Freeze Tag, Free For All, Capture The Flag, Instagib Capture the Flag, and Team Death Match.
+
+The script will do balancing and switch recommendations.<br>
+*** WARNING: If you use this with other script that use !teams or !balance or that perform the same type of actions you will want to make a choice and disable those features in the script you don't want to primarily use (This includes the balance.py that comes with the minqlx bot)***<br>
+This script, by default, will not do anything automatically that will interfere with the other script that use !teams or !balance. The actions can be turned on when there is sufficient data collection for the players on the server.<br>
+
+Read the top of the file to know how to set the required cvars for your server once the default values are not desired.<br>
+
+<b>Commands</b>
+
+!bdmversion or !bdmv: displayes the script version in chat<br>
+!bdm: displays the reqestors BDM in chat (can be used with ID number as well)<br>
+!bdmhor !bdmhistory: displays the requstors BDM, Quit percentage and previous 5 BDM ratings.<br>
+!bdms: displays the BDMs of the players on the server<br>
+!bteams: analyzes the teams and recommends player swaps to better even the teams based on BDM<br>
+!teams: (if enabled) will work just like !bteams<br>
+!a: how players agree to the switch recommendation from !bteams<br>
+!do: how a server admin forces the switch recommedation made by !bteams<br>
+!bbalance: will balance the teams based on BDM<br>
+!balance: (if enabled) will work just like !bbalance<br>
+!setbdm: set a players BDM<br>
+
 # bots.py
 This is a plugin for the minqlx admin bot.
 This keeps the server populated with bots (up to the set number) and will kick a bot to replace with a human player when they join.
@@ -6,16 +66,7 @@ This is intended to give people a place to play even when no one else is playing
 
 NOTE: THIS SCRIPT IS WILL NOT WORK WITHOUT THE SPECQUEUE.PY SCRIPT ON THIS PAGE.
 
-//script cvars to be put in server configuration file (default: server.cfg). Default values shown.<br>
-//set map the server will change to when the script is loaded if bot_enable isn't on<br>
-set qlx_botsMap "almostlost"<br>
-//set the maximum number of bots per team<br>
-set qlx_botsMaxBots "4"<br>
-//set weather to set a bot default level or to use the bots standard level set in BOT_DEFAULT_SKILLS<br>
-set qlx_botsUseDefaultSkills "1"<br>
-//use this skill level for all bots if qlx_botsUseDefaultSkills is set to "1"<br>
-set qlx_botsSkillLevel "3"<br>
-<br>
+Read the top of the file to know how to set the required cvars for your server once the default values are not desired.<br>
 
 # battleroyale.py
 This is a plugin for the minqlx admin bot.
@@ -24,35 +75,7 @@ It makes a last man standing game style played in FFA with some default weapons.
 NOTE: THIS SCRIPT IS NOT COMPATIBLE WITH ANY OTHER QUEUE SCRIPT.
         IT PERFORMS QUEUEING ACTIONS TO FACILITATE A LAST MAN STANDING GAME.
 
-//script cvars to be put in server configuration file (default: server.cfg). Default values shown.<br>
-// set the permission level for admins<br>
-set qlx_brAdmin "3"<br>
-// set the amount of rounds a player needs to win to win the match<br>
-set qlx_brWinRounds "3"<br>
-// set the health bonus given to a player when they kill an opponent<br>
-set qlx_brKillHealthBonus "50"<br>
-// set the armor bonus given to a player when they kill an opponent<br>
-set qlx_brKillArmorBonus "50"<br>
-// set the amount of damage a player gets when the last 2 players remain and no contact has happened<br>
-set qlx_brLast2Damage "50"<br>
-// set the seconds delay between checking for last 2 player contact<br>
-set qlx_brDamageDelay "30"<br>
-// If the last 2 are still alive after this many time periods, slap for damage every time period<br>
-// Set this to a high value to disable.<br>
-set qlx_brSlapAfterTimePeriods "2"<br>
-// Added for the 'qlx_brSlapAfterTimePeriods'. If qlx_brSlapAfterTimePeriods is enabled this will half the time<br>
-//  periods between the slaps/damage. (0=off, 1=on, any number above 1 will be added by qlx_brSlapAfterTimePeriods<br>
-//  and that amount of rounds after the qlx_brSlapAfterTimePeriods starts the time between slaps will be half).<br>
-set qlx_brHalfTimePeriod "2"<br>
-// Notify a player when they set themselves to spectate (0=off 1=on)<br>
-set qlx_brTellWhenInSpecOnly "1"<br>
-// Enable to use the slap function as the damage dealer for the last 2<br>
-// Slapping causes the player to move upward a little as if slapped from below<br>
-// Disabling this results in a small center print message and a sound to notify the player that damage was dealt<br>
-set qlx_brUseSlapDmg "0"<br>
-// The map loaded after the Battle Royale script initializes (loads) to ensure the SETTINGS are set<br>
-set qlx_brLoadMap "almostlost"<br>
-<br>
+Read the top of the file to know how to set the required cvars for your server once the default values are not desired.<br>
 
 Commands available with battleroyale.py:<br>
 !q or !queue: displays the players currently in the queue<br>
@@ -70,16 +93,7 @@ It modifies the game CVARs to make warmup time a little different and hopefully 
 Be careful modifying the setting too much. Too many projectiles needing to be kept track of
   by the server may result in server crashes. Use/Modify this at your own risk.
 
-//script cvars to be put in server configuration file (default: server.cfg). Default values shown.<br>
-// set the permission level for admins to allow setting and unsetting of the fun warm up mode<br>
-set qlx_fwAdminLevel "3"<br>
-// Enable or Disable the automatic enabling of the fun warm up mode on map changes<br>
-set qlx_fwSetupWarmupFun "1"<br>
-// Set the number of seconds each weapon is used during the fun warm up period<br>
-set qlx_fwInterval "60"<br>
-// Set the number of players allowed on the server to choose if the fun warm up uses WEAPONS or WEAPONS2 settings<br>
-// It looks at teamsize or maxplayers to determine which to use.<br>
-set qlx_fwPlayerSplit "8"<br>
+Read the top of the file to know how to set the required cvars for your server once the default values are not desired.<br>
 <br>
 <br><br>
 Commands available with funwarmup.py listed with the set permission levels
@@ -110,111 +124,6 @@ set qlx_mmChangeWhenEmpty "1"           //Enable to change to default map when a
 <br>
 <b>Commands:</b><br>
 !setfun<br>
-
-
-# specqueue.py
-<b>This script works as a standalone or with serverBDM.py</b><br>
-This is a queueing plugin for the minqlx admin bot.
-
-This plugin is intended to help keep the game as enjoyable as possible, without
-the hassles of people making teams uneven, or someone joining later than others,
-but happening to hit the join button first and cutting in line when a play spot opens.
-
-With serverBDM.py the plugin can also attempt to keep team games even, when adding 2 players at once,
-by putting players into the most appropriate team, based on team scores or player BDMs.
-
-This plugin will spectate people when teams are uneven. It will, by default settings, first look at player score
-then player play time to determine who, on the team with more players, gets put to spectate. When a player
-gets put to spectate they will automatically get put into the queue in the beginning of the line.
-
-There is also the option to have the players in spectate for too long (set with qlx_queueMaxSpecTime) to be
-kicked. This will only kick the player, not do any kind of ban, so the player can reconnect immediately.
-This feature will not kick people with permission levels at or above the qlx_queueAdmin level, or people 
-who are in the queue.
-
-// This section can be copied directly into the server.cfg and edited to your specifications<br>
-//set the minqlx permission level needed to admin this script<br>
-set qlx_queueAdmin", "3"<br>
-//enable to use BDM in placement into teams when 2 players are put in together<br>
-//disable to use as generic queue system (0=off, 1=on)<br>
-set qlx_queueUseBDMPlacement "1"<br>
-//The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will<br>
-// put the higher BDM player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting<br>
-set qlx_queuePlaceByTeamScores "1"<br>
-//Set the score difference used if qlx_queuePlaceByTeamScores is on<br>
-set qlx_queueTeamScoresDiff "3"<br>
-//Display the Queue message at the start of each round (0=off, 1=on, 2=display every 5th round)<br>
-set qlx_queueQueueMsg "1"<br>
-//Display the Spectate message at the start of each round<br>
-set qlx_queueSpecMsg "1"<br>
-//the minimum amount of players before the teams will be kept player number balanced<br>
-set qlx_queueMinPlayers "2"<br>
-//the maximum amount of players after which the teams will not be kept player number balanced<br>
-set qlx_queueMaxPlayers "30"<br>
-//use time played as a choosing factor to decide which player to spectate<br>
-set qlx_queueSpecByTime "1"<br>
-//use score played as a choosing factor to decide which player to spectate<br>
-set qlx_queueSpecByScore "1"<br>
-//set to either "score" or "time" to set which to use as the primary deciding factor in choosing a player to spectate<br>
-set qlx_queueSpecByPrimary "score"<br>
-//set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will<br>
-// kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")<br>
-set qlx_queueMaxSpecTime "9999"<br>
-// The amount of time in NO_COUNTDOWN_TEAM_GAMES it will give when teams are detected<br>
-//  as uneven before putting a player in spectate<br>
-set qlx_queueCheckTeamsDelay "5"<br>
-// Enable the fix the sarge player bug to execute at the start of a game<br>
-//  This will wait 2 seconds after the start of the game and set everyone's player model to the model being reported by<br>
-//   the server. It will not change what the player has set unless the server did not correctly receive the<br>
-//   player model information on player connect. This is an attempt to fix any occurrence of a player showing up as<br>
-//   the Sarge character of brown color, appearing like they are not on a team. (0=disable, 1=enable)<br>
-set qlx_queueResetPlayerModels "0"<br>
-// Enable to shuffle teams whenever the map changes, even if the same map is loaded again, or when a game is aborted<br>
-// (0=disable, 1=enable) (enabling not recommended if server is set to auto balance teams)<br>
-set qlx_queueShuffleOnMapChange "0"<br>
-// If shuffle on map change is enabled, sets the amount of time to wait before shuffling teams<br>
-// (must have qlx_queueShuffleOnMapChange enabled to work and a min of 10 and max of 30 seconds is required)<br>
-set qlx_queueShuffleTime "10"<br>
-// If shuffle on map change is enabled, displays a message to players counting down to the shuffle<br>
-// (0=disable, 1=center print every second, 2=center print every 5 seconds,<br>
-//    3=chat message every second, 4=chat message every 5 seconds)<br>
-set qlx_queueShuffleMessage "2"<br>
-// This will enable/disable the labeling of spectators with their spec/queue status (0=disable, 1=enable)<br>
-set qlx_queueShowQPosition""1"<br>
-// Chose the style of character surrounding the spec/queue label (default is brackets [] , ex. [1] )<br>
-// Start counting at 0 and chose the character position from the POSITION_LABEL list, so {} would be 2.<br>
-// POSITION_LABEL = ("[]", "()", "{}", "  ") 0=[], 1=(), 2={}, 3=SpaceSpace<br>
-// You can add to or edit the list below, there must be a leading and trailing character surrounded by quotes.<br>
-set qlx_queuePositionLabel "0"<br>
-
-<b>Commands:</b><br>
-!q or !queue: displays the players currently in the queue<br>
-!s or !specs: Displays the players currently set to spectate only<br>
-!addqueue or !addq: puts a player into the next available queue slot<br>
-!qversion or !qv: displays the queue version number<br>
-
-# serverBDM.py
-This script collects data on the players on the server and calculates a Basic Damage Metric (BDM) rating. It works for game types Clan Arena, Freeze Tag, Free For All, Capture The Flag, Instagib Capture the Flag, and Team Death Match.
-
-The script will do balancing and switch recommendations.
-*** WARNING: If you use this with other script that use !teams or !balance or that perform the same type of actions you will want to make a choice and disable those features in the script you don't want to primarily use (This includes the balance.py that comes with the minqlx bot)***
-This script, by default, will not do anything automatically that will interfere with the other script that use !teams or !balance. The actions can be turned on when there is sufficient data collection for the players on the server.
-
-Read the top of the file to know how to set the required cvars for your server once the default values are not desired.
-
-<b>Commands</b>
-
-!bdmversion or !bdmv: displayes the script version in chat<br>
-!bdm: displays the reqestors BDM in chat (can be used with ID number as well)<br>
-!bdmhor !bdmhistory: displays the requstors BDM, Quit percentage and previous 5 BDM ratings.<br>
-!bdms: displays the BDMs of the players on the server<br>
-!bteams: analyzes the teams and recommends player swaps to better even the teams based on BDM<br>
-!teams: (if enabled) will work just like !bteams<br>
-!a: how players agree to the switch recommendation from !bteams<br>
-!do: how a server admin forces the switch recommedation made by !bteams<br>
-!bbalance: will balance the teams based on BDM<br>
-!balance: (if enabled) will work just like !bbalance<br>
-!setbdm: set a players BDM<br>
 
 # Protect.py
 
