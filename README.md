@@ -59,6 +59,22 @@ Read the top of the file to know how to set the required cvars for your server o
 !balance: (if enabled) will work just like !bbalance<br>
 !setbdm: set a players BDM<br>
 
+# commands.py
+This script lists the loaded plugins and the commands available for each plugin.
+
+CVARS<br>
+//Server Config cvars<br>
+//Set the permission level needed to list the commands<br>
+set qlx_commandsAdmin "0"<br>
+//Enable to show only the commands the calling player can use, disable to show all commands (0=disable, 1=enable)<br>
+set qlx_commandsOnlyEligible "1"<br>
+
+
+<b>Commands</b><br>
+!plugins: displays the loaded plugins<br>
+!lc or listcmds or listcommands: <plugin_name> will list the minqlx commands on the server an optional<br>
+    plugin search limiter can be included<br>
+
 # bots.py
 This is a plugin for the minqlx admin bot.
 This keeps the server populated with bots (up to the set number) and will kick a bot to replace with a human player when they join.
