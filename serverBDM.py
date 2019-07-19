@@ -262,6 +262,7 @@ class serverBDM(minqlx.Plugin):
         self.vote_count = [0, 0, 0]
         self._locked = [False, False, 0]
 
+        # Initializing commands
         self.create_db()
         if self.game is not None and self.game.state == "in_progress":
             self.players_in_teams()
@@ -270,6 +271,8 @@ class serverBDM(minqlx.Plugin):
             minqlx.console_command('set g_teamForceBalance "0"')
         else:
             minqlx.console_command('set g_teamForceBalance "1"')
+
+        self.remove_conflicting_commands()
 
     # ==============================================
     #               Event Handler's
@@ -891,16 +894,14 @@ class serverBDM(minqlx.Plugin):
             if len(teams["red"] + teams["blue"]) % 2 != 0:
                 if self.get_cvar("qlx_bdmBalanceUnevenTeams", bool):
                     try:
-                        if "specqueue" in minqlx.Plugin._loaded_plugins:
-                            exclude = minqlx.Plugin._loaded_plugins["specqueue"]\
-                                .return_spec_player((teams["red"] + teams["blue"]))[0]
-                        else:
-                            lowest = self.get_cvar("qlx_bdmMaxRating", int)
-                            for player in (teams["red"] + teams["blue"]):
-                                bdm = self.get_bdm_field(player, game_type, "rating")
-                                if bdm < lowest:
-                                    lowest = bdm
-                                    exclude = player
+                        exclude = self.plugins["specqueue"].return_spec_player((teams["red"] + teams["blue"]))[0]
+                    except KeyError:
+                        lowest = self.get_cvar("qlx_bdmMaxRating", int)
+                        for player in (teams["red"] + teams["blue"]):
+                            bdm = self.get_bdm_field(player, game_type, "rating")
+                            if bdm < lowest:
+                                lowest = bdm
+                                exclude = player
                     except Exception as e:
                         minqlx.console_print("^1serverBDM exclude player ^7{} ^1Exception: {}".format(exclude, e))
                     if exclude:
@@ -1041,16 +1042,14 @@ class serverBDM(minqlx.Plugin):
             if len(teams["red"] + teams["blue"]) % 2 != 0:
                 if self.get_cvar("qlx_bdmBalanceUnevenTeams", bool):
                     try:
-                        if "specqueue" in minqlx.Plugin._loaded_plugins:
-                            exclude = minqlx.Plugin._loaded_plugins["specqueue"]\
-                                .return_spec_player((teams["red"] + teams["blue"]))[0]
-                        else:
-                            lowest = self.get_cvar("qlx_bdmMaxRating", int)
-                            for player in (teams["red"] + teams["blue"]):
-                                bdm = self.get_bdm_field(player, game_type, "rating")
-                                if bdm < lowest:
-                                    lowest = bdm
-                                    exclude = player
+                        exclude = self.plugins["specqueue"].return_spec_player((teams["red"] + teams["blue"]))[0]
+                    except KeyError:
+                        lowest = self.get_cvar("qlx_bdmMaxRating", int)
+                        for player in (teams["red"] + teams["blue"]):
+                            bdm = self.get_bdm_field(player, game_type, "rating")
+                            if bdm < lowest:
+                                lowest = bdm
+                                exclude = player
                     except Exception as e:
                         minqlx.console_print("^1serverBDM exec_cd_bdmbalance exclude player ^7{} ^1Exception: {}"
                                              .format(exclude, e))
@@ -1215,56 +1214,82 @@ class serverBDM(minqlx.Plugin):
             minqlx.console_print("^1serverBDM cmd_dmg_status Exception: {}".format(e))
 
     def cmd_game_status(self, player=None, msg=None, channel=None):
-        self.exec_game_status(player, msg, channel)
+        self.exec_game_status()
 
     @minqlx.thread
-    def exec_game_status(self, player=None, msg=None, channel=None):
+    def exec_game_status(self):
         try:
             minqlx.console_print("^6Game Status: ^4Map ^1- ^7{} ^5Game Mode ^1- ^7{}"
                                  .format(self.get_cvar("mapname"), self._bdm_gtype.upper()))
             teams = self.teams()
             if len(teams["red"] + teams["blue"] + teams["free"] + teams["spectator"]) == 0:
                 minqlx.console_print("^3No players connected")
-                return
-            if self.game.state not in ["in_progress", "countdown"]:
-                minqlx.console_print("^3Match is not in progress")
-            if self._bdm_gtype in TEAM_BASED_GAMETYPES:
-                red_team = []
-                blue_team = []
-                minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}".format(self.game.red_score, self.game.blue_score))
-                for player in teams["red"]:
-                    red_team.append("    ^1{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
-                                    .format(player.id, player.stats.ping, player.stats.score, player,
-                                            "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
-                                            player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
-                                            player.stats.damage_taken))
-                minqlx.console_print("^1Red^7: ^7(^1ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)"
-                                     " ^1{} ^7Players"
-                                     .format(len(red_team)))
-                for player in red_team:
-                    minqlx.console_print(player)
-                for player in teams["blue"]:
-                    blue_team.append("    ^4{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
-                                     .format(player.id, player.stats.ping, player.stats.score, player,
-                                             "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
-                                             player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
-                                             player.stats.damage_taken))
-                minqlx.console_print("^4Blue^7: ^7(^4ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths ^2DmgDlt^7/^1DmgTkn^7)"
-                                     " ^4{} ^7Players"
-                                     .format(len(blue_team)))
-                for player in blue_team:
-                    minqlx.console_print(player)
             else:
-                for player in teams["free"]:
-                    minqlx.console_print("{}^7: {} ^6Ping^7: {}".format(player, player.stats.score, player.stats.ping))
-            for player in teams["spectator"]:
-                minqlx.console_print("^6Spectator^7: {} {}".format(player.id, player))
+                if self.game.state not in ["in_progress", "countdown"]:
+                    minqlx.console_print("^3Match is not in progress")
+                if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+                    red_team = []
+                    blue_team = []
+                    minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}"
+                                         .format(self.game.red_score, self.game.blue_score))
+                    for player in teams["red"]:
+                        red_team.append("    ^1{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                        .format(player.id, player.stats.ping, player.stats.score, player,
+                                                "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
+                                                player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                                player.stats.damage_taken))
+                    minqlx.console_print("^1Red^7: ^7(^1ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths"
+                                         " ^2DmgDlt^7/^1DmgTkn^7) ^1{} ^7Players".format(len(red_team)))
+                    for player in red_team:
+                        minqlx.console_print(player)
+                    for player in teams["blue"]:
+                        blue_team.append("    ^4{} ^5{} ^6{} ^7{} {} ^2{}^7/^1{} ^2{}^7/^1{}"
+                                         .format(player.id, player.stats.ping, player.stats.score, player,
+                                                 "^7(^2ALIVE^7)" if player.is_alive else "^7(^1DEAD^7)",
+                                                 player.stats.kills, player.stats.deaths, player.stats.damage_dealt,
+                                                 player.stats.damage_taken))
+                    minqlx.console_print("^4Blue^7: ^7(^4ID ^5Ping ^6Score ^7Name ^2Kills^7/^1Deaths"
+                                         " ^2DmgDlt^7/^1DmgTkn^7) ^4{} ^7Players".format(len(blue_team)))
+                    for player in blue_team:
+                        minqlx.console_print(player)
+                else:
+                    for player in teams["free"]:
+                        minqlx.console_print("{}^7: {} ^6Ping^7: {}"
+                                             .format(player, player.stats.score, player.stats.ping))
+
+                for player in teams["spectator"]:
+                    queue = self.plugins["specqueue"].player_in_queue(player.steam_id)
+                    slot = queue + 1 if queue is not None else None
+                    minqlx.console_print("^6Spectator^7: {} {} {}"
+                                         .format(player.id, player,
+                                                 "^7(^2Queue Pos: {}^7)".format(slot) if slot else ""))
         except Exception as e:
             minqlx.console_print("^1serverBDM exec_game_status Exception: {}".format(e))
 
     # ==============================================
     #               Script Commands
     # ==============================================
+    # If serverBDM should respond to the teams and/or the balance command, this will remove those
+    # commands if they exist in other plugins
+    @minqlx.delay(5)
+    def remove_conflicting_commands(self):
+        teams = self.get_cvar("qlx_bdmRespondToTeamsCommand", bool)
+        balance = self.get_cvar("qlx_bdmRespondToBalanceCommand", bool)
+        if teams or balance:
+            loaded_scripts = self.plugins
+            scripts = set(loaded_scripts)
+            for script in scripts:
+                if script == self.__class__.__name__:
+                    continue
+                try:
+                    for cmd in loaded_scripts[script].commands:
+                        if teams and {"teams"}.intersection(cmd.name):
+                            loaded_scripts[script].remove_command(cmd.name, cmd.handler)
+                        elif balance and {"balance"}.intersection(cmd.name):
+                            loaded_scripts[script].remove_command(cmd.name, cmd.handler)
+                except:
+                    continue
+
     # Displays the join message for the supplied player
     def display_join_message(self, player):
         if self.get_cvar("g_factory").lower() == "ictf":
