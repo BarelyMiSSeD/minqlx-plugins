@@ -8,7 +8,7 @@
 # You should have received a copy of the GNU General Public License
 # along with minqlx. If not, see <http://www.gnu.org/licenses/>.
 
-# This is a command listing script for the minqlx admin bot.
+# This is a plugin and command listing script for the minqlx admin bot.
 # This plugin will list all the in game commands loaded on the server.
 """
 //Server Config cvars
@@ -19,6 +19,7 @@ set qlx_commandsOnlyEligible "1"
 """
 
 import minqlx
+from re import sub
 
 VERSION = "1.0"
 
@@ -40,13 +41,15 @@ class commands(minqlx.Plugin):
         message = []
         count = 0
         for i in s:
-            if count and count % 10:
-
-            message.append(i)
             count += 1
+            if count % 7 or count == 0:
+                message.append(i + "^7, ^6")
+            else:
+                message.append(i + "^7, ^6\n")
         if count:
+            message[count - 1] = sub(r"\^[0-9][, \\n]", "", message[count - 1])
             player.tell("^1{} ^3Plugins found:".format(count))
-            player.tell("^6{}".format("^7, ^6".join(message)))
+            player.tell("^6{}".format("".join(message)))
 
     def cmd_list(self, player, msg, channel):
         p = self.plugins
