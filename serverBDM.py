@@ -137,7 +137,7 @@ import random
 import requests
 import re
 
-VERSION = "2.01.2"
+VERSION = "2.01.3"
 # TO_BE_ADDED = ("duel")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
@@ -1257,9 +1257,16 @@ class serverBDM(minqlx.Plugin):
                         minqlx.console_print("{}^7: {} ^6Ping^7: {}"
                                              .format(player, player.stats.score, player.stats.ping))
 
+                try:
+                    specq = self.plugins["specqueue"]
+                except KeyError:
+                    specq = None
                 for player in teams["spectator"]:
-                    queue = self.plugins["specqueue"].player_in_queue(player.steam_id)
-                    slot = queue + 1 if queue is not None else None
+                    if specq:
+                        queue = specq.player_in_queue(player.steam_id)
+                        slot = queue + 1 if queue is not None else None
+                    else:
+                        slot = False
                     minqlx.console_print("^6Spectator^7: {} {} {}"
                                          .format(player.id, player,
                                                  "^7(^2Queue Pos: {}^7)".format(slot) if slot else ""))
