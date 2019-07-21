@@ -58,7 +58,7 @@ set qlx_queueSpecByTime "1"
 //use score played as a choosing factor to decide which player to spectate
 set qlx_queueSpecByScore "1"
 //set to either "score" or "time" to set which to use as the primary deciding factor in choosing a player to spectate
-set qlx_queueSpecByPrimary "score"
+set qlx_queueSpecByPrimary "time"
 //set to an amount of minutes a player is allowed to remain in spectate (while not in the queue) before the server will
 // kick the player to make room for people who want to play. (valid values are greater than "0" and less than "9999")
 set qlx_queueMaxSpecTime "9999"
@@ -98,7 +98,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.09.5"
+VERSION = "2.09.6"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -406,13 +406,13 @@ class specqueue(minqlx.Plugin):
                 self.remove_from_queue(player)
                 self.remove_from_join(player)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_player_connect Exceptions: {}".format(e))
+            minqlx.console_print("^1specqueue handle_player_connect Exceptions: {}".format([e]))
 
     def handle_player_loaded(self, player):
         try:
             self._player_models[player.id] = player.model
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_player_loaded Exceptions: {}".format(e))
+            minqlx.console_print("^1specqueue handle_player_loaded Exceptions: {}".format([e]))
 
     def handle_player_disconnect(self, player, reason):
         try:
@@ -426,7 +426,7 @@ class specqueue(minqlx.Plugin):
             if player.id in self._player_models:
                 del self._player_models[player.id]
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_player_disconnect Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_player_disconnect Exception: {}".format([e]))
         self.update_queue_tags()
 
     def handle_team_switch(self, player, old_team, new_team):
@@ -438,7 +438,7 @@ class specqueue(minqlx.Plugin):
                     self.add_to_join(player)
                 player.clan = player.clan
             except Exception as e:
-                minqlx.console_print("^1specqueue handle_team_switch not to spectator Exceptions: {}".format(e))
+                minqlx.console_print("^1specqueue handle_team_switch not to spectator Exceptions: {}".format([e]))
         else:
             try:
                 if not self.end_screen:
@@ -458,7 +458,7 @@ class specqueue(minqlx.Plugin):
                 else:
                     check_spectator()
             except Exception as e:
-                minqlx.console_print("^1specqueue handle_team_switch to spectator Exceptions: {}".format(e))
+                minqlx.console_print("^1specqueue handle_team_switch to spectator Exceptions: {}".format([e]))
         self.update_queue_tags()
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
@@ -483,24 +483,14 @@ class specqueue(minqlx.Plugin):
                     self.update_queue_tags()
                     return minqlx.RET_STOP_ALL
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_team_switch_attempt Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_team_switch_attempt Exception: {}".format([e]))
 
     def handle_set_config_string(self, index, values):
         try:
-            chk = values.split("\\")[1:]
-            if "teamsize" in chk:
-                teamsize = int(chk[chk.index("teamsize") + 1])
-                if self.q_game_info[1] != teamsize:
-                    self.q_game_info[1] = teamsize
-                    self.check_for_opening(1.5)
-            if "fraglimit" in chk:
-                fraglimit = int(chk[chk.index("fraglimit") + 1])
-                self.q_game_info[2] = fraglimit
-            elif self.get_cvar("qlx_queueShowQPosition", bool) and "st" in chk:
+            if 529 <= index <= 592:
                 args = minqlx.parse_variables(values, ordered=True)
-                player = self.player(int(args["st"]))
-                if player:
-                    if player.team == "spectator":
+                if 'st' in args:
+                    if args['t'] == '3':
                         label = self.get_cvar("qlx_queuePositionLabel", str)
                         try:
                             label = POSITION_LABELS[int(label)]
@@ -508,31 +498,38 @@ class specqueue(minqlx.Plugin):
                             pass
                         except IndexError:
                             label = POSITION_LABELS[0]
-                        if int(args["st"]) in self._queue:
-                            args["xcn"] = args["cn"] = "{}{}{}"\
-                                .format(label[0], self._queue.get_queue_position(player) + 1, label[1])
+                        if int(args['st']) in self._queue:
+                            args['xcn'] = args['cn'] = "{}{}{}"\
+                                .format(label[0], self._queue.get_queue_position(int(args['st'])) + 1, label[1])
                         else:
-                            location = "minqlx:players:{}:clantag".format(args["st"])
+                            location = "minqlx:players:{}:clantag".format(args['st'])
                             if location in self.db:
                                 clan = self.db[location]
                             else:
                                 clan = None
                             if clan and clan == "afk":
-                                args["xcn"] = args["cn"] = "{}afk{}".format(label[0], label[1])
+                                args['xcn'] = args['cn'] = "{}afk{}".format(label[0], label[1])
                             else:
-                                args["xcn"] = args["cn"] = "{}s{}".format(label[0], label[1])
-                        return "".join(["\\{}\\{}".format(key, args[key]) for key in args])
+                                args['xcn'] = args['cn'] = "{}s{}".format(label[0], label[1])
+                        return ''.join(["\\{}\\{}".format(key, args[key]) for key in args])
                     else:
-                        location = "minqlx:players:{}:clantag".format(args["st"])
+                        location = "minqlx:players:{}:clantag".format(args['st'])
                         if location in self.db:
-                            args["xcn"] = args["cn"] = self.db[location]
+                            args['xcn'] = args['cn'] = self.db[location]
                         else:
-                            args["xcn"] = args["cn"] = ""
-                        return "".join(["\\{}\\{}".format(key, args[key]) for key in args])
+                            args['xcn'] = args['cn'] = ''
+                        return ''.join(["\\{}\\{}".format(key, args[key]) for key in args])
+            elif index == 0:
+                args = minqlx.parse_variables(values, ordered=True)
+                self.q_game_info[2] = int(args['fraglimit'])
+                teamsize = int(args['teamsize'])
+                if self.q_game_info[1] != teamsize:
+                    self.q_game_info[1] = teamsize
+                    self.check_for_opening(1.5)
         except minqlx.NonexistentPlayerError:
             return
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_set_config_string Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_set_config_string Exception: {}".format([e]))
 
     def update_queue_tags(self):
         if self.get_cvar("qlx_queueShowQPosition", bool):
@@ -550,7 +547,7 @@ class specqueue(minqlx.Plugin):
                     player.center_print("^6You are set to spectate only")
             spec_player()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_client_command Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_client_command Exception: {}".format([e]))
         self.update_queue_tags()
 
     def handle_new_game(self):
@@ -566,7 +563,7 @@ class specqueue(minqlx.Plugin):
             else:
                 self.check_for_opening(0.5)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_new_game Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_new_game Exception: {}".format([e]))
 
     def handle_game_start(self, data):
         try:
@@ -587,7 +584,7 @@ class specqueue(minqlx.Plugin):
                 self.reset_players_model(2)
 
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_game_start Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_game_start Exception: {}".format([e]))
 
     def handle_map(self, mapname, factory):
         try:
@@ -599,7 +596,7 @@ class specqueue(minqlx.Plugin):
             self.death_count = 0
             self.auto_shuffle_player_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_map Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_map Exception: {}".format([e]))
 
     def handle_game_end(self, data):
         try:
@@ -608,7 +605,7 @@ class specqueue(minqlx.Plugin):
             else:
                 self.auto_shuffle_player_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_game_end Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_game_end Exception: {}".format([e]))
 
     def handle_round_countdown(self, round_num):
         try:
@@ -626,7 +623,7 @@ class specqueue(minqlx.Plugin):
             if self.q_game_info[0] and not (self.red_locked or self.blue_locked or self.free_locked):
                 self.look_at_teams()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_round_countdown Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_round_countdown Exception: {}".format([e]))
 
     def handle_round_start(self, number):
         try:
@@ -637,7 +634,7 @@ class specqueue(minqlx.Plugin):
             self._countdown = False
             self.check_for_opening(0.2)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_round_start Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_round_start Exception: {}".format([e]))
 
     def handle_round_end(self, data):
         try:
@@ -651,7 +648,7 @@ class specqueue(minqlx.Plugin):
                     self.cmd_list_specs()
             self.check_spec_time()
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_round_end Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_round_end Exception: {}".format([e]))
 
     def death_monitor(self, victim, killer, data):
         try:
@@ -672,7 +669,7 @@ class specqueue(minqlx.Plugin):
                     self.check_for_opening(0.2)
         except Exception as e:
             if "NoneType" not in e:
-                minqlx.console_print("^1specqueue death_monitor Exception: {}".format(e))
+                minqlx.console_print("^1specqueue death_monitor Exception: {}".format([e]))
 
     def handle_console_print(self, text):
         try:
@@ -691,14 +688,14 @@ class specqueue(minqlx.Plugin):
                     self.free_locked = False
                 self.check_for_opening(0.2)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_console_print Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_console_print Exception: {}".format([e]))
 
     def handle_vote_ended(self, votes, vote, args, passed):
         try:
             if passed and vote == "teamsize":
                 self.check_for_opening(2.5)
         except Exception as e:
-            minqlx.console_print("^1specqueue handle_vote_ended Exception: {}".format(e))
+            minqlx.console_print("^1specqueue handle_vote_ended Exception: {}".format([e]))
 
     # ==============================================
     #               Plugin functions
@@ -734,7 +731,7 @@ class specqueue(minqlx.Plugin):
                     self.center_print("^7Shuffling teams")
                 minqlx.console_command("forceshuffle")
         except Exception as e:
-            minqlx.console_print("^1specqueue auto_shuffle_player_teams Exception: {}".format(e))
+            minqlx.console_print("^1specqueue auto_shuffle_player_teams Exception: {}".format([e]))
 
     def get_max_players(self):
         try:
@@ -745,7 +742,7 @@ class specqueue(minqlx.Plugin):
                 max_players = self.get_cvar("sv_maxClients", int)
             return max_players
         except Exception as e:
-            minqlx.console_print("^1specqueue get max players Exception: {}".format(e))
+            minqlx.console_print("^1specqueue get max players Exception: {}".format([e]))
 
     def add_to_queue_pos(self, player, pos):
         try:
@@ -756,7 +753,7 @@ class specqueue(minqlx.Plugin):
             self.cmd_list_queue()
             self.check_for_opening(0.5)
         except Exception as e:
-            minqlx.console_print("^1specqueue add to queue pos Exception: {}".format(e))
+            minqlx.console_print("^1specqueue add to queue pos Exception: {}".format([e]))
 
     def add_to_queue(self, player):
         try:
@@ -769,13 +766,13 @@ class specqueue(minqlx.Plugin):
                                 .format(position + 1, self.get_cvar("qlx_commandPrefix")))
             self.check_for_opening(0.2)
         except Exception as e:
-            minqlx.console_print("^1specqueue add to queue Exception: {}".format(e))
+            minqlx.console_print("^1specqueue add to queue Exception: {}".format([e]))
 
     def remove_from_queue(self, player):
         try:
             self._queue.remove_from_queue(player.steam_id, player)
         except Exception as e:
-            minqlx.console_print("^1specqueue remove from queue Exception: {}".format(e))
+            minqlx.console_print("^1specqueue remove from queue Exception: {}".format([e]))
 
     def check_queue(self, delay=0.1):
         try:
@@ -784,7 +781,7 @@ class specqueue(minqlx.Plugin):
                 self.displaying_queue = True
                 self.queue_message(delay)
         except Exception as e:
-            minqlx.console_print("^1specqueue check queue Exception: {}".format(e))
+            minqlx.console_print("^1specqueue check queue Exception: {}".format([e]))
 
     @minqlx.thread
     def queue_message(self, delay):
@@ -800,33 +797,33 @@ class specqueue(minqlx.Plugin):
                 try:
                     p.center_print("^7You are in ^4Queue ^7position ^1{}".format(count))
                 except Exception as e:
-                    minqlx.console_print("^1specqueue Queue Message Exception: {}".format(e))
+                    minqlx.console_print("^1specqueue Queue Message Exception: {}".format([e]))
                 finally:
                     count += 1
             self.displaying_queue = False
         except Exception as e:
-            minqlx.console_print("^1specqueue queue message Exception: {}".format(e))
+            minqlx.console_print("^1specqueue queue message Exception: {}".format([e]))
 
     def add_spectators(self):
         try:
             for player in self.teams()["spectator"]:
                 self.add_to_spec(player)
         except Exception as e:
-            minqlx.console_print("^1specqueue add spectators Exception: {}".format(e))
+            minqlx.console_print("^1specqueue add spectators Exception: {}".format([e]))
 
     def add_to_spec(self, player):
         try:
             self._spec.add_to_times(player.steam_id)
             player.center_print("^6Spectate Mode\n^7Type ^4!s ^7to show spectators.")
         except Exception as e:
-            minqlx.console_print("^1specqueue add to spec Exception: {}".format(e))
+            minqlx.console_print("^1specqueue add to spec Exception: {}".format([e]))
 
     def remove_from_spec(self, player):
         try:
             if player:
                 self._spec.remove_from_times(player.steam_id)
         except Exception as e:
-            minqlx.console_print("^1specqueue remove from spec Exception: {}".format(e))
+            minqlx.console_print("^1specqueue remove from spec Exception: {}".format([e]))
 
     def check_spec(self, delay=0.0):
         try:
@@ -835,7 +832,7 @@ class specqueue(minqlx.Plugin):
                 self.displaying_spec = True
                 self.spec_message(delay)
         except Exception as e:
-            minqlx.console_print("^1specqueue check spec Exception: {}".format(e))
+            minqlx.console_print("^1specqueue check spec Exception: {}".format([e]))
 
     @minqlx.thread
     def spec_message(self, delay=0.0):
@@ -866,7 +863,7 @@ class specqueue(minqlx.Plugin):
                                               .format(spec_time))
             self.displaying_spec = False
         except Exception as e:
-            minqlx.console_print("^1specqueue spec message Exception: {}".format(e))
+            minqlx.console_print("^1specqueue spec message Exception: {}".format([e]))
 
     def check_queue_status(self):
         if self._checking_opening and time.time() - self._checking_opening > 1:
@@ -925,7 +922,7 @@ class specqueue(minqlx.Plugin):
                         red_players > team_size or blue_players > team_size:
                     self.fix_teams(red_players, blue_players, max_players, teams)
         except Exception as e:
-            minqlx.console_print("^1specqueue check_for_opening Exception: {}".format(e))
+            minqlx.console_print("^1specqueue check_for_opening Exception: {}".format([e]))
         self._checking_opening = None
         return finished
 
@@ -948,7 +945,7 @@ class specqueue(minqlx.Plugin):
                             self.msg("{} ^7has joined the {}.".format(p[1], placement))
                             count += 1
             except Exception as e:
-                minqlx.console_print("^1specqueue Place in Team Exception: {}".format(e))
+                minqlx.console_print("^1specqueue Place in Team Exception: {}".format([e]))
                 for player in self.teams()["spectator"]:
                     player.tell("^1Error in player placement in team. ^6Check your position in the queue.")
             return True
@@ -1016,7 +1013,7 @@ class specqueue(minqlx.Plugin):
                             else:
                                 self._queue.next = player1[1]
             except Exception as e:
-                minqlx.console_print("^1specqueue Place in Both Exception: {}".format(e))
+                minqlx.console_print("^1specqueue Place in Both Exception: {}".format([e]))
                 for player in self.teams()["spectator"]:
                     player.tell("^1Error in player(s) placement in team. ^6Check your position in the queue.")
             return True
@@ -1048,7 +1045,7 @@ class specqueue(minqlx.Plugin):
                 difference += 1
             return True
         except Exception as e:
-            minqlx.console_print("^1specqueue fix_teams Exception: {}".format(e))
+            minqlx.console_print("^1specqueue fix_teams Exception: {}".format([e]))
 
     def fix_free(self, free, max_players, player_teams):
         try:
@@ -1060,7 +1057,7 @@ class specqueue(minqlx.Plugin):
                 free -= 1
             return True
         except Exception as e:
-            minqlx.console_print("^1specqueue fix_free Exception: {}".format(e))
+            minqlx.console_print("^1specqueue fix_free Exception: {}".format([e]))
 
     def get_rating(self, sid):
         try:
@@ -1073,7 +1070,7 @@ class specqueue(minqlx.Plugin):
             else:
                 return self.get_cvar("qlx_bdmDefaultBDM", int)
         except Exception as e:
-            minqlx.console_print("^1specqueue get rating Exception: {}".format(e))
+            minqlx.console_print("^1specqueue get rating Exception: {}".format([e]))
 
     def team_average(self, team):
         try:
@@ -1085,7 +1082,7 @@ class specqueue(minqlx.Plugin):
                 avg /= len(team)
             return int(round(avg))
         except Exception as e:
-            minqlx.console_print("^1specqueue team average Exception: {}".format(e))
+            minqlx.console_print("^1specqueue team average Exception: {}".format([e]))
 
     @minqlx.next_frame
     def team_placement(self, player, team, add_queue=False):
@@ -1094,7 +1091,7 @@ class specqueue(minqlx.Plugin):
             if add_queue:
                 self.add_to_queue_pos(player, 0)
         except Exception as e:
-            minqlx.console_print("^1specqueue team placement Exception: {}".format(e))
+            minqlx.console_print("^1specqueue team placement Exception: {}".format([e]))
 
     @minqlx.thread
     def add_join_times(self):
@@ -1103,7 +1100,7 @@ class specqueue(minqlx.Plugin):
             for player in teams["red"] + teams["blue"] + teams["free"]:
                 self._join.add_to_times(player.steam_id)
         except Exception as e:
-            minqlx.console_print("^1specqueue add join times Exception: {}".format(e))
+            minqlx.console_print("^1specqueue add join times Exception: {}".format([e]))
 
     @minqlx.thread
     def record_player_models(self):
@@ -1111,19 +1108,19 @@ class specqueue(minqlx.Plugin):
             for player in self.players():
                 self._player_models[player.id] = player.model
         except Exception as e:
-            minqlx.console_print("^1specqueue record_player_models Exception: {}".format(e))
+            minqlx.console_print("^1specqueue record_player_models Exception: {}".format([e]))
 
     def add_to_join(self, player):
         try:
             self._join.add_to_times(player.steam_id)
         except Exception as e:
-            minqlx.console_print("^1specqueue add to join Exception: {}".format(e))
+            minqlx.console_print("^1specqueue add to join Exception: {}".format([e]))
 
     def remove_from_join(self, player):
         try:
             self._join.remove_from_times(player.steam_id)
         except Exception as e:
-            minqlx.console_print("^1specqueue remove from join Exception: {}".format(e))
+            minqlx.console_print("^1specqueue remove from join Exception: {}".format([e]))
 
     def get_join_time(self, player):
         try:
@@ -1132,13 +1129,13 @@ class specqueue(minqlx.Plugin):
                 return time.time()
             return self._join.get_time(player.steam_id)
         except Exception as e:
-            minqlx.console_print("^1specqueue get join time Exception: {}".format(e))
+            minqlx.console_print("^1specqueue get join time Exception: {}".format([e]))
 
     def get_join_times(self):
         try:
             return self._join.times()
         except Exception as e:
-            minqlx.console_print("^1specqueue get join times Exception: {}".format(e))
+            minqlx.console_print("^1specqueue get join times Exception: {}".format([e]))
 
     @minqlx.thread
     def look_at_teams(self, delay=None):
@@ -1207,7 +1204,7 @@ class specqueue(minqlx.Plugin):
                 else:
                     self.even_the_teams(True)
         except Exception as e:
-            minqlx.console_print("^1specqueue look at teams Exception: {}".format(e))
+            minqlx.console_print("^1specqueue look at teams Exception: {}".format([e]))
 
     @minqlx.thread
     def even_the_teams(self, delay=False):
@@ -1268,7 +1265,7 @@ class specqueue(minqlx.Plugin):
                         self.team_placement(spec_player, "spectator", True)
                         self.msg("^3Uneven Teams Detected^7: {} ^7was moved to ^3spectate^7.".format(spec_player))
         except Exception as e:
-            minqlx.console_print("^1specqueue even the teams Exception: {}".format(e))
+            minqlx.console_print("^1specqueue even the teams Exception: {}".format([e]))
 
     # Finds the player, that meets the set criteria, to move to spectate and returns that player
     # Does not start its own thread
@@ -1317,7 +1314,7 @@ class specqueue(minqlx.Plugin):
             else:
                 self._players = [t_players[0]]
         except Exception as e:
-            minqlx.console_print("^1specqueue get player for spec Exception: {}".format(e))
+            minqlx.console_print("^1specqueue get player for spec Exception: {}".format([e]))
 
     # Function meant to return the player that would be sent to spectate because
     #  the get_player_for_spec function does not return anything
@@ -1327,7 +1324,7 @@ class specqueue(minqlx.Plugin):
             self.get_player_for_spec(team)
             return [self._players[0]]
         except Exception as e:
-            minqlx.console_print("^1specqueue return spec player Exception: {}".format(e))
+            minqlx.console_print("^1specqueue return spec player Exception: {}".format([e]))
 
     def get_spec(self, player, msg, channel):
         @minqlx.thread
@@ -1373,7 +1370,7 @@ class specqueue(minqlx.Plugin):
                     break
             return
         except Exception as e:
-            minqlx.console_print("^1specqueue get uneven players Exception: {}".format(e))
+            minqlx.console_print("^1specqueue get uneven players Exception: {}".format([e]))
 
     @minqlx.thread
     def check_spec_time(self):
@@ -1395,7 +1392,7 @@ class specqueue(minqlx.Plugin):
                         else:
                             self.remove_from_spec(spec)
         except Exception as e:
-            minqlx.console_print("^1specqueue check spec time Exception:{}".format(e))
+            minqlx.console_print("^1specqueue check spec time Exception:{}".format([e]))
 
     # Search for a player name match using the supplied string
     def find_player(self, name):
@@ -1420,7 +1417,7 @@ class specqueue(minqlx.Plugin):
             else:
                 return -1, -1
         except Exception as e:
-            minqlx.console_print("^1specqueue find_player Exception: {}".format(e))
+            minqlx.console_print("^1specqueue find_player Exception: {}".format([e]))
 
     def player_in_queue(self, player):
         if player in self._queue:
@@ -1472,7 +1469,7 @@ class specqueue(minqlx.Plugin):
             minqlx.console_print(" ".join(message[8:]))
             return minqlx.RET_STOP_ALL
         except Exception as e:
-            minqlx.console_print("^1specqueue get_current_settings Exception: {}".format(e))
+            minqlx.console_print("^1specqueue get_current_settings Exception: {}".format([e]))
 
     def reset_queue(self, player, msg, channel):
         try:
@@ -1504,7 +1501,7 @@ class specqueue(minqlx.Plugin):
                     player.tell("^1The queue statuses have been reset. Check your position in the queue.")
             return minqlx.RET_STOP_ALL
         except Exception as e:
-            minqlx.console_print("^1specqueue reset_queue Exception: {}".format(e))
+            minqlx.console_print("^1specqueue reset_queue Exception: {}".format([e]))
 
     @minqlx.thread
     def reset_players_model(self, msg=None):
@@ -1531,7 +1528,7 @@ class specqueue(minqlx.Plugin):
                     pl.model = "sarge"
             return True
         except Exception as e:
-            minqlx.console_print("^1specqueue reset_players_model Exception: {}".format(e))
+            minqlx.console_print("^1specqueue reset_players_model Exception: {}".format([e]))
 
     def reset_model(self, player=None, msg=None, channel=None):
         try:
@@ -1564,14 +1561,14 @@ class specqueue(minqlx.Plugin):
                 player.model = "sarge"
             return
         except Exception as e:
-            minqlx.console_print("^1specqueue reset_model Exception: {}".format(e))
+            minqlx.console_print("^1specqueue reset_model Exception: {}".format([e]))
 
     def ignore_imbalance(self, player, msg, channel):
         try:
             self.msg("^3The move to ^1spectate ^3action will be ignored this round")
             self._ignore = True
         except Exception as e:
-            minqlx.console_print("^1specqueue ignore imbalance Exception: {}".format(e))
+            minqlx.console_print("^1specqueue ignore imbalance Exception: {}".format([e]))
 
     def ignore_imbalance_latch(self, player, msg, channel):
         try:
@@ -1593,7 +1590,7 @@ class specqueue(minqlx.Plugin):
                     player.tell("^3Command must include 'ignore', 'spec', or 'setting'")
                     return minqlx.RET_STOP_ALL
         except Exception as e:
-            minqlx.console_print("^1specqueue ignore imbalance latch Exception: {}".format(e))
+            minqlx.console_print("^1specqueue ignore imbalance latch Exception: {}".format([e]))
 
     def cmd_queue_add(self, player, msg, channel):
         try:
@@ -1612,7 +1609,7 @@ class specqueue(minqlx.Plugin):
                     player.tell("Invalid client ID.")
                     return
                 except Exception as e:
-                    minqlx.console_print("^1specqueue Cmd Que Add Exception: {}".format(e))
+                    minqlx.console_print("^1specqueue Cmd Que Add Exception: {}".format([e]))
                     return
                 if len(msg) > 2:
                     try:
@@ -1623,7 +1620,7 @@ class specqueue(minqlx.Plugin):
                 else:
                     self.add_to_queue(target_player)
         except Exception as e:
-            minqlx.console_print("^1specqueue cmd queue add Exception: {}".format(e))
+            minqlx.console_print("^1specqueue cmd queue add Exception: {}".format([e]))
         self.update_queue_tags()
         self.check_for_opening(0.2)
 
@@ -1663,7 +1660,7 @@ class specqueue(minqlx.Plugin):
             elif player or count:
                 self.msg("^2Queue^7: " + ", ".join(message))
         except Exception as e:
-            minqlx.console_print("^1specqueue cmd list queue Exception: {}".format(e))
+            minqlx.console_print("^1specqueue cmd list queue Exception: {}".format([e]))
 
     def cmd_list_specs(self, player=None, msg=None, channel=None):
         self.exec_list_specs(player, msg, channel)
@@ -1695,7 +1692,7 @@ class specqueue(minqlx.Plugin):
             elif player or count:
                 self.msg("^4Spectators^7: " + ", ".join(message))
         except Exception as e:
-            minqlx.console_print("^1specqueue exec list specs Exception: {}".format(e))
+            minqlx.console_print("^1specqueue exec list specs Exception: {}".format([e]))
 
     def specqueue_version(self):
         return VERSION
