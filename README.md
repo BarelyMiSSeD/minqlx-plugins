@@ -40,8 +40,9 @@ There are a lot of settings to help server admins set up the server to better ad
 This script collects data on the players on the server and calculates a Basic Damage Metric (BDM) rating. It works for game types Clan Arena, Freeze Tag, Free For All, Capture The Flag, Instagib Capture the Flag, and Team Death Match.
 
 The script will do balancing and switch recommendations.<br>
-*** WARNING: If you use this with other script that use !teams or !balance when they are enabled in serverBDM the commands in the other scripts will be unloaded. (This includes the balance.py that comes with the minqlx bot)***<br>
-This script, by default, will not do anything automatically that will interfere with the other script that use !teams or !balance. The actions can be turned on when desired. Default BDM will be gotten based on elo gotten from qlstats.net<br>
+*** WARNING: If you use this with other scripts that use !teams or !balance when they are enabled in serverBDM the commands in the other scripts will be unloaded. (This includes the balance.py that comes with the minqlx bot)***<br>
+This script, by default, will automatically the commands from the other scripts that use !teams or !balance. The actions can be turned on/off when desired.<br>
+Initial player BDM will be set based on elo gotten from qlstats.net or from the default bdm cvar setting if qlstats does not respond<br>
 
 Read the top of the file to know how to set the required cvars for your server once the default values are not desired.<br>
 
