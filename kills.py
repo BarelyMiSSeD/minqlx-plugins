@@ -55,13 +55,16 @@
 #  all the kill monitor types.
 
 import minqlx
+import re
 
 # DB related
-PLAYER_KEY = "minqlx:players:{}"
+PLAYER_KEY = "minqlx:players:{}:kills"
 
 # Add Game types here if this script is not working with your game type. Follow the format.
 # Find your gametype in game with the !kgt or !killsgametype command.
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ffa", "ictf", "ad")
+
+VERSION = 1.17
 
 
 class kills(minqlx.Plugin):
@@ -70,6 +73,7 @@ class kills(minqlx.Plugin):
         self.set_cvar_once("qlx_killsPlaySounds", "1")
         self.set_cvar_once("qlx_killsSpeedMinimum", "800")
         self.set_cvar_once("qlx_killsEndGameMsg", "1")
+        self.set_cvar_once("qlx_killsExcludeBotKills", "1")
 
         self.add_hook("kill", self.handle_kill)
         self.add_hook("game_end", self.handle_end_game)
@@ -104,104 +108,128 @@ class kills(minqlx.Plugin):
         self.kills_teamtelefrag = {}
         self.kills_speed = {}
 
+        self.kills_gametype = False
         self.kills_roundActive = 0
 
-        self.kills_play_sounds = bool(self.get_cvar("qlx_killsPlaySounds"))
-        self.kills_killMonitor = [0,0,0,0,0,0,0,0,0]
+        self.kills_play_sounds = self.get_cvar("qlx_killsPlaySounds", bool)
+        self.kills_playing_sound = False
+        self.kills_exclude_bots = self.get_cvar("qlx_killsExcludeBotKills", bool)
+        self.kills_killMonitor = [0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.cmd_kills_monitor()
-
-        self.kills_gametype = self.game.type_short
+        self.convert_old()
 
     def handle_kill(self, victim, killer, data):
+        self.process_kill(victim, killer, data)
+
+    @minqlx.thread
+    def process_kill(self, victim, killer, data):
         try:
-            if self.kills_gametype in SUPPORTED_GAMETYPES:
+            if self.kills_gametype:
                 mod = data["MOD"]
                 msg = None
+                killer_steam_id = killer.steam_id
+                if str(killer_steam_id)[0] == "9":
+                    return
+                victim_steam_id = victim.steam_id
+                if self.kills_exclude_bots and str(victim_steam_id)[0] == "9":
+                    return
                 if data["KILLER"]["SPEED"] > self.get_cvar("qlx_killsSpeedMinimum", int) and self.kills_killMonitor[8]:
-                    if self.kills_play_sounds:
+                    if self.kills_play_sounds and not self.kills_playing_sound:
+                        self.kills_playing_sound = True
                         self.sound_play("sound/feedback/impact4")
 
                     if self.game.state == "in_progress":
-                        killer_steam_id = killer.steam_id
-                        victim_steam_id = victim.steam_id
                         self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":speedkill", str(victim_steam_id))
                         self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":speedkill:" + str(victim_steam_id))
                         speed_value = PLAYER_KEY.format(killer_steam_id) + ":highspeed"
-                        if speed_value in self.db:
-                            if int(data["KILLER"]["SPEED"]) > int(self.db[PLAYER_KEY.format(killer_steam_id) + ":highspeed"].split(".")[0]):
-                                self.db[PLAYER_KEY.format(killer_steam_id) + ":highspeed"] = int(data["KILLER"]["SPEED"])
+                        if self.db.exists(speed_value):
+                            if int(data["KILLER"]["SPEED"]) > int(self.db[PLAYER_KEY.format(killer_steam_id) +
+                                                                          ":highspeed"].split(".")[0]):
+                                self.db[PLAYER_KEY.format(killer_steam_id) + ":highspeed"] =\
+                                    int(data["KILLER"]["SPEED"])
                         else:
                             self.db[PLAYER_KEY.format(killer_steam_id) + ":highspeed"] = int(data["KILLER"]["SPEED"])
 
-                        killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":speedkill:" + str(victim_steam_id)]
+                        killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":speedkill:" +
+                                               str(victim_steam_id)]
                         victim_score = 0
-                        if PLAYER_KEY.format(victim_steam_id) + ":speedkill:" + str(killer_steam_id) in self.db:
-                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":speedkill:" + str(killer_steam_id)]
+                        if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":speedkill:" + str(killer_steam_id)):
+                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":speedkill:" +
+                                                   str(killer_steam_id)]
 
-                        msg = "^1SPEED ^3{}^1! ^7{} ^1{}^7:^1{}^7 {}".format(int(data["KILLER"]["SPEED"]), killer.name, killer_score, victim_score, victim.name)
+                        msg = "^1SPEED ^3{}^1! ^7{} ^1{}^7:^1{}^7 {}".format(int(data["KILLER"]["SPEED"]), killer.name,
+                                                                             killer_score, victim_score, victim.name)
                         self.add_killer(str(killer.name), "SPEED")
                     else:
-                        msg = "^1SPEED ^3{}^1! ^7{}^7 :^7 {} ^7(^3warmup^7)".format(int(data["KILLER"]["SPEED"]), killer.name, victim.name)
+                        msg = "^1SPEED ^3{}^1! ^7{}^7 :^7 {} ^7(^3warmup^7)".format(int(data["KILLER"]["SPEED"]),
+                                                                                    killer.name, victim.name)
 
-                elif mod == "GAUNTLET" and (self.kills_killMonitor[0] or self.kills_killMonitor[1]):
+                if mod == "GAUNTLET" and (self.kills_killMonitor[0] or self.kills_killMonitor[1]):
                     killed = data["VICTIM"]
                     kill = data["KILLER"]
-                    if killed["AIRBORNE"] and kill["AIRBORNE"] and not killed["SUBMERGED"] and not kill["SUBMERGED"] and self.kills_killMonitor[1]:
-                        if self.kills_play_sounds:
+                    if killed["AIRBORNE"] and kill["AIRBORNE"] and not killed["SUBMERGED"] and\
+                            not kill["SUBMERGED"] and self.kills_killMonitor[1]:
+                        if self.kills_play_sounds and not self.kills_playing_sound:
+                            self.kills_playing_sound = True
                             self.sound_play("sound/vo_evil/rampage2")
 
                         if self.game.state == "in_progress":
-                            killer_steam_id = killer.steam_id
-                            victim_steam_id = victim.steam_id
                             self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":airpummel", str(victim_steam_id))
                             self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":airpummel:" + str(victim_steam_id))
 
-                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":airpummel:" + str(victim_steam_id)]
+                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":airpummel:" +
+                                                   str(victim_steam_id)]
                             victim_score = 0
-                            if PLAYER_KEY.format(victim_steam_id) + ":airpummel:" + str(killer_steam_id) in self.db:
-                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":airpummel:" + str(killer_steam_id)]
+                            if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":airpummel:" +
+                                              str(killer_steam_id)):
+                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":airpummel:" +
+                                                       str(killer_steam_id)]
 
-                            msg = "^1AIR GAUNTLET!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                            msg = "^1AIR GAUNTLET!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score,
+                                                                                 victim_score, victim.name)
                             self.add_killer(str(killer.name), "AIRGAUNTLET")
                         else:
                             msg = "^1AIR GAUNTLET!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
                     elif self.kills_killMonitor[0]:
-                        if self.kills_play_sounds:
+                        if self.kills_play_sounds and not self.kills_playing_sound:
+                            self.kills_playing_sound = True
                             self.sound_play("sound/vo_evil/humiliation1")
 
                         if self.game.state == "in_progress":
-                            killer_steam_id = killer.steam_id
-                            victim_steam_id = victim.steam_id
                             self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":pummeled", str(victim_steam_id))
                             self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":pummeled:" + str(victim_steam_id))
 
-                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":pummeled:" + str(victim_steam_id)]
+                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":pummeled:" +
+                                                   str(victim_steam_id)]
                             victim_score = 0
-                            if PLAYER_KEY.format(victim_steam_id) + ":pummeled:" + str(killer_steam_id) in self.db:
-                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":pummeled:" + str(killer_steam_id)]
+                            if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":pummeled:" + str(killer_steam_id)):
+                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":pummeled:" +
+                                                       str(killer_steam_id)]
 
-                            msg = "^1PUMMEL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                            msg = "^1PUMMEL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score,
+                                                                           victim.name)
                             self.add_killer(str(killer.name), "GAUNTLET")
                         else:
                             msg = "^1PUMMEL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
                 elif mod == "GRENADE" and self.kills_killMonitor[2]:
-                    if self.kills_play_sounds:
+                    if self.kills_play_sounds and not self.kills_playing_sound:
+                        self.kills_playing_sound = True
                         self.sound_play("sound/vo_female/holy_shit")
 
                     if self.game.state == "in_progress":
-                        killer_steam_id = killer.steam_id
-                        victim_steam_id = victim.steam_id
                         self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":grenaded", str(victim_steam_id))
                         self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":grenaded:" + str(victim_steam_id))
 
                         killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":grenaded:" + str(victim_steam_id)]
                         victim_score = 0
-                        if PLAYER_KEY.format(victim_steam_id) + ":grenaded:" + str(killer_steam_id) in self.db:
-                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":grenaded:" + str(killer_steam_id)]
+                        if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":grenaded:" + str(killer_steam_id)):
+                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":grenaded:" +
+                                                   str(killer_steam_id)]
 
-                        msg = "^1GRENADE KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                        msg = "^1GRENADE KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score,
+                                                                             victim.name)
                         self.add_killer(str(killer.name), "GRENADE")
                     else:
                         msg = "^1GRENADE KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
@@ -209,21 +237,23 @@ class kills(minqlx.Plugin):
                 elif mod == "ROCKET" and self.kills_killMonitor[3]:
                     killed = data["VICTIM"]
                     if killed["AIRBORNE"] and not killed["SUBMERGED"]:
-                        if self.kills_play_sounds:
+                        if self.kills_play_sounds and not self.kills_playing_sound:
+                            self.kills_playing_sound = True
                             self.sound_play("sound/vo_evil/midair1")
 
                         if self.game.state == "in_progress":
-                            killer_steam_id = killer.steam_id
-                            victim_steam_id = victim.steam_id
                             self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":rocket", str(victim_steam_id))
                             self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":rocket:" + str(victim_steam_id))
 
-                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":rocket:" + str(victim_steam_id)]
+                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":rocket:" +
+                                                   str(victim_steam_id)]
                             victim_score = 0
-                            if PLAYER_KEY.format(victim_steam_id) + ":rocket:" + str(killer_steam_id) in self.db:
-                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":rocket:" + str(killer_steam_id)]
+                            if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":rocket:" + str(killer_steam_id)):
+                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":rocket:" +
+                                                       str(killer_steam_id)]
 
-                            msg = "^1AIR ROCKET KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                            msg = "^1AIR ROCKET KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score,
+                                                                                    victim_score, victim.name)
                             self.add_killer(str(killer.name), "ROCKET")
                         else:
                             msg = "^1AIR ROCKET KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
@@ -231,21 +261,23 @@ class kills(minqlx.Plugin):
                 elif mod == "PLASMA" and self.kills_killMonitor[4]:
                     killed = data["VICTIM"]
                     if killed["AIRBORNE"] and not killed["SUBMERGED"]:
-                        if self.kills_play_sounds:
+                        if self.kills_play_sounds and not self.kills_playing_sound:
+                            self.kills_playing_sound = True
                             self.sound_play("sound/vo_evil/damage")
 
                         if self.game.state == "in_progress":
-                            killer_steam_id = killer.steam_id
-                            victim_steam_id = victim.steam_id
                             self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":plasma", str(victim_steam_id))
                             self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":plasma:" + str(victim_steam_id))
 
-                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":plasma:" + str(victim_steam_id)]
+                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":plasma:" +
+                                                   str(victim_steam_id)]
                             victim_score = 0
-                            if PLAYER_KEY.format(victim_steam_id) + ":plasma:" + str(killer_steam_id) in self.db:
-                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":plasma:" + str(killer_steam_id)]
+                            if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":plasma:" + str(killer_steam_id)):
+                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":plasma:" +
+                                                       str(killer_steam_id)]
 
-                            msg = "^1AIR PLASMA KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                            msg = "^1AIR PLASMA KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score,
+                                                                                    victim_score, victim.name)
                             self.add_killer(str(killer.name), "PLASMA")
                         else:
                             msg = "^1AIR PLASMA KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
@@ -254,61 +286,68 @@ class kills(minqlx.Plugin):
                     killed = data["VICTIM"]
                     kill = data["KILLER"]
                     if killed["AIRBORNE"] and kill["AIRBORNE"] and not killed["SUBMERGED"] and not kill["SUBMERGED"]:
-                        if self.kills_play_sounds:
+                        if self.kills_play_sounds and not self.kills_playing_sound:
+                            self.kills_playing_sound = True
                             self.sound_play("sound/vo_female/midair3")
 
                         if self.game.state == "in_progress":
-                            killer_steam_id = killer.steam_id
-                            victim_steam_id = victim.steam_id
                             self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":airrail", str(victim_steam_id))
                             self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":airrail:" + str(victim_steam_id))
 
-                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":airrail:" + str(victim_steam_id)]
+                            killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":airrail:" +
+                                                   str(victim_steam_id)]
                             victim_score = 0
-                            if PLAYER_KEY.format(victim_steam_id) + ":airrail:" + str(killer_steam_id) in self.db:
-                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":airrail:" + str(killer_steam_id)]
+                            if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":airrail:" + str(killer_steam_id)):
+                                victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":airrail:" +
+                                                       str(killer_steam_id)]
 
-                            msg = "^1AIR RAIL KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                            msg = "^1AIR RAIL KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score,
+                                                                                  victim_score, victim.name)
                             self.add_killer(str(killer.name), "AIRRAIL")
                         else:
                             msg = "^1AIR RAIL KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
                 elif mod == "TELEFRAG" and self.kills_killMonitor[6] and not data["TEAMKILL"]:
-                    if self.kills_play_sounds and (self.kills_roundActive or self.game.state == "warmup"):
+                    if self.kills_play_sounds and (self.kills_roundActive or self.game.state == "warmup") and\
+                            not self.kills_playing_sound:
+                        self.kills_playing_sound = True
                         self.sound_play("sound/vo/perforated")
 
                     if self.game.state == "in_progress" and self.kills_roundActive:
-                        killer_steam_id = killer.steam_id
-                        victim_steam_id = victim.steam_id
                         self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":telefrag", str(victim_steam_id))
                         self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":telefrag:" + str(victim_steam_id))
 
                         killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":telefrag:" + str(victim_steam_id)]
                         victim_score = 0
-                        if PLAYER_KEY.format(victim_steam_id) + ":telefrag:" + str(killer_steam_id) in self.db:
-                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":telefrag:" + str(killer_steam_id)]
+                        if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":telefrag:" + str(killer_steam_id)):
+                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":telefrag:" +
+                                                   str(killer_steam_id)]
 
-                        msg = "^1TELEFRAG KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                        msg = "^1TELEFRAG KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score,
+                                                                              victim.name)
                         self.add_killer(str(killer.name), "TELEFRAG")
                     elif self.game.state != "in_progress" and not self.kills_roundActive:
                         msg = "^1TELEFRAG KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
 
                 elif mod == "TELEFRAG" and self.kills_killMonitor[7] and data["TEAMKILL"]:
-                    if self.kills_play_sounds and (self.kills_roundActive or self.game.state == "warmup"):
+                    if self.kills_play_sounds and (self.kills_roundActive or self.game.state == "warmup") and\
+                            not self.kills_playing_sound:
+                        self.kills_playing_sound = True
                         self.sound_play("sound/vo_female/perforated")
 
                     if self.game.state == "in_progress" and self.kills_roundActive:
-                        killer_steam_id = killer.steam_id
-                        victim_steam_id = victim.steam_id
                         self.db.sadd(PLAYER_KEY.format(killer_steam_id) + ":teamtelefrag", str(victim_steam_id))
                         self.db.incr(PLAYER_KEY.format(killer_steam_id) + ":teamtelefrag:" + str(victim_steam_id))
 
-                        killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":teamtelefrag:" + str(victim_steam_id)]
+                        killer_score = self.db[PLAYER_KEY.format(killer_steam_id) + ":teamtelefrag:" +
+                                               str(victim_steam_id)]
                         victim_score = 0
-                        if PLAYER_KEY.format(victim_steam_id) + ":teamtelefrag:" + str(killer_steam_id) in self.db:
-                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":teamtelefrag:" + str(killer_steam_id)]
+                        if self.db.exists(PLAYER_KEY.format(victim_steam_id) + ":teamtelefrag:" + str(killer_steam_id)):
+                            victim_score = self.db[PLAYER_KEY.format(victim_steam_id) + ":teamtelefrag:" +
+                                                   str(killer_steam_id)]
 
-                        msg = "^6TEAM ^1TELEFRAG KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score, victim_score, victim.name)
+                        msg = "^6TEAM ^1TELEFRAG KILL!^7 {} ^1{}^7:^1{}^7 {}".format(killer.name, killer_score,
+                                                                                     victim_score, victim.name)
                         self.add_killer(str(killer.name), "TEAMTELEFRAG")
                     elif self.game.state != "in_progress" and not self.kills_roundActive:
                         msg = "^6TEAM ^1TELEFRAG KILL!^7 {}^7 :^7 {} ^7(^3warmup^7)".format(killer.name, victim.name)
@@ -316,10 +355,19 @@ class kills(minqlx.Plugin):
                 if msg:
                     self.msg(msg)
         except Exception as e:
-            minqlx.console_print("^kills handle_kill Exception: {}".format(e))
+            minqlx.console_print("^1kills process_kill Exception: {}".format(e))
 
     def handle_map(self, mapname, factory):
-        self.kills_gametype = self.game.type_short
+        self.kills_gametype = self.game.type_short in SUPPORTED_GAMETYPES
+        self.kills_pummel = {}
+        self.kills_airpummel = {}
+        self.kills_grenades = {}
+        self.kills_rockets = {}
+        self.kills_plasma = {}
+        self.kills_airrail = {}
+        self.kills_telefrag = {}
+        self.kills_teamtelefrag = {}
+        self.kills_speed = {}
 
     def handle_round_count(self, round_number):
         self.kills_roundActive = 0
@@ -332,102 +380,87 @@ class kills(minqlx.Plugin):
 
     def handle_end_game(self, data):
         if self.get_cvar("qlx_killsEndGameMsg", bool):
-            try:
-                self.kills_gametype = self.game.type_short
-                if self.kills_gametype in SUPPORTED_GAMETYPES:
+            self.process_game()
+
+    @minqlx.thread
+    def process_game(self):
+        try:
+            if self.kills_gametype:
+                count = 0
+                msg = "^3Pummel ^1Killers^7: "
+                for k, v in self.kills_pummel.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
                     count = 0
-
-                    msg = "^3Pummel ^1Killers^7: "
-                    for k, v in self.kills_pummel.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Air Gauntlet ^1Killers^7: "
-                    for k, v in self.kills_airpummel.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Grenade ^1Killers^7: "
-                    for k, v in self.kills_grenades.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Air Rocket ^1Killers^7: "
-                    for k, v in self.kills_rockets.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Air Plasma ^1Killers^7: "
-                    for k, v in self.kills_plasma.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Air Rail ^1Killers^7: "
-                    for k, v in self.kills_airrail.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Telefrag ^1Killers^7: "
-                    for k, v in self.kills_telefrag.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Team Telefrag ^1Killers^7: "
-                    for k, v in self.kills_teamtelefrag.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        count = 0
-
-                    msg = "^3Speed ^1Killers^7: "
-                    for k, v in self.kills_speed.items():
-                        msg += "{}^7:^1{}^7 ".format(k, v)
-                        count += 1
-                    if count > 0:
-                        self.msg(msg)
-                        #count = 0
-
-                    self.kills_pummel = {}
-                    self.kills_airpummel = {}
-                    self.kills_grenades = {}
-                    self.kills_rockets = {}
-                    self.kills_plasma = {}
-                    self.kills_airrail = {}
-                    self.kills_telefrag = {}
-                    self.kills_teamtelefrag = {}
-                    self.kills_speed = {}
-            except Exception as e:
-                minqlx.console_print("^kills handle_end_game Exception: {}".format(e))
+                msg = "^3Air Gauntlet ^1Killers^7: "
+                for k, v in self.kills_airpummel.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
+                msg = "^3Grenade ^1Killers^7: "
+                for k, v in self.kills_grenades.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
+                msg = "^3Air Rocket ^1Killers^7: "
+                for k, v in self.kills_rockets.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
+                msg = "^3Air Plasma ^1Killers^7: "
+                for k, v in self.kills_plasma.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
+                msg = "^3Air Rail ^1Killers^7: "
+                for k, v in self.kills_airrail.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
+                msg = "^3Telefrag ^1Killers^7: "
+                for k, v in self.kills_telefrag.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
+                msg = "^3Team Telefrag ^1Killers^7: "
+                for k, v in self.kills_teamtelefrag.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    count = 0
+                msg = "^3Speed ^1Killers^7: "
+                for k, v in self.kills_speed.items():
+                    msg += "{}^7:^1{}^7 ".format(k, v)
+                    count += 1
+                if count > 0:
+                    self.msg(msg)
+                    #count = 0
+        except Exception as e:
+            minqlx.console_print("^kills handle_end_game Exception: {}".format(e))
 
     def cmd_kills_gametype(self, player, msg, channel):
-        player.tell("^2The current gametype is \'{}\'".format(self.kills_gametype))
+        player.tell("^2The current gametype is \'{}\'".format(self.game.type_short))
         return minqlx.RET_STOP_ALL
 
     def cmd_speedlimit(self, player, msg, channel):
         if self.kills_killMonitor[8]:
-            self.msg("^3You need a speed of at least ^1{} ^3to register a speed kill.".format(self.get_cvar("qlx_killsSpeedMinimum")))
+            self.msg("^3You need a speed of at least ^1{} ^3to register a speed kill."
+                     .format(self.get_cvar("qlx_killsSpeedMinimum")))
         else:
             self.msg("^4Speed Kill ^7stats are not enabled on this server.")
 
@@ -687,7 +720,8 @@ class kills(minqlx.Plugin):
                             count = self.db[PLAYER_KEY.format(p_steam_id) + ":teamtelefrag:" + p]
                             msg += pl.name + ": ^1" + count + "^7 "
                 if total:
-                    self.msg("^4Team Telefrag^7 Stats for {}: Total ^4Team Telefrag^7 Kills: ^1{}".format(player, total))
+                    self.msg("^4Team Telefrag^7 Stats for {}: Total ^4Team Telefrag^7 Kills: ^1{}"
+                             .format(player, total))
                     if msg:
                         self.msg("^4Victims^7: {}".format(msg))
                 else:
@@ -735,51 +769,52 @@ class kills(minqlx.Plugin):
             if method == "GAUNTLET":
                 try:
                     self.kills_pummel[killer] += 1
-                except:
+                except KeyError:
                     self.kills_pummel[killer] = 1
             elif method == "AIRGAUNTLET":
                 try:
                     self.kills_airpummel[killer] += 1
-                except:
+                except KeyError:
                     self.kills_airpummel[killer] = 1
             elif method == "GRENADE":
                 try:
                     self.kills_grenades[killer] += 1
-                except:
+                except KeyError:
                     self.kills_grenades[killer] = 1
             elif method == "ROCKET":
                 try:
                     self.kills_rockets[killer] += 1
-                except:
+                except KeyError:
                     self.kills_rockets[killer] = 1
             elif method == "PLASMA":
                 try:
                     self.kills_plasma[killer] += 1
-                except:
+                except KeyError:
                     self.kills_plasma[killer] = 1
             elif method == "AIRRAIL":
                 try:
                     self.kills_airrail[killer] += 1
-                except:
+                except KeyError:
                     self.kills_airrail[killer] = 1
             elif method == "TELEFRAG":
                 try:
                     self.kills_telefrag[killer] += 1
-                except:
+                except KeyError:
                     self.kills_telefrag[killer] = 1
             elif method == "TEAMTELEFRAG":
                 try:
                     self.kills_teamtelefrag[killer] += 1
-                except:
+                except KeyError:
                     self.kills_teamtelefrag[killer] = 1
             elif method == "SPEED":
                 try:
                     self.kills_speed[killer] += 1
-                except:
+                except KeyError:
                     self.kills_speed[killer] = 1
         except Exception as e:
             minqlx.console_print("^kills add_killer Exception: {}".format(e))
 
+    # called inside a thread so no need to start a thread
     def sound_play(self, path):
         try:
             for p in self.players():
@@ -787,6 +822,7 @@ class kills(minqlx.Plugin):
                     super().play_sound(path, p)
         except Exception as e:
             minqlx.console_print("^kills sound_play Exception: {}".format(e))
+        self.kills_playing_sound = False
 
     def supported_games(self, player, msg, channel):
         self.msg("^4Special kills ^7are recorded on this server when playing gateypes:")
@@ -798,37 +834,61 @@ class kills(minqlx.Plugin):
                  "^3Mid-Air Plasma^7, ^3Air Rails^7, ^3Telefrags^7, ^3Team Telefrags^7,\n"
                  " and ^3Speed Kills")
         self.msg("^6Commands^7: ^4!pummel^7, ^4!airgauntlet^7, ^4!grenades^7, ^4!rockets^7,\n"
-                " ^4!plasma^7, ^4!airrails^7, ^4!telefrag^7, ^4!teamtelefrag^7, ^4!speed^7,\n"
+                 " ^4!plasma^7, ^4!airrails^7, ^4!telefrag^7, ^4!teamtelefrag^7, ^4!speed^7,\n"
                  " ^4!speedlimit")
 
-    def player_id(self, pid, player):
+    # called inside a thread so no need to start a thread
+    def player_id(self, search, player):
+        target_player = None
         try:
-            pid = int(pid)
-            if 0 <= pid <= 63:
+            cid = int(search)
+            if 0 <= cid <= 63 or len(search) == 17:
                 try:
-                    target_player = self.player(pid)
+                    target_player = self.player(cid)
                 except minqlx.NonexistentPlayerError:
-                    player.tell("^3Invalid client ID. Use a client ID.")
-                    return minqlx.RET_STOP_EVENT
-                if not target_player:
-                    player.tell("^3Invalid client ID. Use a client ID.")
-                    return minqlx.RET_STOP_EVENT
-            elif pid < 0:
-                player.tell("^3usage^7=^7<^2player id^7>")
-                return minqlx.RET_STOP_EVENT
-            elif len(str(pid)) != 17:
-                player.tell("^3STEAM ID's are not supported.")
-                return minqlx.RET_STOP_EVENT
+                    target_player, pid = self.find_player(search)
         except ValueError:
-            player.tell("^3Invalid ID. Use a client ID.")
-            return minqlx.RET_STOP_EVENT
+            target_player, pid = self.find_player(search)
         except Exception as e:
             minqlx.console_print("^kills player_id Exception: {}".format(e))
-
+            return minqlx.RET_STOP_ALL
+        if target_player == 0:
+            player.tell("^1Too Many players matched your player name")
+            return minqlx.RET_STOP_ALL
+        elif target_player == -1 or target_player is None:
+            player.tell("^1No player matching that name found")
+            return minqlx.RET_STOP_ALL
         return target_player
+
+    # called inside a thread so no need to start a thread
+    # Search for a player name match using the supplied string
+    def find_player(self, name):
+        try:
+            found_player = None
+            found_count = 0
+            # Remove color codes from the supplied string
+            player_name = re.sub(r"\^[0-9]", "", name).lower()
+            # search through the list of connected players for a name match
+            for player in self.players():
+                if player_name in re.sub(r"\^[0-9]", "", player.name).lower():
+                    # if match is found return player, player id
+                    found_player = player
+                    found_count += 1
+            # if only one match was found return player, player id
+            if found_count == 1:
+                return found_player, int(str([found_player]).split(":")[0].split("(")[1])
+            # if more than one match is found return 0, -1
+            elif found_count > 1:
+                return 0, -1
+            # if no match is found return -1, -1
+            else:
+                return -1, -1
+        except Exception as e:
+            minqlx.console_print("^1specqueue find_player Exception: {}".format([e]))
 
     def cmd_kills_monitor(self, player=None, msg=None, channel=None):
         try:
+            self.kills_gametype = self.game.type_short in SUPPORTED_GAMETYPES
             games = self.get_cvar("qlx_killsMonitorKillTypes", int)
             binary = bin(games)[2:]
             length = len(str(binary))
@@ -845,5 +905,20 @@ class kills(minqlx.Plugin):
         except Exception as e:
             minqlx.console_print("^kills cmd_kills_monitor Exception: {}".format(e))
 
+    @minqlx.thread
+    def convert_old(self):
+        kill_categories = ["speedkill", "highspeed", "airpummel", "pummeled", "grenaded",
+                           "rocket", "plasma", "airrail", "telefrag", "teamtelefrag"]
+        for kill in kill_categories:
+            for key in self.db.keys("minqlx:players:*:{}:*".format(kill)):
+                split_key = key.split(":")
+                if len(split_key) != 5:
+                    continue
+                if split_key[2][0] != "9":
+                    self.db[PLAYER_KEY.format(split_key[2]) + ":" + kill + ":" + split_key[4]] = self.db[key]
+                del self.db[key]
+            for old in self.db.keys("minqlx:players:*:{}".format(kill)):
+                del self.db[old]
+
     def kills_version(self, player, msg, channel):
-        self.msg("^7This server is running ^4Kills^7 Version^1 1.16")
+        self.msg("^7This server is running ^4Kills^7 Version^1 {}".format(VERSION))
