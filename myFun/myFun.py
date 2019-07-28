@@ -27,6 +27,10 @@ set qlx_funSoundDelay "5"
 To set the time a player has to wait after playing a sound add this like to your server.cfg and edit the "30":
 set qlx_funPlayerSoundRepeat "30"
 
+ The amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
+ This is to keep admins from being able to totally bypass the sound call restrictions by using !playsound
+set qlx_funAdminSoundCall "5"
+
 #Play Join Sound when players connect (set to "path/file" like below example to play sound)
 #  *** Disable the MOTD sound to use this with set qlx_motdSound "0" ****
 set qlx_funJoinSound "sound/feedback/welcome_02.wav"
@@ -50,7 +54,7 @@ set qlx_funLast2Sound "3"
 # Enable to use a dictionary to store sounds, faster responses to trigger text (0=disable, 1=enable)
 #  Enabling will cause the server to use more memory, only enable if memory is available.
 #  Must be enabled on server startup or it will not work.
-set qlx_funFastSoundLookup "0"
+set qlx_funFastSoundLookup "1"
 
 These extra workshop items need to be loaded on the server for it to work correctly if all sound packs are enabled:
 (put the workshop item numbers in your workshop.txt file)
@@ -133,6 +137,34 @@ Default
 haha yeah haha hahaha yeah yeah hahaha yeahhh
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.
 
+// Copy after this line into your server config
+// Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no admin player time restriction)
+set qlx_funUnrestrictAdmin "0"
+// Delay between sounds being played
+set qlx_funSoundDelay "5"
+// **** Used for limiting players spamming sounds. ****
+//  Amount of seconds player has to wait before allowed to play another sound
+set qlx_funPlayerSoundRepeat "30"
+// Amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
+set qlx_funAdminSoundCall "5"
+// Keep muted players from playing sounds
+set qlx_funDisableMutedPlayers "1"
+// Enable/Disable sound pack files
+set qlx_funEnableSoundPacks "63"
+// Join sound path/file ("0" disables sound)
+set qlx_funJoinSound "0"
+// Play Join Sound even if players have sounds disabled
+set qlx_funJoinSoundForEveryone "0"
+// Play Join Sound on every map change
+set qlx_funJoinSoundEveryMap "0"
+// Play Sound when last 2 players alive (should set to "3" to play sounds always)
+// 0 = don't play sound for anyone when the last 2 (or  1 on either team of a team based game) remains
+// 1 = play sound for all except those alive when the last 2 (or  1 on either team of a team based game) remains
+// 2 = only play sounds for people who are dead/spectating when game is active
+// 3 = play sound for everyone with sounds enabled
+set qlx_funLast2Sound "1"
+// Enable fast sound lookup
+set qlx_funFastSoundLookup "1"
 """
 
 import minqlx
@@ -140,7 +172,7 @@ import random
 import time
 import re
 
-VERSION = "5.3"
+VERSION = "5.6"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -159,6 +191,8 @@ class myFun(minqlx.Plugin):
         # **** Used for limiting players spamming sounds. ****
         #  Amount of seconds player has to wait before allowed to play another sound
         self.set_cvar_once("qlx_funPlayerSoundRepeat", "30")
+        # Amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
+        self.set_cvar_once("qlx_funAdminSoundCall", "5")
         # Keep muted players from playing sounds
         self.set_cvar_once("qlx_funDisableMutedPlayers", "1")
         # Enable/Disable sound pack files
@@ -178,9 +212,10 @@ class myFun(minqlx.Plugin):
         # Enable to use a dictionary to store sounds, faster responses to trigger text (0=disable, 1=enable)
         #  Enabling will cause the server to use more memory, only enable if memory is available.
         #  Must be enabled on server startup or it will not work.
-        self.set_cvar_once("qlx_funFastSoundLookup", "0")
+        self.set_cvar_once("qlx_funFastSoundLookup", "1")
 
         self.add_hook("chat", self.handle_chat)
+        self.add_hook("console_print", self.handle_console_print)
         self.add_hook("server_command", self.handle_server_command)
         self.add_hook("player_disconnect", self.player_disconnect)
         self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
@@ -190,7 +225,7 @@ class myFun(minqlx.Plugin):
         self.add_command(("off", "soundoff"), self.sound_off, client_cmd_perm=0)
         self.add_command(("on", "soundon"), self.sound_on, client_cmd_perm=0)
         self.add_command(("offlist", "soundofflist"), self.cmd_sound_off_list, client_cmd_perm=0)
-        self.add_command("playsound", self.cmd_sound, 3)
+        self.add_command(("playsound", "sound"), self.cmd_sound, 3)
         self.add_command("playtrigger", self.cmd_play_trigger, 3)
         self.add_command("disablesound", self.cmd_disable_sound, client_cmd_perm=5, usage="<sound trigger>")
         self.add_command("enablesound", self.cmd_enable_sound, client_cmd_perm=5, usage="<sound trigger>")
@@ -209,8 +244,13 @@ class myFun(minqlx.Plugin):
         self.trigger = ""
         # stores time of last sound play
         self.last_sound = None
+        # variables used when checking for the presence of a sound file
+        self.checking_file = False
+        self.file_status = False
         # Dictionary used to store player sound call times.
         self.sound_limiting = {}
+        # Dictionary used to store admin play sound times.
+        self.admin_limiting = {}
         # List to store steam ids of muted players
         self.muted_players = []
         # List to store the enable/disabled status of the sound packs
@@ -243,6 +283,22 @@ class myFun(minqlx.Plugin):
         self.playedWelcome = []
         # command prefix
         self._command_prefix = self.get_cvar("qlx_commandPrefix")
+        # Execute function to remove loaded !sound commands in other scripts
+        self.remove_conflicting_sound_commands()
+
+    @minqlx.delay(3)
+    def remove_conflicting_sound_commands(self):
+        loaded_scripts = self.plugins
+        for script, handler in loaded_scripts.items():
+            if script == self.__class__.__name__:
+                continue
+            try:
+                for cmd in handler.commands:
+                    if {"sound"}.intersection(cmd.name):
+                        handler.remove_command(cmd.name, cmd.handler)
+                        minqlx.console_print("^1myFun: Removing command {} used in {} plugin".format(cmd.name, script))
+            except:
+                continue
 
     def enable_sound_packs(self, player=None, msg=None, channel=None):
         self.enable_packs(player)
@@ -377,6 +433,13 @@ class myFun(minqlx.Plugin):
         # unset self.played so it can be checked again the next time a sound trigger is typed
         self.played = False
         return minqlx.RET_NONE
+
+    def handle_console_print(self, text):
+        try:
+            if self.checking_file and 'files listed' in text:
+                self.file_status = True if text.split(" ")[0] == "1" else False
+        except:
+            minqlx.log_exception()
 
     # Compares the msg with the sound triggers to determine if there is a match
     # --This function is only called from other functions running as their own threads.--
@@ -777,29 +840,55 @@ class myFun(minqlx.Plugin):
 
     # play the sound at the supplied path
     def cmd_sound(self, player, msg, channel):
+        self.exec_sound(player, msg, channel)
+        return minqlx.RET_STOP_ALL
+
+    @minqlx.thread
+    def exec_sound(self, player, msg, channel):
         if len(msg) < 2:
-            player.tell("Include a path/sound to play.")
-            return minqlx.RET_STOP_ALL
+            player.tell("^3Include a path/sound to play.")
+            return
 
         if "console" != channel and not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
             player.tell("Your sounds are disabled. Use ^6{}sounds^7 to enable them again."
                         .format(self._command_prefix))
-            return minqlx.RET_STOP_ALL
+            return
 
-        # Play locally to validate.
-        if "console" != channel and not super().play_sound(msg[1], player):
-            player.tell("^1Invalid sound.")
-            return minqlx.RET_STOP_ALL
+        # check for a valid sound file
+        self.checking_file = True
+        self.file_status = False
+        minqlx.console_command("fdir {}".format(msg[1]))
+        count = 0
+        if count < 10 and not self.file_status:
+            count += 1
+            time.sleep(0.1)
+        self.checking_file = False
+        if not self.file_status:
+            player.tell("^1Sound ^4{} ^1is not valid.".format(msg[1]))
+            return
 
         if "console" == channel:
             minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
-
-        @minqlx.thread
-        def play():
             self.play_sound(msg[1])
-        play()
+            return
 
-        return minqlx.RET_STOP_ALL
+        try:
+            play_time = time.time() - self.admin_limiting[player.steam_id]
+            if play_time >= self.get_cvar("qlx_funAdminSoundCall", int):
+                stop = False
+            else:
+                stop = self.get_cvar("qlx_funAdminSoundCall", int) - play_time
+        except KeyError:
+            stop = False
+
+        if stop is not False:
+            minqlx.console_print("^3Admin {} tried calling sound {} before timeout expired.".format(player, msg[1]))
+            player.tell("^3You have {} seconds before you can call another sound.".format(int(stop)))
+        else:
+            minqlx.console_print("^3Admin {} called sound {}".format(player, msg[1]))
+            self.admin_limiting[player.steam_id] = time.time()
+            self.play_sound(msg[1])
+        return
 
     def cmd_play_trigger(self, player, msg, channel):
         self.play_trigger(player, msg, channel)
@@ -862,7 +951,6 @@ class myFun(minqlx.Plugin):
         return None
 
     # plays the supplied sound for the players on the server (if the player has the sound(s) enabled)
-    # @minqlx.thread
     def play_sound(self, path):
         play = self.last_2_sound()
         active = self.game.state in ["in_progress", "countdown"]
@@ -933,7 +1021,9 @@ class myFun(minqlx.Plugin):
                 keys = self.db.keys(SOUND_TRIGGERS.format(slot, "*"))
                 for key in keys:
                     db_key = self.db.get(key)
-                    entry = db_key.split(";")
+                    entry = db_key.split(';')
+                    if len(entry) < 2:
+                        continue
                     if self.db.exists(DISABLED_SOUNDS.format(entry[1])):
                         continue
                     trigger = key.split(":")[4]
