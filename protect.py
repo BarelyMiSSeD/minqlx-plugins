@@ -24,8 +24,9 @@ import os
 import codecs
 import random
 import time
+import re
 
-VERSION = "v1.09"
+VERSION = "2.1"
 PROTECT_FILE = "protect.txt"
 
 
@@ -47,25 +48,24 @@ class protect(minqlx.Plugin):
         self.set_cvar_once("qlx_protectFTS", "5")
         self.set_cvar_once("qlx_protectPlayerPercForVote", "26")
 
-        self.protectPermission = self.get_cvar("qlx_protectPermissionLevel")
+        self.protectPermission = self.get_cvar("qlx_protectPermissionLevel", int)
         self.mapProtect = self.get_cvar("qlx_protectMapVoting", bool)
 
         # Commands: permission level is set using some of the Cvars. See the Cvars description at the top of the file.
-        self.add_command("protect", self.cmd_protect, int(self.get_cvar("qlx_protectAdminLevel")),
-                         usage="add|del|check|list <player id|steam id> |name|")
+        self.add_command("protect", self.cmd_protect, self.get_cvar("qlx_protectAdminLevel", int))
         self.add_command(("reload_protect", "load_protect"), self.cmd_load_protects,
-                         int(self.get_cvar("qlx_protectAdminLevel")))
-        self.add_command("setpass", self.cmd_setpass, int(self.get_cvar("qlx_protectPassLevel")))
-        self.add_command("unsetpass", self.cmd_unsetpass, int(self.get_cvar("qlx_protectPassLevel")))
-        self.add_command(("forcets", "forceteamsize"), self.teamsize_force, int(self.get_cvar("qlx_protectFTS")),
+                         self.get_cvar("qlx_protectAdminLevel", int))
+        self.add_command("setpass", self.cmd_setpass, self.get_cvar("qlx_protectPassLevel", int))
+        self.add_command("unsetpass", self.cmd_unsetpass, self.get_cvar("qlx_protectPassLevel", int))
+        self.add_command(("forcets", "forceteamsize"), self.teamsize_force, self.get_cvar("qlx_protectFTS", int),
                          usage="<wanted_teamsize>")
-        self.add_command(("protectversion", "protect_version"), self.protect_version,
-                         int(self.get_cvar("qlx_protectAdminLevel")))
+        self.add_command(("protectversion", "pv"), self.protect_version, self.get_cvar("qlx_protectAdminLevel", int))
         self.add_command("protectlist", self.cmd_protect_list, 5)  # command for testing purposes
         
         # Opens Protect list container
         self.protect = []
         self.vote_count = [0, 0, 0]
+        self.found_player = []
 
         # Loads the protect list.
         self.cmd_load_protects()
@@ -100,7 +100,7 @@ class protect(minqlx.Plugin):
                                     " using ^6{}^7!".format(self.__class__.__name__, line.decode(), VERSION))
                         player.tell("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
                     except Exception as e:
-                        minqlx.console_command("echo {}".format(e))
+                        minqlx.console_command("echo {}".format([e]))
                 return
 
     def protect_version(self, player, msg, channel):
@@ -113,21 +113,54 @@ class protect(minqlx.Plugin):
             self.check_version(player=player)
         if self.get_cvar("qlx_protectJoinMapMessage", bool) and self.mapProtect:
             player.tell("^3Map voting during an active match is disabled on this server.")
-        if self.get_cvar("qlx_protectJoinAfkMessage", bool) and self.get_cvar("qlx_protectAfkVoting", bool) or\
-                self.get_cvar("qlx_protectJoinMuteVoting", bool) and self.get_cvar("qlx_protectMuteVoting", bool):
-                if self.get_cvar("qlx_protectJoinAfkMessage", bool) and\
-                        self.get_cvar("qlx_protectJoinMuteVoting", bool):
-                    player.tell("^3To vote someone to ^1Spectator ^3use ^4/cv afk <client id>^3 or"
-                                "^4/cv spectate <client id>^3. To ^1Mute ^3someone use ^4/cv mute <client id>^3."
-                                "To ^1UnMute ^3use ^4/cv unmute <client id>^3. Use ^4/players^3 in console to"
-                                " get client IDs.")
-                elif self.get_cvar("qlx_protectJoinAfkMessage", bool):
-                    player.tell("^3To vote someone to ^1Spectator ^3use ^4/cv afk <client id>^3 or"
-                                "^4/cv spectate <client id>^3. Use ^4/players^3 in console to get client IDs.")
-                elif self.get_cvar("qlx_protectJoinMuteVoting", bool):
-                    player.tell("^3To ^1Mute ^3someone use ^4/cv mute <client id>."
-                                "To ^1UnMute ^3use ^4/cv unmute <client id>. Use ^4/players^3 in console"
-                                " to get client IDs.")
+        if self.get_cvar("qlx_protectJoinAfkMessage", bool) and self.get_cvar("qlx_protectAfkVoting", bool):
+            player.tell("^3To vote someone to ^1Spectator ^3use ^4/cv afk <client id|name>^3 or"
+                        "^4/cv spectate <client id>^3.")
+        if self.get_cvar("qlx_protectJoinMuteVoting", bool) and self.get_cvar("qlx_protectMuteVoting", bool):
+            player.tell("^3To ^1Mute ^3someone use ^4/cv mute <client id|name>."
+                        "To ^1UnMute ^3use ^4/cv unmute <client id|name>.")
+
+    # Search for a player name match using the supplied string
+    def find_player(self, args):
+        def string(name):
+            found_player = None
+            found_count = 0
+            # Remove color codes from the supplied string
+            player_name = self.clean_text(name).lower()
+            # search through the list of connected players for a name match
+            for p in self.players():
+                if player_name in self.clean_text(p.name).lower():
+                    # if match is found return player
+                    found_player = p
+                    found_count += 1
+            # if only one match was found return player, player id
+            if found_count == 1:
+                return found_player
+            # if more than one match is found return -2
+            elif found_count > 1:
+                return -2
+            # if no match is found return -1
+            else:
+                return -1
+
+        try:
+            player = self.player(int(args))
+            if player is None:
+                player = -3
+        except minqlx.NonexistentPlayerError:
+            player = -3
+        except ValueError:
+            player = string(" ".join(args))
+        if player in [-1, -2, -3]:
+            pid = player
+            sid = player
+        else:
+            pid = player.id
+            sid = player.steam_id
+        return [player, sid, pid]
+
+    def clean_text(self, text):
+        return re.sub(r"\^[0-9]", "", text)
 
     # Handles votes called: Kick protection, Map voting rejection during active matches, AFK voting,
     # and Mute/UnMute voting.
@@ -135,26 +168,23 @@ class protect(minqlx.Plugin):
         try:
             # Map Voting
             vote = vote.lower()
-            if (vote == "map" or vote == "nextmap" or vote == "map_restart") and self.mapProtect and\
-                    self.game.state == "in_progress":
+            if vote in ["map", "nextmap", "map_restart"] and self.mapProtect and self.game.state == "in_progress":
                 caller.tell("^3Map voting is not allowed during an active match")
                 return minqlx.RET_STOP_ALL
             # Kick Voting
-            elif vote == "kick" or vote == "clientkick":
-                try:
-                    client_id = int(args)
-                    target_player = self.player(client_id)
-                except ValueError:
-                    target_player = self.player(args)
-                ident = target_player.steam_id
-                perm = self.db.get_permission(ident)
-                if ident == minqlx.owner():
+            elif vote in ["kick", "clientkick"]:
+                player = self.find_player(args)
+                if player[0] in [-1, -2, -3]:
+                    caller.tell("^1No matching player found")
+                    return minqlx.RET_STOP_ALL
+                if player[1] == minqlx.owner():
                     caller.tell("^2That's my master! I won't let this vote pass.")
                     return minqlx.RET_STOP_ALL
-                elif int(perm) >= int(self.protectPermission):
+                perm = self.db.get_permission(player[1])
+                if perm >= self.protectPermission:
                     caller.tell("^2That player is too important on this server and can't be kicked.")
                     return minqlx.RET_STOP_ALL
-                elif ident in self.protect:
+                elif player[1] in self.protect:
                     caller.tell("^3That player is in the ^1kick protect^3 list.")
                     return minqlx.RET_STOP_ALL
             # Voting people to Spectator
@@ -162,61 +192,56 @@ class protect(minqlx.Plugin):
                 if not self.get_cvar("qlx_protectAfkVoting", bool):
                     caller.tell("^3Voting players to spectator is not enabled on this server.")
                     return minqlx.RET_STOP_ALL
-                try:
-                    player_name = self.player(int(args)).clean_name
-                    player_id = self.player(int(args)).id
-                except:
-                    caller.tell("^1Invalid ID.^7 Use a client ID from the ^2/players^7 command.")
+                player = self.find_player(args)
+                if player[0] in [-1, -2, -3]:
+                    caller.tell("^1No matching player found")
                     return minqlx.RET_STOP_ALL
-    
-                if self.player(int(args)).team == "spectator":
+                if player[0].team == "spectator":
                     caller.tell("That player is already in the spectators.")
                     return minqlx.RET_STOP_ALL
-                self.callvote_to_spec(caller, vote, player_name, player_id)
+                name = player[0].split("'")[1]
+                self.callvote_to_spec(caller, vote, self.clean_text(name), player[2])
                 return minqlx.RET_STOP_ALL
             # Voting to mute people
             elif vote == "mute" or vote == "silence":
                 if not self.get_cvar("qlx_protectMuteVoting", bool):
                     caller.tell("^3Voting to mute players is not enabled on this server.")
                     return minqlx.RET_STOP_ALL
-                try:
-                    player_name = self.player(int(args)).clean_name
-                    player_id = self.player(int(args)).id
-                except:
-                    caller.tell("^1Invalid ID.^7 Use a client ID from the ^2/players^7 command.")
+                player = self.find_player(args)
+                if player[0] in [-1, -2, -3]:
+                    caller.tell("^1No matching player found")
                     return minqlx.RET_STOP_ALL
-                ident = self.player(int(args)).steam_id
-                perm = self.db.get_permission(ident)
-                if ident == minqlx.owner():
+                if player[1] == minqlx.owner():
                     caller.tell("^2That's my master! I won't let this vote pass.")
                     return minqlx.RET_STOP_ALL
-                elif int(perm) >= int(self.protectPermission):
+                perm = self.db.get_permission(player[1])
+                if perm >= self.protectPermission:
                     caller.tell("^2That player is too important on this server and can't be muted.")
                     return minqlx.RET_STOP_ALL
-                self.callvote("mute {}".format(player_id), "Mute {}?".format(player_name))
+                name = player[0].split("'")[1]
+                self.callvote("mute {}".format(player[2]), "Mute {}?".format(self.clean_text(name)))
                 minqlx.client_command(caller.id, "vote yes")
-                self.msg("{}^7 called a vote.".format(caller.name))
+                self.msg("{}^7 called vote ^6mute {}".format(caller.name, name))
                 return minqlx.RET_STOP_ALL
             # Voting to unMute people
             elif vote == "unmute" or vote == "unsilence":
                 if not self.get_cvar("qlx_protectMuteVoting", bool):
                     caller.tell("^3Voting to mute/unmute players is not enabled on this server.")
                     return minqlx.RET_STOP_ALL
-                try:
-                    player_name = self.player(int(args)).clean_name
-                    player_id = self.player(int(args)).id
-                except:
-                    caller.tell("^1Invalid ID.^7 Use a client ID from the ^2/players^7 command.")
+                player = self.find_player(args)
+                if player[0] in [-1, -2, -3]:
+                    caller.tell("^1No matching player found")
                     return minqlx.RET_STOP_ALL
-                if int(caller.id) == int(player_id):
+                if int(caller.id) == player[2]:
                     caller.tell("^3Sorry, you cannot callvote to unmute yourself.")
                     return minqlx.RET_STOP_ALL
-                self.callvote("unmute {}".format(player_id), "UnMute {}?".format(player_name))
+                name = player[0].split("'")[1]
+                self.callvote("unmute {}".format(player[2]), "UnMute {}?".format(self.clean_text(name)))
                 minqlx.client_command(caller.id, "vote yes")
-                self.msg("{}^7 called a vote.".format(caller.name))
+                self.msg("{}^7 called vote ^6unmute {}".format(caller.name, name))
                 return minqlx.RET_STOP_ALL
         except Exception as e:
-            minqlx.console_print("^1protect.py handle_vote_called Exception: {}".format(e))
+            minqlx.console_print("^1protect.py handle_vote_called Exception: {}".format([e]))
 
     @minqlx.thread
     def callvote_to_spec(self, caller, vote, player_name, player_id):
@@ -238,7 +263,7 @@ class protect(minqlx.Plugin):
                     self.force_vote(True)
             return
         except Exception as e:
-            minqlx.console_print("^1protect.py callvote_to_spec Exception: {}".format(e))
+            minqlx.console_print("^1protect.py callvote_to_spec Exception: {}".format([e]))
 
     # Checks for a protect.txt file and loads the entries if the file exists. Creates one if it doesn't.
     def cmd_load_protects(self, player=None, msg=None, channel=None):
@@ -273,190 +298,30 @@ class protect(minqlx.Plugin):
                     player.tell("^3No ^1Protect^3 list was found so one was created and the server owner was added.")
             except Exception as e:
                 if player:
-                    player.tell("^1Error ^3reading and/or creating the Protect list: {}".format(e))
-                minqlx.console_print("^1Error ^3reading and/or creating the Protect list: {}".format(e))
+                    player.tell("^1Error ^3reading and/or creating the Protect list: {}".format([e]))
+                minqlx.console_print("^1Error ^3reading and/or creating the Protect list: {}".format([e]))
         except Exception as e:
             if player:
-                player.tell("^1Error ^3reading the Protect list: {}".format(e))
-            minqlx.console_print("^1protect.py cmd_load_protects Exception: {}".format(e))
+                player.tell("^1Error ^3reading the Protect list: {}".format([e]))
+            minqlx.console_print("^1protect.py cmd_load_protects Exception: {}".format([e]))
         return minqlx.RET_STOP_EVENT
 
     # The PROTECT command: add, del, check, and list people.
     def cmd_protect(self, player, msg, channel):
+        self.exec_protect(player, msg)
+        return minqlx.RET_STOP_EVENT
+
+    @minqlx.thread
+    def exec_protect(self, player, msg):
         try:
             if len(msg) < 2:
-                player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
-                return minqlx.RET_STOP_EVENT
+                player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7|^2name^7>")
+                return
 
             action = msg[1].lower()
-            target_player = False
-
-            # Executes if msg begins with "!protect add"
-            if action == "add":
-                if len(msg) < 3:
-                    player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7>"
-                                " ^7<^2name^7>")
-                    return minqlx.RET_STOP_EVENT
-                try:
-                    player_id = int(msg[2])
-                    if 0 <= player_id <= 63:
-                        try:
-                            target_player = self.player(player_id)
-                        except minqlx.NonexistentPlayerError:
-                            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                            return minqlx.RET_STOP_EVENT
-                        if not target_player:
-                            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                            return minqlx.RET_STOP_EVENT
-                        player_id = int(target_player.steam_id)
-                    elif player_id < 0:
-                        player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7>"
-                                    " ^7<^2name^7>")
-                        return minqlx.RET_STOP_EVENT
-                    elif len(str(player_id)) != 17:
-                        player.tell("^3The STEAM ID given needs to be 17 digits in length.")
-                        return minqlx.RET_STOP_EVENT
-                except ValueError:
-                    player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
-                    return minqlx.RET_STOP_EVENT
-
-                if target_player:
-                    message = "{} {}".format(player_id, target_player).split()
-                else:
-                    target_player = " ".join(msg[3:])
-                    message = msg[2:]
-
-                if player_id in self.protect:
-                    player.tell("^2{}^3 is already in the Protect list.".format(target_player))
-                    self.update_line(player=player, add_name=message)
-                    return minqlx.RET_STOP_EVENT
-
-                file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
-                if not target_player:
-                    target_player = "Name not supplied"
-                try:
-                    h = codecs.open(file, "a", "utf-8")
-                except FileNotFoundError:
-                    player.tell("^1Error ^3opening the Protect list file")
-                    minqlx.console_print("^1Error ^3opening the Protect list file")
-                    return minqlx.RET_STOP_EVENT
-                except Exception as e:
-                    player.tell("^1Error ^3reading the Protect list file: {}".format(e))
-                    minqlx.console_print("^1Error ^3reading the Protect list file: {}".format(e))
-                    return minqlx.RET_STOP_EVENT
-                h.write(str(player_id) + " " + str(target_player) + "\n")
-                h.close()
-                self.protect.append(player_id)
-                player.tell("^2{}^3 has been added to the Protect list.".format(target_player))
-                return minqlx.RET_STOP_EVENT
-
-            # Executes if msg begins with "!protect del"
-            elif action == "del":
-                if len(msg) < 3:
-                    player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
-                    return minqlx.RET_STOP_EVENT
-                try:
-                    player_id = int(msg[2])
-                    if 0 <= player_id <= 63:
-                        try:
-                            target_player = self.player(player_id)
-                        except minqlx.NonexistentPlayerError:
-                            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                            return minqlx.RET_STOP_EVENT
-                        if not target_player:
-                            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                            return minqlx.RET_STOP_EVENT
-                        player_id = int(target_player.steam_id)
-                    elif player_id < 0:
-                        player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
-                        return minqlx.RET_STOP_EVENT
-                    elif len(str(player_id)) != 17:
-                        player.tell("^3The STEAM ID given needs to be 17 digits in length.")
-                        return minqlx.RET_STOP_EVENT
-                except ValueError:
-                    player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
-                    return minqlx.RET_STOP_EVENT
-                file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
-                try:
-                    f = codecs.open(file, "r", "utf-8")
-                except FileNotFoundError:
-                    player.tell("^1Error ^3opening the Protect list file")
-                    minqlx.console_print("^1Error ^3opening the Protect list file")
-                    return minqlx.RET_STOP_EVENT
-                except Exception as e:
-                    player.tell("^1Error ^3reading the Protect list file: {}".format(e))
-                    minqlx.console_print("^1Error ^3reading the Protect list file: {}".format(e))
-                    return minqlx.RET_STOP_EVENT
-                lines = f.readlines()
-                f.close()
-                for search_id in lines:
-                    if search_id.startswith("#"): continue
-                    if player_id == int(search_id.split(None, 1)[0]):
-                        h = codecs.open(file, "w", "utf-8")
-                        for line in lines:
-                            if line[0] == "#":
-                                h.write(line)
-                            elif player_id != int(line.split(None, 1)[0]):
-                                h.write(line)
-                        h.close()
-                        if player_id in self.protect:
-                            self.protect.remove(player_id)
-                        if target_player:
-                            player.tell("^2{}^3 has been deleted from the Protect list.".format(target_player))
-                        else:
-                            player.tell("^2{}^3 has been deleted from the Protect list.".format(player_id))
-                        return minqlx.RET_STOP_EVENT
-                if target_player:
-                    player.tell("^2{}^3 is not in the protect list.".format(target_player))
-                else:
-                    player.tell("^2{}^3 is not in the protect list.".format(player_id))
-                return minqlx.RET_STOP_EVENT
-
-            # Executes if msg begins with "!protect check"
-            elif action == "check":
-                if len(msg) < 3:
-                    player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
-                    return minqlx.RET_STOP_EVENT
-                try:
-                    player_id = int(msg[2])
-                    if 0 <= player_id <= 63:
-                        try:
-                            target_player = self.player(player_id)
-                        except minqlx.NonexistentPlayerError:
-                            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                            return minqlx.RET_STOP_EVENT
-                        if not target_player:
-                            player.tell("^3Invalid client ID. Use either a client ID or a SteamID64.")
-                            return minqlx.RET_STOP_EVENT
-                        player_id = int(target_player.steam_id)
-                    elif player_id < 0:
-                        player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
-                        return minqlx.RET_STOP_EVENT
-                    elif len(str(player_id)) != 17:
-                        player.tell("^3The STEAM ID given needs to be 17 digits in length.")
-                        return minqlx.RET_STOP_EVENT
-                except ValueError:
-                    player.tell("^3Invalid ID. Use either a client ID or a SteamID64.")
-                    return minqlx.RET_STOP_EVENT
-
-                if player_id in self.protect:
-                    if target_player:
-                        player.tell("^2{}^3 is in the Protect list.".format(target_player))
-                    else:
-                        player.tell("^2{}^3 is in the protect list".format(player_id))
-                    return minqlx.RET_STOP_EVENT
-                else:
-                    if target_player:
-                        player.tell("^2{}^3 is ^1NOT^3 in the Protect list.".format(target_player))
-                    else:
-                        player.tell("^2{}^3 is ^1NOT^3 in the Protect List.".format(player_id))
-                    return minqlx.RET_STOP_EVENT
-
             # Executes if msg begins with "!protect list"
-            elif action == "list":
+            if action == "list":
                 player_list = self.players()
-                if not player_list:
-                    player.tell("There are no players connected at the moment.")
                 message = ["^5Protect List:"]
                 file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
                 try:
@@ -464,41 +329,126 @@ class protect(minqlx.Plugin):
                 except FileNotFoundError:
                     player.tell("^1Error ^3opening the Protect list file")
                     minqlx.console_print("^1Error ^3opening the Protect list file")
-                    return minqlx.RET_STOP_EVENT
+                    return
                 except Exception as e:
-                    player.tell("^1Error ^3reading the Protect list file: {}".format(e))
-                    minqlx.console_print("^1Error ^3reading the Protect list file: {}".format(e))
-                    return minqlx.RET_STOP_EVENT
+                    player.tell("^1Error ^3reading the Protect list file: {}".format([e]))
+                    minqlx.console_print("^1Error ^3reading the Protect list file: {}".format([e]))
+                    return
                 lines = f.readlines()
                 f.close()
                 for line in lines:
-                    if line.startswith("#"): continue
+                    if line.startswith("#"):
+                        continue
                     line = line.split(" ")
-                    player_id = line[0].strip("\n")
-                    found_name = False
-                    saved_name = False
-                    for p in player_list:
-                        if int(player_id) == p.steam_id:
-                            found_name = p.name
-                    if not found_name:
-                        saved_name = " ".join(line[1:]).strip("\n")
-
-                    if found_name:
-                        message.append("  ^7SteamID ^1{} ^7: ^4{}".format(player_id, found_name))
-                    elif saved_name:
-                        message.append("  ^7SteamID ^1{} ^7: ^4{} ^7: ^3Player not connected"
-                                       .format(player_id, saved_name))
+                    sid = int(line[0].strip("\n"))
+                    if sid in player_list:
+                        name = self.player(sid).name
                     else:
-                        message.append("  ^7SteamID ^1{} ^7: ^4No Name saved ^7: ^3Player not connected"
-                                       .format(player_id))
-
+                        name = " ".join(line[1:]).strip("\n")
+                    message.append("  ^7SteamID ^1{} ^7: ^4{}".format(sid, name))
                 player.tell("\n".join(message))
-                return minqlx.RET_STOP_EVENT
+                return
+
+            if len(msg) < 3:
+                player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7|^2name^7>")
+                return
+            target_player = self.find_player(" ".join(msg[2:]))
+            if target_player[0] in [-1, -2, -3]:
+                name = "Name not supplied"
+                try:
+                    sid = int(msg[2])
+                    if len(msg[2]) == 17:
+                        target_player[1] = sid
+                        try:
+                            name = self.db.lindex("minqlx:players:{}".format(msg[2]), 0)
+                        except Exception as e:
+                            minqlx.console_print("^1protect exec_protect Find DB Name Exception: {}".format([e]))
+                except ValueError:
+                    player.tell("^1No matching player found")
+                    return
             else:
-                player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7> |name|")
-                return minqlx.RET_STOP_EVENT
+                name = target_player[0].split("'")[1]
+            # Executes if msg begins with "!protect add"
+            if action == "add":
+                if target_player[1] in self.protect:
+                    player.tell("^2{}^3 is already in the Protect list.".format(name))
+                    self.update_line(player=player, add_name=[target_player[1], name])
+                    return
+                file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
+                try:
+                    h = codecs.open(file, "a", "utf-8")
+                except FileNotFoundError:
+                    player.tell("^1Error ^3opening the Protect list file")
+                    minqlx.console_print("^1Error ^3opening the Protect list file")
+                    return
+                except Exception as e:
+                    player.tell("^1Error ^3reading the Protect list file: {}".format([e]))
+                    minqlx.console_print("^1Error ^3reading the Protect list file: {}".format([e]))
+                    return
+                h.write(str(target_player[1]) + " " + str(name) + "\n")
+                h.close()
+                self.protect.append(target_player[1])
+                player.tell("^2{}^3 has been added to the Protect list.".format(name))
+                return
+
+            # Executes if msg begins with "!protect del"
+            elif action == "del":
+                file = os.path.join(self.get_cvar("fs_homepath"), PROTECT_FILE)
+                try:
+                    f = codecs.open(file, "r", "utf-8")
+                except FileNotFoundError:
+                    player.tell("^1Error ^3opening the Protect list file")
+                    minqlx.console_print("^1Error ^3opening the Protect list file")
+                    return
+                except Exception as e:
+                    player.tell("^1Error ^3reading the Protect list file: {}".format([e]))
+                    minqlx.console_print("^1Error ^3reading the Protect list file: {}".format([e]))
+                    return
+                lines = f.readlines()
+                f.close()
+                for search_id in lines:
+                    if search_id.startswith("#"):
+                        continue
+                    if target_player[1] == int(search_id.split(None, 1)[0]):
+                        h = codecs.open(file, "w", "utf-8")
+                        for line in lines:
+                            if line[0] == "#":
+                                h.write(line)
+                            elif target_player[1] != int(line.split(None, 1)[0]):
+                                h.write(line)
+                        h.close()
+                        if target_player[1] in self.protect:
+                            self.protect.remove(target_player[1])
+                        if target_player != "Name not supplied":
+                            player.tell("^2{}^3 has been deleted from the Protect list.".format(name))
+                        else:
+                            player.tell("^2{}^3 has been deleted from the Protect list.".format(target_player[1]))
+                        return
+                if target_player != "Name not supplied":
+                    player.tell("^2{}^3 is not in the protect list.".format(name))
+                else:
+                    player.tell("^2{}^3 is not in the protect list.".format(target_player[1]))
+                return
+
+            # Executes if msg begins with "!protect check"
+            elif action == "check":
+                if target_player[1] in self.protect:
+                    if name != "Name not supplied":
+                        player.tell("^2{}^3 is in the Protect list.".format(name))
+                    else:
+                        player.tell("^2{}^3 is in the protect list".format(target_player[1]))
+                    return
+                else:
+                    if name != "Name not supplied":
+                        player.tell("^2{}^3 is ^1NOT^3 in the Protect list.".format(name))
+                    else:
+                        player.tell("^2{}^3 is ^1NOT^3 in the Protect List.".format(target_player[1]))
+                    return
+            else:
+                player.tell("^3usage^7=^2add^7|^2del^7|^2check^7|^2list ^7<^2player id^7|^2steam id^7|^2name^7>")
+                return
         except Exception as e:
-            minqlx.console_print("^1protect.py cmd_protect Exception: {}".format(e))
+            minqlx.console_print("^1protect.py cmd_protect Exception: {}".format([e]))
 
     # Updates the protect.txt file with a player name if one was not previously saved when player was originally added.
     def update_line(self, player=None, add_name=None):
@@ -512,38 +462,40 @@ class protect(minqlx.Plugin):
                     minqlx.console_print("^1Error ^3opening the Protect list file in update_line")
                     return minqlx.RET_STOP_EVENT
                 except Exception as e:
-                    player.tell("^1Error ^3reading the Protect list file in update_line: {}".format(e))
-                    minqlx.console_print("^1Error ^3reading the Protect list file in update_line: {}".format(e))
+                    player.tell("^1Error ^3reading the Protect list file in update_line: {}".format([e]))
+                    minqlx.console_print("^1Error ^3reading the Protect list file in update_line: {}".format([e]))
                     return minqlx.RET_STOP_EVENT
                 lines = f.readlines()
                 f.close()
-                player_id = int(add_name[0])
-                for checkID in lines:
-                    check = checkID.split()
-                    if player_id == int(check[0]) and len(check) == 1:
-                        try:
-                            h = codecs.open(file, "w", "utf-8")
-                        except FileNotFoundError:
-                            player.tell("^1Error ^3opening the Protect list file for writing in update_line")
-                            minqlx.console_print("^1Error ^3opening the Protect list file for writing in update_line")
-                            return minqlx.RET_STOP_EVENT
-                        except Exception as e:
-                            player.tell("^1Error ^3reading the Protect list file for writing in update_line: {}"
-                                        .format(e))
-                            minqlx.console_print("^1Error ^3reading the Protect list file for writing in"
-                                                 " update_line: {}".format(e))
-                            return minqlx.RET_STOP_EVENT
-                        for line in lines:
-                            if line[0] == "#":
-                                h.write(line)
-                            elif player_id == int(line.split(None, 1)[0]):
-                                h.write(" ".join(add_name[0:]) + "\n")
-                            else:
-                                h.write(line)
-                        h.close()
-                        return minqlx.RET_STOP_EVENT
+                player_id = str(add_name[0])
+                found = False
+                try:
+                    h = codecs.open(file, "w", "utf-8")
+                    for line in lines:
+                        current = line.split()
+                        if line.startswith("#"):
+                            h.write(line)
+                        elif player_id == current[0]:
+                            h.write(player_id + " " + add_name[1] + "\n")
+                            found = True
+                        else:
+                            h.write(line)
+                    if not found:
+                        h.write(player_id + " " + add_name[1] + "\n")
+                    h.close()
+                    return minqlx.RET_STOP_EVENT
+                except FileNotFoundError:
+                    player.tell("^1Error ^3opening the Protect list file for writing in update_line")
+                    minqlx.console_print("^1Error ^3opening the Protect list file for writing in update_line")
+                    return minqlx.RET_STOP_EVENT
+                except Exception as e:
+                    player.tell("^1Error ^3reading the Protect list file for writing in update_line: {}"
+                                .format([e]))
+                    minqlx.console_print("^1Error ^3reading the Protect list file for writing in"
+                                         " update_line: {}".format([e]))
+                    return minqlx.RET_STOP_EVENT
             except Exception as e:
-                minqlx.console_print("^1protect.py update_line Exception: {}".format(e))
+                minqlx.console_print("^1protect.py update_line Exception: {}".format([e]))
         return minqlx.RET_STOP_EVENT
 
     # Command used for testing: shows the contents of the self.protect string used to protect players from being kicked.
@@ -556,37 +508,33 @@ class protect(minqlx.Plugin):
         if len(msg) < 2:
             player.tell("^3usage^7=^2<password>")
             return minqlx.RET_STOP_EVENT
-
-        minqlx.console_command("set g_password {}".format(msg[1]))
+        minqlx.console_command("set g_password \"{}\"".format(msg[1]))
         player.tell("^3Server join password is set to ^1{}.".format(msg[1]))
         return minqlx.RET_STOP_EVENT
 
     # Clears the server join password
     def cmd_unsetpass(self, player, msg, channel):
-        minqlx.console_command('set g_password ""')
+        minqlx.console_command("set g_password \"\"")
         player.tell("^3Server join password has been cleared.")
         return minqlx.RET_STOP_EVENT
 
-    # Forces the teamsize to the desired size, puts all players to spectate if needed to set the teamsize.
+    # Forces the teamsize to the desired size, puts all players to spectate if teamsize is less than players in team.
     def teamsize_force(self, player, msg, channel):
         if len(msg) < 2:
             return minqlx.RET_USAGE
-
         try:
             wanted_teamsize = int(msg[1])
         except ValueError:
             player.tell("^1Unintelligible size.")
             return minqlx.RET_STOP_EVENT
-
         teamsize = self.get_cvar("teamsize")
         if int(teamsize) == wanted_teamsize:
             player.tell("^4The teamsize is already {}.".format(teamsize))
             return minqlx.RET_STOP_EVENT
-
         teams = self.teams()
         red_teamsize = len(teams["red"])
         blue_teamsize = len(teams["blue"])
-        if int(red_teamsize) <= wanted_teamsize and int(blue_teamsize) <= wanted_teamsize:
+        if red_teamsize <= wanted_teamsize and blue_teamsize <= wanted_teamsize:
             self.game.teamsize = wanted_teamsize
             self.msg("^4Server: ^7The teamsize was set to ^1{}^7.".format(wanted_teamsize))
         else:
