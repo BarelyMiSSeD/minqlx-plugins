@@ -26,7 +26,7 @@ import random
 import time
 import re
 
-VERSION = "2.1"
+VERSION = "2.2"
 PROTECT_FILE = "protect.txt"
 
 
@@ -199,7 +199,7 @@ class protect(minqlx.Plugin):
                 if player[0].team == "spectator":
                     caller.tell("That player is already in the spectators.")
                     return minqlx.RET_STOP_ALL
-                name = player[0].split("'")[1]
+                name = player[0].name
                 self.callvote_to_spec(caller, vote, self.clean_text(name), player[2])
                 return minqlx.RET_STOP_ALL
             # Voting to mute people
@@ -218,7 +218,7 @@ class protect(minqlx.Plugin):
                 if perm >= self.protectPermission:
                     caller.tell("^2That player is too important on this server and can't be muted.")
                     return minqlx.RET_STOP_ALL
-                name = player[0].split("'")[1]
+                name = player[0].name
                 self.callvote("mute {}".format(player[2]), "Mute {}?".format(self.clean_text(name)))
                 minqlx.client_command(caller.id, "vote yes")
                 self.msg("{}^7 called vote ^6mute {}".format(caller.name, name))
@@ -235,7 +235,7 @@ class protect(minqlx.Plugin):
                 if int(caller.id) == player[2]:
                     caller.tell("^3Sorry, you cannot callvote to unmute yourself.")
                     return minqlx.RET_STOP_ALL
-                name = player[0].split("'")[1]
+                name = player[0].name
                 self.callvote("unmute {}".format(player[2]), "UnMute {}?".format(self.clean_text(name)))
                 minqlx.client_command(caller.id, "vote yes")
                 self.msg("{}^7 called vote ^6unmute {}".format(caller.name, name))
@@ -367,7 +367,7 @@ class protect(minqlx.Plugin):
                     player.tell("^1No matching player found")
                     return
             else:
-                name = target_player[0].split("'")[1]
+                name = target_player[0].name
             # Executes if msg begins with "!protect add"
             if action == "add":
                 if target_player[1] in self.protect:
