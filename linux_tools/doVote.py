@@ -7,7 +7,7 @@ class doVote(balance):
     def __init__(self):
         super().__init__()
         self.set_cvar_once("qlx_balanceDoVotePerc", "26")
-        self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
+        self.add_hook("vote_called", self.handle_vote_called)
         self.add_command("force_agree", self.cmd_force_agree, 3)
         self.vote_count = [0, 0, 0]
 
