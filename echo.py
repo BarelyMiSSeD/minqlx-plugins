@@ -11,7 +11,7 @@
 # This is a plugin prints the command issuer and the command with arguments to the console
 # so they can be seen and logged.
 # It gets all the commands loaded on the server automatically.
-# Add commands you don't want echoed to the DONT_ECHO list below.
+# Edit the DONT_ECHO list below to exclude the commands you don't want echoed.
 # The command !echo will show all the commands being echoed.
 
 import minqlx
