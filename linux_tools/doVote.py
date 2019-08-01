@@ -43,7 +43,7 @@ class doVote(balance):
                     self.force_vote(True)
             return
         except Exception as e:
-            minqlx.console_print("^1serverBDM check_force_switch_vote Exception: {}".format(e))
+            minqlx.console_print("^1doVote check_force_switch_vote Exception: {}".format(e))
 
     def cmd_force_agree(self, player=None, msg=None, channel=None):
         if self.suggested_pair:
