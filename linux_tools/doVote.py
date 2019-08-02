@@ -13,15 +13,15 @@
 # - Players would "/callvote do" to utilize the vote
 
 # *** IMPORTANT ***
-# Do not have the server config load the balance.py plugin, loading doVote.py will load balance.py since
+# Do not have the server config load the balance plugin, loading doVote will load balance since
 #  this plugin runs as a sub-class of balance. Remove balance from qlx_plugins and add doVote.
 
 # created by BarelyMiSSeD on 8-1-2019
 
 import minqlx
 from .balance import balance
-import random
-import time
+from random import randrange
+from time import sleep
 
 VERSION = "1.1"
 
@@ -54,11 +54,11 @@ class doVote(balance):
             if voter_perc > 0:
                 self.vote_count[0] = 1
                 self.vote_count[1] = 0
-                thread_number = random.randrange(0, 10000000)
+                thread_number = randrange(0, 10000000)
                 self.vote_count[2] = thread_number
                 teams = self.teams()
                 voters = len(teams["red"]) + len(teams["blue"])
-                time.sleep(28.7)
+                sleep(28.7)
                 if self.vote_count[2] == thread_number and self.vote_count[0] / voters * 100 >= voter_perc and\
                         self.vote_count[0] > self.vote_count[1]:
                     self.force_vote(True)
