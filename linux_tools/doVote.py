@@ -1,8 +1,29 @@
+# This is an extension plugin  for minqlx.
+# Copyright (C) 2018 BarelyMiSSeD (github)
+
+# You can redistribute it and/or modify it under the terms of the
+# GNU General Public License as published by the Free Software Foundation,
+# either version 3 of the License, or (at your option) any later version.
+
+# You should have received a copy of the GNU General Public License
+# along with minqlx. If not, see <http://www.gnu.org/licenses/>.
+
+# doVote.py is a plugin for minqlx to:
+# - allow players to callvote forcing the suggested player switch gotten from !teams
+# - Players would "/callvote do" to utilize the vote
+
+# *** IMPORTANT ***
+# Do not have the server config load the balance.py plugin, loading doVote.py will load balance.py since
+#  this plugin runs as a sub-class of balance. Remove balance from qlx_plugins and add doVote.
+
+# created by BarelyMiSSeD on 8-1-2019
 
 import minqlx
 from .balance import balance
 import random
 import time
+
+VERSION = "1.1"
 
 
 class doVote(balance):
