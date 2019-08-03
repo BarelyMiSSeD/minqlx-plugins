@@ -16,6 +16,7 @@ qlx_protectJoinMuteVoting "1" - Sends join message to players if mute voting is 
 qlx_protectAdminLevel "5" - Sets the minqlx server permission level needed to add/del/list the protect list, and display the protect.py version number.
 qlx_protectPassLevel "5" - Sets the minqlx server permission level needed to set/unset the server join password.
 qlx_protectFTS "5" - Sets the minqlx server permisson level needed to force teamsize.
+qlx_protectPlayerPercForVote "26" - Percentage of players voting yes to pass the AFK vote
 """
 
 import minqlx
@@ -26,7 +27,7 @@ import random
 import time
 import re
 
-VERSION = "2.2"
+VERSION = "2.3"
 PROTECT_FILE = "protect.txt"
 
 
@@ -180,15 +181,14 @@ class protect(minqlx.Plugin):
                 if player[1] == minqlx.owner():
                     caller.tell("^2That's my master! I won't let this vote pass.")
                     return minqlx.RET_STOP_ALL
-                perm = self.db.get_permission(player[1])
-                if perm >= self.protectPermission:
+                if self.db.has_permission(player[1], self.protectPermission):
                     caller.tell("^2That player is too important on this server and can't be kicked.")
                     return minqlx.RET_STOP_ALL
                 elif player[1] in self.protect:
                     caller.tell("^3That player is in the ^1kick protect^3 list.")
                     return minqlx.RET_STOP_ALL
             # Voting people to Spectator
-            elif vote == "afk" or vote == "spectate":
+            elif vote in ["afk", "spectate", "spec"]:
                 if not self.get_cvar("qlx_protectAfkVoting", bool):
                     caller.tell("^3Voting players to spectator is not enabled on this server.")
                     return minqlx.RET_STOP_ALL
@@ -199,8 +199,7 @@ class protect(minqlx.Plugin):
                 if player[0].team == "spectator":
                     caller.tell("That player is already in the spectators.")
                     return minqlx.RET_STOP_ALL
-                name = player[0].name
-                self.callvote_to_spec(caller, vote, self.clean_text(name), player[2])
+                self.callvote_to_spec(caller, vote, self.clean_text(player[0].name), player[2])
                 return minqlx.RET_STOP_ALL
             # Voting to mute people
             elif vote == "mute" or vote == "silence":
@@ -214,8 +213,7 @@ class protect(minqlx.Plugin):
                 if player[1] == minqlx.owner():
                     caller.tell("^2That's my master! I won't let this vote pass.")
                     return minqlx.RET_STOP_ALL
-                perm = self.db.get_permission(player[1])
-                if perm >= self.protectPermission:
+                if self.db.has_permission(player[1], self.protectPermission):
                     caller.tell("^2That player is too important on this server and can't be muted.")
                     return minqlx.RET_STOP_ALL
                 name = player[0].name
