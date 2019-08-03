@@ -14,7 +14,7 @@ import minqlx
 import requests
 import re
 
-VERSION = "v1.16"
+VERSION = "v1.17"
 FILE_NAME = "server_{}_map_list.txt"
 MAP_NAME_FILE = 'Map_Names.txt'
 _map_buffer = []
@@ -95,6 +95,7 @@ class listmaps(minqlx.Plugin):
             except:
                 minqlx.log_exception()
                 return True
+        return
 
     def get_maps(self, player=None, msg=None, channel=None):
         self.getting_maps = True
@@ -160,9 +161,9 @@ class listmaps(minqlx.Plugin):
                     maps.append(lineB)
                 items += 1
         else:
-            search = msg[1]
+            search = " ".join(msg[1:])
             for line in lines:
-                if search in addMap:
+                if search in line:
                     map_line = len(maps)
                     map_line -= 1
                     try:
