@@ -22,16 +22,19 @@ PLAYER_DB_KEY = "minqlx:players:{}:{}"
 PERMS_FILE = "server_perms.txt"
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+VERSION = "1.7"
+
 
 class players_db(minqlx.Plugin):
     def __init__(self):
         self.add_command("getperms", self.get_perms, 5)
         self.add_command("addperms", self.add_perms, 5)
-        self.add_command(("perms", "listperms"), self.list_perms, 4)
-        self.add_command(("bans", "banned", "listbans"), self.list_bans, 4)
-        self.add_command(("silenced", "silences", "listsilenced"), self.list_silenced, 4)
-        self.add_command("leavers", self.list_leavers, 4)
-        self.add_command("warned", self.list_warned, 4)
+        self.add_command(("perms", "listperms"), self.list_perms, 3)
+        self.add_command(("bans", "banned", "listbans"), self.list_bans, 3)
+        self.add_command(("silenced", "silences", "listsilenced"), self.list_silenced, 3)
+        self.add_command("leavers", self.list_leavers, 3)
+        self.add_command("warned", self.list_warned, 3)
+        self.add_command("sid", self.sid_info, 3)
 
     def get_perms(self, player, msg, channel):
         self.save_perms()
@@ -75,6 +78,20 @@ class players_db(minqlx.Plugin):
 
         return minqlx.RET_STOP_ALL
 
+    def player_name(self, steam_id):
+        try:
+            player = self.player(int(steam_id))
+            if player is not None:
+                name = player.name
+            else:
+                name = self.db.lindex(PLAYER_KEY.format(steam_id), 0)
+        except minqlx.NonexistentPlayerError:
+            name = self.db.lindex(PLAYER_KEY.format(steam_id), 0)
+        except Exception as e:
+            minqlx.console_print("^1players_db player_name Exception {}: {}".format(steam_id, [e]))
+            name = self.db.lindex(PLAYER_KEY.format(steam_id), 0)
+        return name
+
     def list_perms(self, player, msg, channel):
         self.show_perms(player)
         return minqlx.RET_STOP_ALL
@@ -92,27 +109,17 @@ class players_db(minqlx.Plugin):
             if len(str(steam_id)) == 17:
                 perms = int(self.db.get(player))
                 if perms == 1:
-                    perms_list1.append("{} ^7({}): ^{}{}"
-                                       .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
-                                               steam_id, perms, perms))
+                    perms_list1.append("{0} ^7({1}): ^{2}{2}".format(self.player_name(steam_id), steam_id, perms))
                 elif perms == 2:
-                    perms_list2.append("{} ^7({}): ^{}{}"
-                                       .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
-                                               steam_id, perms, perms))
+                    perms_list2.append("{0} ^7({1}): ^{2}{2}".format(self.player_name(steam_id), steam_id, perms))
                 elif perms == 3:
-                    perms_list3.append("{} ^7({}): ^{}{}"
-                                       .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
-                                               steam_id, perms, perms))
+                    perms_list3.append("{0} ^7({1}): ^{2}{2}".format(self.player_name(steam_id), steam_id, perms))
                 elif perms == 4:
-                    perms_list4.append("{} ^7({}): ^{}{}"
-                                       .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
-                                               steam_id, perms, perms))
+                    perms_list4.append("{0} ^7({1}): ^{2}{2}".format(self.player_name(steam_id), steam_id, perms))
                 elif perms == 5:
-                    perms_list5.append("{} ^7({}): ^{}{}"
-                                       .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
-                                               steam_id, perms, perms))
+                    perms_list5.append("{0} ^7({1}): ^{2}{2}".format(self.player_name(steam_id), steam_id, perms))
         owner = minqlx.owner()
-        asker.tell("^1Server Owner^7: {} ^7({})".format(self.db.lindex(PLAYER_KEY.format(owner), 0), owner))
+        asker.tell("^1Server Owner^7: {} ^7({})".format(self.player_name(owner), owner))
         if len(perms_list5) > 0:
             asker.tell("^5Level 5 Permissions^7:")
             for p in perms_list5:
@@ -152,18 +159,16 @@ class players_db(minqlx.Plugin):
                 expires = datetime.datetime.strptime(longest_ban["expires"], TIME_FORMAT)
                 if (expires - datetime.datetime.now()).total_seconds() > 0:
                     bans_list.append("{} ^7({}): ^6Expires: ^7{} ^5Reason: ^7{} ^2Issued By: ^7{}"
-                                     .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
-                                             steam_id, datetime.datetime.strptime(longest_ban["expires"],
-                                                                                  TIME_FORMAT),
+                                     .format(self.player_name(steam_id),
+                                             steam_id, datetime.datetime.strptime(longest_ban["expires"], TIME_FORMAT),
                                              longest_ban["reason"] if longest_ban["reason"] else "No Saved Reason",
-                                             self.db.lindex(PLAYER_KEY.format(longest_ban["issued_by"]), 0)))
+                                             self.player_name(longest_ban["issued_by"])))
         if len(bans_list) > 0:
             asker.tell("^5Bans^7:")
             for ban in bans_list:
                 asker.tell(ban)
         else:
             asker.tell("^5No Active bans found.")
-
         return
 
     def list_silenced(self, player, msg, channel):
@@ -184,11 +189,10 @@ class players_db(minqlx.Plugin):
                 expires = datetime.datetime.strptime(silence_time["expires"], TIME_FORMAT)
                 if (expires - datetime.datetime.now()).total_seconds() > 0:
                     message.append("{} ^7({}): ^6Expires: ^7{} ^5Reason: ^7{} ^2Issued By: ^7{}"
-                                   .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
-                                           steam_id, datetime.datetime.strptime(silence_time["expires"],
-                                                                                TIME_FORMAT),
+                                   .format(self.player_name(steam_id),
+                                           steam_id, datetime.datetime.strptime(silence_time["expires"], TIME_FORMAT),
                                            silence_time["reason"] if silence_time["reason"] else "No Saved Reason",
-                                           self.db.lindex(PLAYER_KEY.format(silence_time["issued_by"]), 0)))
+                                           self.player_name(silence_time["issued_by"])))
         if len(message) > 0:
             asker.tell("^5Silenced^7:")
             for silence in message:
@@ -229,7 +233,7 @@ class players_db(minqlx.Plugin):
                     ratio = completed / total
                 if ratio <= ban_threshold and total >= min_games_completed:
                     message.append("{} ^7({}): ^6Games Played: ^7{} ^5Left: ^7{} ^4Percent: ^7{}"
-                                   .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
+                                   .format(self.player_name(steam_id),
                                            steam_id, total, left, ratio))
 
             if len(message) > 0:
@@ -272,7 +276,7 @@ class players_db(minqlx.Plugin):
                     ratio = completed / total
                 if ratio <= warn_threshold and (ratio > ban_threshold or total < min_games_completed):
                     message.append("{} ^7({}): ^6Games Played: ^7{} ^5Left: ^7{} ^4Percent: ^7{}"
-                                   .format(self.db.lindex(PLAYER_KEY.format(steam_id), 0),
+                                   .format(self.player_name(steam_id),
                                            steam_id, total, left, ratio))
 
             if len(message) > 0:
@@ -282,3 +286,63 @@ class players_db(minqlx.Plugin):
             else:
                 asker.tell("^5No Leaver Warned found.")
         return
+
+    def sid_info(self, player, msg, channel):
+        self.show_sid_info(player, msg)
+        return minqlx.RET_STOP_ALL
+
+    @minqlx.thread
+    def show_sid_info(self, asker, msg):
+        try:
+            pid = int(msg[1])
+            if 0 <= pid <= 63:
+                sid = str(self.player(pid).steam_id)
+            else:
+                sid = str(pid)
+            if len(sid) != 17 or sid[0] == "9":
+                asker.tell("^1Please enter a valid player ID or Steam ID.")
+                return
+        except TypeError:
+            asker.tell("^1Include a Steam ID or a connected Player ID.")
+            return
+        except minqlx.NonexistentPlayerError:
+            asker.tell("^1That Player ID is not a connected player.")
+            return
+        except Exception as e:
+            minqlx.console_print("^1players_db show_sid_info Exception: {}".format([e]))
+            return
+        names = list(self.db.lrange(PLAYER_KEY.format(sid), 0, -1))
+        count = 1
+        shared_by = {}
+        if len(names):
+            asker.tell("^6These are the names found for steam id ^7{}^6:".format(sid))
+            for name in names:
+                asker.tell("^1Name {}^7: {}".format(count, name))
+                count += 1
+        else:
+            asker.tell("^6No information for ^7{} ^6was found.".format(sid))
+            return
+        ip_list = self.db.smembers(PLAYER_KEY.format(sid) + ":ips")
+        count = 0
+        ip_line = []
+        for ip in ip_list:
+            shared = self.db.smembers("minqlx:ips:{}".format(ip))
+            if len(shared) > 1:
+                shared_by[ip] = shared
+            if count == 0 or count % 5:
+                ip_line.append(ip)
+            else:
+                asker.tell("^1IPs: ^2{}".format("^1, ^2".join(ip_line)))
+                ip_line = [ip]
+            count += 1
+        if len(ip_line):
+            asker.tell("^1IPs: ^2{}".format("^1, ^2".join(ip_line)))
+
+        if len(shared_by):
+            for key, value in shared_by.items():
+                ip_list = list(value)
+                asker.tell("^1IP ^7{} ^1used by steam IDs^7: ^2{}".format(key, "^1, ^2".join(ip_list[0:3])))
+                del ip_list[0:3]
+                while len(ip_list):
+                    asker.tell("^2{}".format("^1, ^2".join(ip_list[0:5])))
+                    del ip_list[0:5]
