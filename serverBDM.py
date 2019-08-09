@@ -36,7 +36,7 @@ set qlx_bdmBalanceAfterShuffleVote "1"
 // Balance teams if the teams are not even
 set qlx_bdmBalanceUnevenTeams "1"
 // Minimum team BDM Average Difference before a player switch is suggested
-set qlx_bdmMinimumSuggestionDiff", "60"
+set qlx_bdmMinimumSuggestionDiff "60"
 // Print the BDM change results to the server console at the completion of BDM calculations
 set qlx_bdmConsolePrintBdmChange "1"
 // Enable the player switch that is gotten from !bteams
