@@ -172,7 +172,7 @@ import random
 import time
 import re
 
-VERSION = "5.6"
+VERSION = "5.7"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -217,7 +217,7 @@ class myFun(minqlx.Plugin):
         self.add_hook("chat", self.handle_chat)
         self.add_hook("console_print", self.handle_console_print)
         self.add_hook("server_command", self.handle_server_command)
-        self.add_hook("player_disconnect", self.player_disconnect)
+        self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
         self.add_command("cookies", self.cmd_cookies)
         self.add_command(("getsounds", "listsounds", "listsound"), self.list_sounds)
@@ -289,14 +289,14 @@ class myFun(minqlx.Plugin):
     @minqlx.delay(3)
     def remove_conflicting_sound_commands(self):
         loaded_scripts = self.plugins
+        loaded_scripts.pop(self.__class__.__name__)
         for script, handler in loaded_scripts.items():
-            if script == self.__class__.__name__:
-                continue
             try:
                 for cmd in handler.commands:
                     if {"sound"}.intersection(cmd.name):
                         handler.remove_command(cmd.name, cmd.handler)
-                        minqlx.console_print("^1myFun: Removing command {} used in {} plugin".format(cmd.name, script))
+                        minqlx.console_print("^1myFun: Removing command ^7{} ^1used in ^7{} ^1plugin"
+                                             .format(cmd.name, script))
             except:
                 continue
 
@@ -351,7 +351,11 @@ class myFun(minqlx.Plugin):
                 self.playedWelcome.append(player.steam_id)
 
     # Remove stored information for disconnecting players
-    def player_disconnect(self, player, reason):
+    def handle_player_disconnect(self, player, reason):
+        self.process_player_disconnect(player)
+        return
+
+    def process_player_disconnect(self, player):
         try:
             del self.sound_limiting[player.steam_id]
         except:
@@ -367,6 +371,10 @@ class myFun(minqlx.Plugin):
 
     # stores the mute status of a player when muted or un-muted
     def handle_server_command(self, player, cmd):
+        self.process_server_command(cmd)
+        return
+
+    def process_server_command(self, cmd):
         if "has been muted" in cmd:
             cmd_string = cmd.split()
             cmd_len = len(cmd_string)
@@ -391,6 +399,7 @@ class myFun(minqlx.Plugin):
     # Monitors the chat messages of players to process the sound triggers
     def handle_chat(self, player, msg, channel):
         self.scan_chat(player, msg, channel)
+        return
 
     @minqlx.thread
     def scan_chat(self, player, msg, channel):
@@ -435,6 +444,10 @@ class myFun(minqlx.Plugin):
         return minqlx.RET_NONE
 
     def handle_console_print(self, text):
+        self.process_console_print(text)
+        return
+
+    def process_console_print(self, text):
         try:
             if self.checking_file and 'files listed' in text:
                 self.file_status = True if text.split(" ")[0] == "1" else False
@@ -850,26 +863,10 @@ class myFun(minqlx.Plugin):
             return
 
         if "console" != channel and not self.db.get_flag(player, "essentials:sounds_enabled", default=True):
-            player.tell("Your sounds are disabled. Use ^6{}sounds^7 to enable them again."
+            player.tell("^1Your sounds are disabled. Use ^6{}sounds ^1to enable them again."
                         .format(self._command_prefix))
-            return
-
-        # check for a valid sound file
-        self.checking_file = True
-        self.file_status = False
-        minqlx.console_command("fdir {}".format(msg[1]))
-        count = 0
-        if count < 10 and not self.file_status:
-            count += 1
-            time.sleep(0.1)
-        self.checking_file = False
-        if not self.file_status:
-            player.tell("^1Sound ^4{} ^1is not valid.".format(msg[1]))
-            return
-
-        if "console" == channel:
-            minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
-            self.play_sound(msg[1])
+            minqlx.console_print("^3Admin {} tried calling sound {} but player's sounds are disabled."
+                                 .format(player, msg[1]))
             return
 
         try:
@@ -885,6 +882,23 @@ class myFun(minqlx.Plugin):
             minqlx.console_print("^3Admin {} tried calling sound {} before timeout expired.".format(player, msg[1]))
             player.tell("^3You have {} seconds before you can call another sound.".format(int(stop)))
         else:
+            # check for a valid sound file
+            self.checking_file = True
+            self.file_status = False
+            minqlx.console_command("fdir {}".format(msg[1]))
+            count = 0
+            if count < 10 and not self.file_status:
+                count += 1
+                time.sleep(0.1)
+            self.checking_file = False
+            if not self.file_status:
+                player.tell("^1Sound ^4{} ^1is not valid.".format(msg[1]))
+                return
+
+            if "console" == channel:
+                minqlx.console_print("^1Playing sound^7: ^4{}".format(msg[1]))
+                self.play_sound(msg[1])
+                return
             minqlx.console_print("^3Admin {} called sound {}".format(player, msg[1]))
             self.admin_limiting[player.steam_id] = time.time()
             self.play_sound(msg[1])
