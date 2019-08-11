@@ -106,7 +106,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.10.9"
+VERSION = "2.11.1"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -397,6 +397,7 @@ class specqueue(minqlx.Plugin):
         self._player_models = {}
         self._checking_opening = None
         self._countdown = False
+        self._queue_tags = False
 
         # Initialize Commands
         self.add_spectators()
@@ -517,7 +518,7 @@ class specqueue(minqlx.Plugin):
             if 't' not in args:
                 return minqlx.RET_STOP_ALL
             sid = int(args['st']) if 'st' in args else int(self.player(index - 529).steam_id)
-            if args['t'] == '3':
+            if args['t'] == '3' and self._queue_tags:
                 label = self.get_cvar("qlx_queuePositionLabel", str)
                 try:
                     label = POSITION_LABELS[int(label)]
@@ -556,8 +557,11 @@ class specqueue(minqlx.Plugin):
 
     def update_queue_tags(self):
         if self.get_cvar("qlx_queueShowQPosition", bool):
+            self._queue_tags = True
             for player in self.teams()["spectator"]:
                 player.clan = player.clan
+        else:
+            self._queue_tags = False
 
     def handle_client_command(self, player, command):
         self.process_client_command(player, command)
