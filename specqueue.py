@@ -106,7 +106,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.10.7"
+VERSION = "2.10.9"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -514,37 +514,38 @@ class specqueue(minqlx.Plugin):
         if 529 <= index <= 592:
             args = minqlx.parse_variables(values, ordered=True)
             # This check is due to bots being added to the game, which don't have config_string steam ids
-            if 't' in args:
-                sid = int(args['st']) if 'st' in args else int(self.player(index - 529).steam_id)
-                if args['t'] == '3':
-                    label = self.get_cvar("qlx_queuePositionLabel", str)
-                    try:
-                        label = POSITION_LABELS[int(label)]
-                    except ValueError:
-                        pass
-                    except IndexError:
-                        label = POSITION_LABELS[0]
-                    if sid in self._queue:
-                        args['xcn'] = args['cn'] = "{}{}{}" \
-                            .format(label[0], self._queue.get_queue_position(sid) + 1, label[1])
-                    else:
-                        location = "minqlx:players:{}:clantag".format(sid)
-                        clan = None
-                        if location in self.db:
-                            clan = self.db[location]
-                        if clan == "afk":
-                            args['xcn'] = args['cn'] = "{}afk{}".format(label[0], label[1])
-                        else:
-                            args['xcn'] = args['cn'] = "{}s{}".format(label[0], label[1])
-                    return ''.join(["\\{}\\{}".format(key, args[key]) for key in args]).lstrip("\\")
+            if 't' not in args:
+                return minqlx.RET_STOP_ALL
+            sid = int(args['st']) if 'st' in args else int(self.player(index - 529).steam_id)
+            if args['t'] == '3':
+                label = self.get_cvar("qlx_queuePositionLabel", str)
+                try:
+                    label = POSITION_LABELS[int(label)]
+                except ValueError:
+                    pass
+                except IndexError:
+                    label = POSITION_LABELS[0]
+                if sid in self._queue:
+                    args['xcn'] = args['cn'] = "{}{}{}" \
+                        .format(label[0], self._queue.get_queue_position(sid) + 1, label[1])
                 else:
                     location = "minqlx:players:{}:clantag".format(sid)
+                    clan = None
                     if location in self.db:
-                        args['xcn'] = args['cn'] = self.db[location]
+                        clan = self.db[location]
+                    if clan == "afk":
+                        args['xcn'] = args['cn'] = "{}afk{}".format(label[0], label[1])
                     else:
-                        args.pop('xcn', None)
-                        args.pop('cn', None)
-                    return ''.join(["\\{}\\{}".format(key, args[key]) for key in args]).lstrip("\\")
+                        args['xcn'] = args['cn'] = "{}s{}".format(label[0], label[1])
+                return ''.join(["\\{}\\{}".format(key, args[key]) for key in args]).lstrip("\\")
+            else:
+                location = "minqlx:players:{}:clantag".format(sid)
+                if location in self.db:
+                    args['xcn'] = args['cn'] = self.db[location]
+                else:
+                    args.pop('xcn', None)
+                    args.pop('cn', None)
+                return ''.join(["\\{}\\{}".format(key, args[key]) for key in args]).lstrip("\\")
         elif index == 0:
             args = minqlx.parse_variables(values)
             self.q_game_info[2] = int(args['fraglimit'])
