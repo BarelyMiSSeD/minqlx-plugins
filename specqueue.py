@@ -106,7 +106,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.11.1"
+VERSION = "2.11.2"
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -510,12 +510,12 @@ class specqueue(minqlx.Plugin):
                 return minqlx.RET_STOP_ALL
 
     def handle_set_config_string(self, index, values):
-        if not values:
+        if not values or self.end_screen:
             return
         if 529 <= index <= 592:
             args = minqlx.parse_variables(values, ordered=True)
             # This check is due to bots being added to the game, which don't have config_string steam ids
-            if 't' not in args:
+            if 'n' not in args:
                 return minqlx.RET_STOP_ALL
             sid = int(args['st']) if 'st' in args else int(self.player(index - 529).steam_id)
             if args['t'] == '3' and self._queue_tags:
@@ -629,6 +629,7 @@ class specqueue(minqlx.Plugin):
         self.process_map()
         return
 
+    @minqlx.delay(0.3)
     def process_map(self):
         try:
             self.q_game_info = [self.game.type_short, self.get_cvar("teamsize", int), self.get_cvar("fraglimit", int)]
@@ -642,17 +643,9 @@ class specqueue(minqlx.Plugin):
             minqlx.console_print("^1specqueue handle_map Exception: {}".format([e]))
 
     def handle_game_end(self, data):
-        self.process_game_end(data)
+        if not data["ABORTED"]:
+            self.end_screen = True
         return
-
-    def process_game_end(self, data):
-        try:
-            if not data["ABORTED"]:
-                self.end_screen = True
-            else:
-                self.auto_shuffle_player_teams()
-        except Exception as e:
-            minqlx.console_print("^1specqueue handle_game_end Exception: {}".format([e]))
 
     def handle_round_countdown(self, round_num):
         self.process_round_countdown(round_num)
@@ -1077,7 +1070,9 @@ class specqueue(minqlx.Plugin):
                     # If the team's score difference is over "qlx_queuesTeamScoresAmount" and
                     #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher bdm
                     #  player going to the lower scoring team regardless of average team BDMs
+                    place_by_team_scores = False
                     if self.get_cvar("qlx_queuePlaceByTeamScores", bool) and score_diff:
+                        place_by_team_scores = True
                         if p1_bdm > p2_bdm:
                             placement = ["blue", "red"] if red_score > blue_score else ["red", "blue"]
                         else:
@@ -1098,6 +1093,9 @@ class specqueue(minqlx.Plugin):
                     if player1[1] in spectators and player1[1].connection_state == "active":
                         player2 = self._queue.get_next()
                         if player2[1] in spectators and player2[1].connection_state == "active":
+                            if place_by_team_scores:
+                                self.msg("^3Due to team score difference, placing players based on team score,"
+                                         " not BDM balance.")
                             self.team_placement(player1[1], placement[0])
                             self.msg("{} ^7has joined the {}{} ^7team."
                                      .format(player1[1], "^1" if placement[0] == "red" else "^4", placement[0]))
