@@ -57,6 +57,7 @@
 
 import minqlx
 import re
+from time import sleep
 
 # DB related
 PLAYER_KEY = "minqlx:players:{}:kills"
@@ -65,7 +66,7 @@ PLAYER_KEY = "minqlx:players:{}:kills"
 # Find your gametype in game with the !kgt or !killsgametype command.
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ffa", "ictf", "ad")
 
-VERSION = 1.18
+VERSION = 1.19
 
 
 class kills(minqlx.Plugin):
@@ -356,6 +357,11 @@ class kills(minqlx.Plugin):
             minqlx.console_print("^1kills process_kill Exception: {}".format([e]))
 
     def handle_map(self, mapname, factory):
+        self.process_map()
+        return
+
+    @minqlx.delay(0.3)
+    def process_map(self):
         self._supported_gametype = self.game.type_short in SUPPORTED_GAMETYPES
         self._pummel = {}
         self._airpummel = {}
@@ -381,79 +387,77 @@ class kills(minqlx.Plugin):
 
     def handle_end_game(self, data):
         if self.get_cvar("qlx_killsEndGameMsg", bool):
-            self.process_game()
+            self.process_end_game()
         return
 
-    @minqlx.delay(0.5)
-    def process_game(self):
-        @minqlx.thread
-        def end_messages():
-            if self._supported_gametype:
+    @minqlx.thread
+    def process_end_game(self):
+        sleep(2)
+        if self._supported_gametype:
+            count = 0
+            msg = ["^3Pummel ^1Killers^7:"]
+            for k, v in self._pummel.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
                 count = 0
-                msg = "^3Pummel ^1Killers^7: "
-                for k, v in self._pummel.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Air Gauntlet ^1Killers^7: "
-                for k, v in self._airpummel.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Grenade ^1Killers^7: "
-                for k, v in self._grenades.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Air Rocket ^1Killers^7: "
-                for k, v in self._rockets.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Air Plasma ^1Killers^7: "
-                for k, v in self._plasma.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Air Rail ^1Killers^7: "
-                for k, v in self._airrail.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Telefrag ^1Killers^7: "
-                for k, v in self._telefrag.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Team Telefrag ^1Killers^7: "
-                for k, v in self._teamtelefrag.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    count = 0
-                msg = "^3Speed ^1Killers^7: "
-                for k, v in self._speed.items():
-                    msg += "{}^7:^1{}^7 ".format(k, v)
-                    count += 1
-                if count > 0:
-                    self.msg(msg)
-                    #count = 0
-        end_messages()
+            msg = ["^3Air Gauntlet ^1Killers^7:"]
+            for k, v in self._airpummel.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                count = 0
+            msg = ["^3Grenade ^1Killers^7:"]
+            for k, v in self._grenades.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                count = 0
+            msg = ["^3Air Rocket ^1Killers^7:"]
+            for k, v in self._rockets.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                count = 0
+            msg = ["^3Air Plasma ^1Killers^7:"]
+            for k, v in self._plasma.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                count = 0
+            msg = ["^3Air Rail ^1Killers^7:"]
+            for k, v in self._airrail.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                count = 0
+            msg = ["^3Telefrag ^1Killers^7:"]
+            for k, v in self._telefrag.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                count = 0
+            msg = ["^3Team Telefrag ^1Killers^7:"]
+            for k, v in self._teamtelefrag.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                count = 0
+            msg = ["^3Speed ^1Killers^7:"]
+            for k, v in self._speed.items():
+                msg.append("{}^7:^1{}".format(k, v))
+                count += 1
+            if count > 0:
+                self.msg("^7 ".join(msg))
+                # count = 0
         return
 
     def cmd_kills_gametype(self, player, msg, channel):
@@ -469,313 +473,295 @@ class kills(minqlx.Plugin):
         return
 
     def cmd_pummel(self, player, msg, channel):
-        self.exec_cmd_pummel(player, msg)
+        if not self._killMonitor[0]:
+                self.msg("^4Pummel Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_pummel(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_pummel(self, player, msg):
-        if not self._killMonitor[0]:
-                self.msg("^4Pummel Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":pummeled")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in pummels:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + p]
-                            msg +=  pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Pummel^7 Stats for {}: Total ^4Pummels^7: ^1{}".format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} ^7has not ^4pummeled^7 anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_pummel Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":pummeled")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in pummels:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":pummeled:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Pummel^7 Stats for {}: Total ^4Pummels^7: ^1{}".format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} ^7has not ^4pummeled^7 anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_pummel Exception: {}".format([e]))
 
     def cmd_airpummel(self, player, msg, channel):
-        self.exec_cmd_airpummel(player, msg)
+        if not self._killMonitor[1]:
+                self.msg("^4Air Pummel Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_airpummel(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_airpummel(self, player, msg):
-        if not self._killMonitor[1]:
-                self.msg("^4Air Pummel Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airpummel")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in pummels:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + p]
-                            msg +=  pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Air Gauntlet^7 Stats for {}: Total ^4Air Gauntlets^7: ^1{}".format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_airpummel Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airpummel")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in pummels:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":airpummel:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Gauntlet^7 Stats for {}: Total ^4Air Gauntlets^7: ^1{}".format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} ^7has not ^4air gauntleted^7 anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_airpummel Exception: {}".format([e]))
 
     def cmd_grenades(self, player, msg, channel):
-        self.exec_cmd_grenades(player, msg)
+        if not self._killMonitor[2]:
+                self.msg("^4Grenade Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_grenades(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_grenades(self, player, msg):
-        if not self._killMonitor[2]:
-                self.msg("^4Grenade Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                grenades = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":grenaded")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in grenades:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + p]
-                            msg += pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Grenade^7 Stats for {}: Total ^4Grenade^7 Kills: ^1{}".format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} ^7has not ^4grenade^7 killed anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_grenades Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            grenades = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":grenaded")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in grenades:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":grenaded:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Grenade^7 Stats for {}: Total ^4Grenade^7 Kills: ^1{}".format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} ^7has not ^4grenade^7 killed anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_grenades Exception: {}".format([e]))
 
     def cmd_rocket(self, player, msg, channel):
-        self.exec_cmd_rocket(player, msg)
+        if not self._killMonitor[3]:
+                self.msg("^4Air Rocket Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_rocket(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_rocket(self, player, msg):
-        if not self._killMonitor[3]:
-                self.msg("^4Air Rocket Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":rocket")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in rocket:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + p]
-                            msg += pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Air Rocket^7 Stats for {}: Total ^4Air Rocket^7 Kills: ^1{}".format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} has not ^4air rocket^7 killed anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_rocket Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":rocket")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":rocket:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Rocket^7 Stats for {}: Total ^4Air Rocket^7 Kills: ^1{}".format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} has not ^4air rocket^7 killed anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_rocket Exception: {}".format([e]))
 
     def cmd_plasma(self, player, msg, channel):
-        self.exec_cmd_plasma(player, msg)
+        if not self._killMonitor[4]:
+                self.msg("^4Air Plasma Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_plasma(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_plasma(self, player, msg):
-        if not self._killMonitor[4]:
-                self.msg("^4Air Plasma Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":plasma")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in rocket:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + p]
-                            msg += pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Air Plasma^7 Stats for {}: Total ^4Air Plasma^7 Kills: ^1{}".format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} has not ^4air plasma^7 killed anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_plasma Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":plasma")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":plasma:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Plasma^7 Stats for {}: Total ^4Air Plasma^7 Kills: ^1{}".format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} has not ^4air plasma^7 killed anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_plasma Exception: {}".format([e]))
 
     def cmd_airrail(self, player, msg, channel):
-        self.exec_cmd_airrail(player, msg)
+        if not self._killMonitor[5]:
+                self.msg("^4Air Rail Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_airrail(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_airrail(self, player, msg):
-        if not self._killMonitor[5]:
-                self.msg("^4Air Rail Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airrail")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in pummels:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + p]
-                            msg +=  pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Air Rail^7 Stats for {}: Total ^4Air Rails^7: ^1{}".format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} ^7has not ^4air railed^7 anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_airrail Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            pummels = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":airrail")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in pummels:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":airrail:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Air Rail^7 Stats for {}: Total ^4Air Rails^7: ^1{}".format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} ^7has not ^4air railed^7 anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_airrail Exception: {}".format([e]))
 
     def cmd_telefrag(self, player, msg, channel):
-        self.exec_cmd_telefrag(player, msg)
+        if not self._killMonitor[6]:
+                self.msg("^4Telefrag Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_telefrag(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_telefrag(self, player, msg):
-        if not self._killMonitor[6]:
-                self.msg("^4Telefrag Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":telefrag")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in rocket:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":telefrag:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":telefrag:" + p]
-                            msg += pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Telefrag^7 Stats for {}: Total ^4Telefrag^7 Kills: ^1{}".format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} has not ^4telefrag^7 killed anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_telefrag Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":telefrag")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":telefrag:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":telefrag:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Telefrag^7 Stats for {}: Total ^4Telefrag^7 Kills: ^1{}".format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} has not ^4telefrag^7 killed anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_telefrag Exception: {}".format([e]))
 
     def cmd_teamtelefrag(self, player, msg, channel):
-        self.exec_cmd_teamtelefrag(player, msg)
+        if not self._killMonitor[7]:
+                self.msg("^4Team Telefrag Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_teamtelefrag(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_teamtelefrag(self, player, msg):
-        if not self._killMonitor[7]:
-                self.msg("^4Team Telefrag Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":teamtelefrag")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in rocket:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":teamtelefrag:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":teamtelefrag:" + p]
-                            msg += pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Team Telefrag^7 Stats for {}: Total ^4Team Telefrag^7 Kills: ^1{}"
-                             .format(player, total))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} has not ^4team telefrag^7 killed anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_teamtelefrag Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":teamtelefrag")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":teamtelefrag:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":teamtelefrag:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Team Telefrag^7 Stats for {}: Total ^4Team Telefrag^7 Kills: ^1{}"
+                         .format(player, total))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} has not ^4team telefrag^7 killed anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_teamtelefrag Exception: {}".format([e]))
 
     def cmd_speedkill(self, player, msg, channel):
-        self.exec_cmd_speedkill(player, msg)
+        if not self._killMonitor[8]:
+                self.msg("^4Speed Kill ^7stats are not enabled on this server.")
+        else:
+            self.exec_cmd_speedkill(player, msg)
         return
 
     @minqlx.thread
     def exec_cmd_speedkill(self, player, msg):
-        if not self._killMonitor[8]:
-                self.msg("^4Speed Kill ^7stats are not enabled on this server.")
-        else:
-            try:
-                if len(msg) > 1:
-                    player = self.player_id(msg[1], player)
-
-                p_steam_id = player.steam_id
-                total = 0
-                rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":speedkill")
-                players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
-
-                msg = ""
-                for p in rocket:
-                    total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":speedkill:" + str(p)])
-                    for pl in players:
-                        if p == str(pl.steam_id):
-                            count = self.db[PLAYER_KEY.format(p_steam_id) + ":speedkill:" + p]
-                            msg += pl.name + ": ^1" + count + "^7 "
-                if total:
-                    self.msg("^4Speed Kill^7 Stats for {}: Total ^4Speed^7 Kills: ^1{}".format(player, total))
-                    self.msg("^4Highest Kill Speed^7: ^3{}"
-                             .format(self.db[PLAYER_KEY.format(player.steam_id) + ":highspeed"].split(".")[0]))
-                    if msg:
-                        self.msg("^4Victims^7: {}".format(msg))
-                else:
-                    self.msg("{} has not ^4speed^7 killed anybody on this server.".format(player))
-            except Exception as e:
-                minqlx.console_print("^kills exec_cmd_speedkill Exception: {}".format([e]))
+        try:
+            if len(msg) > 1:
+                player = self.player_id(msg[1], player)
+            p_steam_id = player.steam_id
+            total = 0
+            rocket = self.db.smembers(PLAYER_KEY.format(p_steam_id) + ":speedkill")
+            players = self.teams()["spectator"] + self.teams()["red"] + self.teams()["blue"] + self.teams()["free"]
+            msg = ""
+            for p in rocket:
+                total += int(self.db[PLAYER_KEY.format(p_steam_id) + ":speedkill:" + str(p)])
+                for pl in players:
+                    if p == str(pl.steam_id):
+                        count = self.db[PLAYER_KEY.format(p_steam_id) + ":speedkill:" + p]
+                        msg += pl.name + ": ^1" + count + "^7 "
+            if total:
+                self.msg("^4Speed Kill^7 Stats for {}: Total ^4Speed^7 Kills: ^1{}".format(player, total))
+                self.msg("^4Highest Kill Speed^7: ^3{}"
+                         .format(self.db[PLAYER_KEY.format(player.steam_id) + ":highspeed"].split(".")[0]))
+                if msg:
+                    self.msg("^4Victims^7: {}".format(msg))
+            else:
+                self.msg("{} has not ^4speed^7 killed anybody on this server.".format(player))
+        except Exception as e:
+            minqlx.console_print("^kills exec_cmd_speedkill Exception: {}".format([e]))
 
     def add_killer(self, killer, method):
         try:
