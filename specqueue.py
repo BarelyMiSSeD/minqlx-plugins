@@ -98,6 +98,9 @@ set qlx_queueShowQPosition "1"
 // 0="[]", 1="()", 2="{}", 3="<>", 4="--", 5="==", 6="||", 7="!!", 8="''", 9="..", 10="**", 11="〔〕", 12="《》"
 // 13="〚〛", 14="  " (spaces)
 set qlx_queuePositionLabel "0"  // custom ex: set qlx_queuePositionLabel "~~"
+// This setting will perform check the clan tags saved in the database. Set it to the desired action.
+// 0=Do Nothing, 1=Delete clan tags with special characters, 2=Delete all saved clan tags
+qlx_queueCleanClanTags "0"
 """
 
 import minqlx
@@ -106,7 +109,11 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.11.2"
+VERSION = "2.11.5"
+
+# Add allowed spectator tags to this list. Tags can only be 5 characters (excluding color tags) long.
+SPEC_TAGS = ["afk", "food", "away", "phone"]
+
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
@@ -343,6 +350,7 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueShuffleMessage", "2")
         self.set_cvar_once("qlx_queueShowQPosition", "1")
         self.set_cvar_once("qlx_queuePositionLabel", "0")
+        self.set_cvar_once("qlx_queueCleanClanTags", "0")
 
         # Minqlx bot Hooks
         self.add_hook("new_game", self.handle_new_game)
@@ -366,6 +374,9 @@ class specqueue(minqlx.Plugin):
         # Minqlx bot commands
         self.add_command(("q", "queue"), self.cmd_list_queue)
         self.add_command(("s", "specs"), self.cmd_list_specs)
+        self.add_command("afk", self.cmd_go_afk)
+        self.add_command(("back", "here"), self.cmd_here)
+        self.add_command("tags", self.cmd_tags)
         self.add_command(("addqueue", "addq"), self.cmd_queue_add)
         self.add_command(("qversion", "qv"), self.cmd_qversion)
         self.add_command("ignore", self.ignore_imbalance, self.get_cvar("qlx_queueAdmin", int))
@@ -379,6 +390,7 @@ class specqueue(minqlx.Plugin):
         self._queue = PlayerQueue()
         self._spec = PlayerQueue()
         self._join = PlayerQueue()
+        self._afk = PlayerQueue()
         self._players = []
         self.red_locked = False
         self.blue_locked = False
@@ -442,6 +454,7 @@ class specqueue(minqlx.Plugin):
             self.remove_from_spec(player)
             self.remove_from_queue(player)
             self.remove_from_join(player)
+            self.remove_from_afk(player, False)
             self.check_for_opening(0.5)
             if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen and\
                     not (self.red_locked or self.blue_locked or self.free_locked):
@@ -493,6 +506,7 @@ class specqueue(minqlx.Plugin):
             teams = self.teams()
             at_max_players = False
             join_locked = False
+            self.remove_from_afk(player)
             if self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 if len(teams["red"]) + len(teams["blue"]) >= self.get_max_players():
                     at_max_players = True
@@ -530,12 +544,14 @@ class specqueue(minqlx.Plugin):
                     args['xcn'] = args['cn'] = "{}{}{}" \
                         .format(label[0], self._queue.get_queue_position(sid) + 1, label[1])
                 else:
-                    location = "minqlx:players:{}:clantag".format(sid)
                     clan = None
+                    location = "minqlx:players:{}:clantag".format(sid)
                     if location in self.db:
                         clan = self.db[location]
-                    if clan == "afk":
-                        args['xcn'] = args['cn'] = "{}afk{}".format(label[0], label[1])
+                    if str(sid) in self._afk and clan not in SPEC_TAGS:
+                        clan = "afk"
+                    if clan in SPEC_TAGS:
+                        args['xcn'] = args['cn'] = "{}{}{}".format(label[0], clan, label[1])
                     else:
                         args['xcn'] = args['cn'] = "{}s{}".format(label[0], label[1])
                 return ''.join(["\\{}\\{}".format(key, args[key]) for key in args]).lstrip("\\")
@@ -783,17 +799,22 @@ class specqueue(minqlx.Plugin):
 
     # Deletes saved clan tags that are not simple in formation
     def check_clan_tags(self):
-        keys = self.db.keys("minqlx:players:*:clantag")
-        for tag in keys:
-            clan_tag = self.db.get(tag)
-            check_tag = [ord(c) for c in clan_tag]
-            for char in check_tag:
-                if 0x20 > char or 0x7F < char:
+        level = self.get_cvar("qlx_queueCleanClanTags", int)
+        if level:
+            keys = self.db.keys("minqlx:players:*:clantag")
+            for tag in keys:
+                clan_tag = self.db.get(tag)
+                if level == 1:
+                    check_tag = [ord(c) for c in clan_tag]
+                    for char in check_tag:
+                        if 0x20 > char or 0x7F < char:
+                            del self.db[tag]
+                            break
+                    length = len(re.sub(r"\^[0-9]", "", clan_tag))
+                    if length == 0 or length > 5:
+                        del self.db[tag]
+                else:
                     del self.db[tag]
-                    break
-            length = len(re.sub(r"\^[0-9]", "", clan_tag))
-            if length == 0 or length > 5:
-                del self.db[tag]
 
     # Execute a shuffle command if the game is a team based game type
     @minqlx.thread
@@ -1055,8 +1076,21 @@ class specqueue(minqlx.Plugin):
             if not self.end_screen and self._queue.count > 1:
                 teams = self.teams()
                 spectators = teams["spectator"]
-                p1_sid = self._queue[0]
-                p2_sid = self._queue[1]
+                # [sid1, player1, sid2, player2, p1time, p2time]
+                players = self._queue.get_two()
+                p1 = None
+                p2 = None
+                if players[1].connection_state != "active" or players[1] not in spectators:
+                    # [sid, player, ptime]
+                    p1 = self._queue.get_next()
+                if players[3].connection_state != "active" or players[3] not in spectators:
+                    p2 = self._queue.get_next()
+                if p1 and p2:
+                    players = [p1[0], p1[1], p2[0], p2[1], p1[2], p2[2]]
+                elif p1:
+                    players = [p1[0], p1[1], players[2], players[3], p1[2], players[5]]
+                elif p2:
+                    players = [players[0], players[1], p2[0], p2[1], players[4], p2[2]]
                 # Get red team's and blue team's score so the correct player placements can be executed
                 red_score = int(self.game.red_score)
                 blue_score = int(self.game.blue_score)
@@ -1064,8 +1098,8 @@ class specqueue(minqlx.Plugin):
                 if self.q_game_info[0] in BDM_GAMETYPES and self.get_cvar("qlx_queueUseBDMPlacement", bool):
                     red_bdm = self.team_average(teams["red"])
                     blue_bdm = self.team_average(teams["blue"])
-                    p1_bdm = self.get_rating(p1_sid)
-                    p2_bdm = self.get_rating(p2_sid)
+                    p1_bdm = self.get_rating(players[0])
+                    p2_bdm = self.get_rating(players[2])
                     # set team related variables initial values
                     # If the team's score difference is over "qlx_queuesTeamScoresAmount" and
                     #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher bdm
@@ -1089,33 +1123,20 @@ class specqueue(minqlx.Plugin):
                                 placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
                             else:
                                 placement = ["red", "blue"] if p1_bdm > p2_bdm else ["blue", "red"]
-                    player1 = self._queue.get_next()
-                    if player1[1] in spectators and player1[1].connection_state == "active":
-                        player2 = self._queue.get_next()
-                        if player2[1] in spectators and player2[1].connection_state == "active":
-                            if place_by_team_scores:
-                                self.msg("^3Due to team score difference, placing players based on team score,"
-                                         " not BDM balance.")
-                            self.team_placement(player1[1], placement[0])
-                            self.msg("{} ^7has joined the {}{} ^7team."
-                                     .format(player1[1], "^1" if placement[0] == "red" else "^4", placement[0]))
-                            self.team_placement(player2[1], placement[1])
-                            self.msg("{} ^7has joined the {}{} ^7team."
-                                     .format(player2[1], "^1" if placement[1] == "red" else "^4", placement[1]))
-                        else:
-                            self._queue.next = player1[1]
+                    if place_by_team_scores:
+                        self.msg("^3Due to team score difference, placing players based on team score,"
+                                 " not BDM balance.")
+                    self.team_placement(players[1], placement[0])
+                    self.msg("{} ^7has joined the {}{} ^7team."
+                             .format(players[1], "^1" if placement[0] == "red" else "^4", placement[0]))
+                    self.team_placement(players[3], placement[1])
+                    self.msg("{} ^7has joined the {}{} ^7team."
+                             .format(players[3], "^1" if placement[1] == "red" else "^4", placement[1]))
                 else:
-                    player1 = self._queue.get_next()
-                    if player1[1] in spectators and player1[1].connection_state == "active":
-                        player2 = self._queue.get_next()
-                        if player2[1] in spectators and player2[1].connection_state == "active":
-                            players = self._queue.get_two()
-                            self.team_placement(player1[1], "blue")
-                            self.msg("{} ^7has joined the ^4blue ^7team.".format(players[1]))
-                            self.team_placement(player2[1], "red")
-                            self.msg("{} ^7has joined the ^1red ^7team.".format(players[3]))
-                        else:
-                            self._queue.next = player1[1]
+                    self.team_placement(players[1], "blue")
+                    self.msg("{} ^7has joined the ^4blue ^7team.".format(players[1]))
+                    self.team_placement(players[3], "red")
+                    self.msg("{} ^7has joined the ^1red ^7team.".format(players[3]))
         except Exception as e:
             minqlx.console_print("^1specqueue Place in Both Exception: {}".format([e]))
             for player in self.teams()["spectator"]:
@@ -1812,3 +1833,70 @@ class specqueue(minqlx.Plugin):
 
     def specqueue_version(self):
         return VERSION
+
+    #         self.add_command("afk", self.cmd_go_afk)
+    #     self.add_command(("back", "here"), self.cmd_here)
+
+    def cmd_go_afk(self, player=None, msg=None, channel=None):
+        self.exec_go_afk(player)
+
+    @minqlx.thread
+    def exec_go_afk(self, player):
+        try:
+            if player.team != "spectator":
+                self.team_placement(player, "spectator")
+                if not self.end_screen:
+                    self.check_for_opening(0.2)
+                    if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and \
+                            not (self.red_locked or self.blue_locked or self.free_locked):
+                        self.look_at_teams(1.0)
+            self.remove_from_queue(player)
+            self.add_to_spec(player)
+            self.remove_from_join(player)
+            self.add_to_afk(player)
+        except Exception as e:
+            minqlx.console_print("^1specqueue exec_go_afk Exceptions: {}".format([e]))
+
+    def cmd_here(self, player=None, msg=None, channel=None):
+        self.exec_here(player)
+
+    @minqlx.thread
+    def exec_here(self, player):
+        try:
+            if player.team == "spectator":
+                if not self.end_screen:
+                    self.check_for_opening(0.2)
+                    if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and \
+                            not (self.red_locked or self.blue_locked or self.free_locked):
+                        self.look_at_teams(1.0)
+                self.add_to_spec(player)
+                self.remove_from_join(player)
+            self.remove_from_afk(player)
+            self.remove_from_queue(player)
+        except Exception as e:
+            minqlx.console_print("^1specqueue exec_here Exceptions: {}".format([e]))
+
+    def add_to_afk(self, player):
+        try:
+            self._afk.add_to_times(player.steam_id)
+            player.center_print("^6AFK Mode\n^7Type ^4!here ^7when back.")
+            player.clan = player.clan
+        except Exception as e:
+            minqlx.console_print("^1specqueue add_to_afk Exception: {}".format([e]))
+
+    def remove_from_afk(self, player, msg=True):
+        try:
+            sid = player.steam_id
+            if str(sid) in self._afk:
+                self._afk.remove_from_times(sid)
+                if msg:
+                    player.center_print("^3Not marked AFK\n^7Join to play or enter the queue.")
+                    player.clan = player.clan
+        except Exception as e:
+            minqlx.console_print("^1specqueue remove_from_afk Exception: {}".format([e]))
+
+    def cmd_tags(self, player=None, msg=None, channel=None):
+        if self._queue_tags:
+            player.tell("^3Allowed spectator tags are: ^6{}".format("^7, ^6".join(SPEC_TAGS)))
+        else:
+            player.tell("^3Spectator tags are not being monitored")
