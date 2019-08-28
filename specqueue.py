@@ -109,7 +109,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.11.5"
+VERSION = "2.11.6"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters (excluding color tags) long.
 SPEC_TAGS = ["afk", "food", "away", "phone"]
@@ -410,7 +410,7 @@ class specqueue(minqlx.Plugin):
         self._checking_opening = None
         self._countdown = False
         self._queue_tags = False
-
+        self._queue_label = None
         # Initialize Commands
         self.add_spectators()
         self.add_join_times()
@@ -418,6 +418,7 @@ class specqueue(minqlx.Plugin):
         self.update_queue_tags()
         self.check_clan_tags()
         self.remove_conflicting_hooks()
+        self.set_queue_label()
 
     # ==============================================
     #               Event Handler's
@@ -528,41 +529,47 @@ class specqueue(minqlx.Plugin):
             return
         if 529 <= index <= 592:
             args = minqlx.parse_variables(values, ordered=True)
-            # This check is due to bots being added to the game, which don't have config_string steam ids
+            # If the config_string is not complete, don't allow it to be set on the server
             if 'n' not in args:
                 return minqlx.RET_STOP_ALL
-            sid = int(args['st']) if 'st' in args else int(self.player(index - 529).steam_id)
+            # This check is due to bots being added to the game, which don't have config_string steam ids
+            if 'st' in args:
+                s_id = args['st']
+                sid = int(s_id)
+            else:
+                sid = self.player(index - 529).steam_id
+                s_id = str(sid)
+            # If the player is in spectate and queue tags are on, process the spectator tag
             if args['t'] == '3' and self._queue_tags:
-                label = self.get_cvar("qlx_queuePositionLabel", str)
-                try:
-                    label = POSITION_LABELS[int(label)]
-                except ValueError:
-                    pass
-                except IndexError:
-                    label = POSITION_LABELS[0]
+                # if the player is in the queue, set the queue position tag
                 if sid in self._queue:
                     args['xcn'] = args['cn'] = "{}{}{}" \
-                        .format(label[0], self._queue.get_queue_position(sid) + 1, label[1])
+                        .format(self._queue_label[0], self._queue.get_queue_position(sid) + 1, self._queue_label[1])
+                # otherwise set the spectator tag
                 else:
                     clan = None
-                    location = "minqlx:players:{}:clantag".format(sid)
+                    location = "minqlx:players:{}:clantag".format(s_id)
                     if location in self.db:
                         clan = self.db[location]
-                    if str(sid) in self._afk and clan not in SPEC_TAGS:
-                        clan = "afk"
-                    if clan in SPEC_TAGS:
-                        args['xcn'] = args['cn'] = "{}{}{}".format(label[0], clan, label[1])
+                    if s_id in self._afk and clan not in SPEC_TAGS:
+                        args['xcn'] = args['cn'] = "{}afk{}".format(self._queue_label[0], self._queue_label[1])
+                    elif clan in SPEC_TAGS:
+                        if 3 < len(clan):
+                            args['xcn'] = args['cn'] = "{}".format(clan)
+                        else:
+                            args['xcn'] = args['cn'] = "{}{}{}".format(self._queue_label[0], clan, self._queue_label[1])
                     else:
-                        args['xcn'] = args['cn'] = "{}s{}".format(label[0], label[1])
-                return ''.join(["\\{}\\{}".format(key, args[key]) for key in args]).lstrip("\\")
+                        args['xcn'] = args['cn'] = "{}s{}".format(self._queue_label[0], self._queue_label[1])
+            # Otherwise set the clan tag, if a clan tag is saved
             else:
-                location = "minqlx:players:{}:clantag".format(sid)
+                location = "minqlx:players:{}:clantag".format(s_id)
                 if location in self.db:
                     args['xcn'] = args['cn'] = self.db[location]
                 else:
                     args.pop('xcn', None)
                     args.pop('cn', None)
-                return ''.join(["\\{}\\{}".format(key, args[key]) for key in args]).lstrip("\\")
+            return ''.join(["\\{}\\{}".format(key, value) for key, value in args.items()]).lstrip("\\")
+        # process the server teamsize and fraglimit settings
         elif index == 0:
             args = minqlx.parse_variables(values)
             self.q_game_info[2] = int(args['fraglimit'])
@@ -780,6 +787,16 @@ class specqueue(minqlx.Plugin):
     # ==============================================
     #               Plugin functions
     # ==============================================
+    # set the label used for spectators, if enabled
+    def set_queue_label(self):
+        label = self.get_cvar("qlx_queuePositionLabel", str)
+        try:
+            self._queue_label = POSITION_LABELS[int(label)]
+        except ValueError:
+            self._queue_label = label
+        except IndexError:
+            self._queue_label = POSITION_LABELS[0]
+
     # removes any set_configstring hooks used by other plugins
     @minqlx.delay(2)
     def remove_conflicting_hooks(self):
