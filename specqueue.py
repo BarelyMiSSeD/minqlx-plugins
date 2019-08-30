@@ -100,7 +100,7 @@ set qlx_queueShowQPosition "1"
 set qlx_queuePositionLabel "0"  // custom ex: set qlx_queuePositionLabel "~~"
 // This setting will perform check the clan tags saved in the database. Set it to the desired action.
 // 0=Do Nothing, 1=Delete clan tags with special characters, 2=Delete all saved clan tags
-qlx_queueCleanClanTags "0"
+set qlx_queueCleanClanTags "0"
 """
 
 import minqlx
@@ -109,7 +109,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.11.6"
+VERSION = "2.11.7"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters (excluding color tags) long.
 SPEC_TAGS = ["afk", "food", "away", "phone"]
@@ -814,14 +814,13 @@ class specqueue(minqlx.Plugin):
             except:
                 continue
 
-    # Deletes saved clan tags that are not simple in formation
     def check_clan_tags(self):
         level = self.get_cvar("qlx_queueCleanClanTags", int)
         if level:
             keys = self.db.keys("minqlx:players:*:clantag")
             for tag in keys:
-                clan_tag = self.db.get(tag)
                 if level == 1:
+                    clan_tag = self.db.get(tag)
                     check_tag = [ord(c) for c in clan_tag]
                     for char in check_tag:
                         if 0x20 > char or 0x7F < char:
