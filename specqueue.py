@@ -100,7 +100,7 @@ set qlx_queueShowQPosition "1"
 set qlx_queuePositionLabel "0"  // custom ex: set qlx_queuePositionLabel "~~"
 // This setting will perform check the clan tags saved in the database. Set it to the desired action.
 // 0=Do Nothing, 1=Delete clan tags with special characters, 2=Delete all saved clan tags
-set qlx_queueCleanClanTags "0"
+qlx_queueCleanClanTags "0"
 """
 
 import minqlx
@@ -109,9 +109,9 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.11.7"
+VERSION = "2.11.9"
 
-# Add allowed spectator tags to this list. Tags can only be 5 characters (excluding color tags) long.
+# Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ["afk", "food", "away", "phone"]
 
 SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa", "race", "rr")
@@ -411,6 +411,8 @@ class specqueue(minqlx.Plugin):
         self._countdown = False
         self._queue_tags = False
         self._queue_label = None
+        self._specPlayer = []
+
         # Initialize Commands
         self.add_spectators()
         self.add_join_times()
@@ -419,6 +421,7 @@ class specqueue(minqlx.Plugin):
         self.check_clan_tags()
         self.remove_conflicting_hooks()
         self.set_queue_label()
+        self.get_cvars()
 
     # ==============================================
     #               Event Handler's
@@ -525,9 +528,11 @@ class specqueue(minqlx.Plugin):
                 return minqlx.RET_STOP_ALL
 
     def handle_set_config_string(self, index, values):
-        if not values or self.end_screen:
+        if not values:
             return
         if 529 <= index <= 592:
+            if not self.get_cvar("qlx_queueShowQPosition", bool):
+                return
             args = minqlx.parse_variables(values, ordered=True)
             # If the config_string is not complete, don't allow it to be set on the server
             if 'n' not in args:
@@ -576,7 +581,8 @@ class specqueue(minqlx.Plugin):
             teamsize = int(args['teamsize'])
             if self.q_game_info[1] != teamsize:
                 self.q_game_info[1] = teamsize
-                self.check_for_opening(1.5)
+                if not self.end_screen:
+                    self.check_for_opening(1.5)
 
     def update_queue_tags(self):
         if self.get_cvar("qlx_queueShowQPosition", bool):
@@ -634,9 +640,9 @@ class specqueue(minqlx.Plugin):
             @minqlx.thread
             def t():
                 if self.q_game_info[0] == "ft":
-                    countdown = self.get_cvar("g_freezeRoundDelay", int)
+                    countdown = self._specPlayer[5]
                 else:
-                    countdown = self.get_cvar("g_roundWarmupDelay", int)
+                    countdown = self._specPlayer[6]
                 time.sleep(max(countdown / 1000 - 0.8, 0))
                 if not (self.red_locked or self.blue_locked or self.free_locked):
                     self.even_the_teams()
@@ -650,6 +656,7 @@ class specqueue(minqlx.Plugin):
 
     def handle_map(self, mapname, factory):
         self.process_map()
+        self.get_cvars()
         return
 
     @minqlx.delay(0.3)
@@ -800,27 +807,31 @@ class specqueue(minqlx.Plugin):
     # removes any set_configstring hooks used by other plugins
     @minqlx.delay(2)
     def remove_conflicting_hooks(self):
-        hook_events = ["set_configstring"]
-        loaded_scripts = self.plugins
-        loaded_scripts.pop(self.__class__.__name__)
-        for script, handler in loaded_scripts.items():
-            try:
-                for hook in handler.hooks:
-                    for event in hook_events:
-                        if event == hook[0]:
-                            minqlx.console_print("^1specqueue: Removing event hook ^7{} ^1used in ^7{} ^1plugin"
-                                                 .format(event, script))
-                            handler.remove_hook(event, hook[1], hook[2])
-            except:
-                continue
+        if self.get_cvar("qlx_queueShowQPosition", bool):
+            hook_events = ["set_configstring"]
+            remove_from = ["clan"]
+            loaded_scripts = self.plugins
+            loaded_scripts.pop(self.__class__.__name__)
+            for script, handler in loaded_scripts.items():
+                try:
+                    if script in remove_from:
+                        for hook in handler.hooks:
+                            for event in hook_events:
+                                if event == hook[0]:
+                                    minqlx.console_print("^1specqueue: Removing event hook ^7{} ^1used in ^7{} ^1plugin"
+                                                         .format(event, script))
+                                    handler.remove_hook(event, hook[1], hook[2])
+                except:
+                    continue
 
+    # Deletes saved clan tags that are not simple in formation
     def check_clan_tags(self):
         level = self.get_cvar("qlx_queueCleanClanTags", int)
         if level:
             keys = self.db.keys("minqlx:players:*:clantag")
             for tag in keys:
+                clan_tag = self.db.get(tag)
                 if level == 1:
-                    clan_tag = self.db.get(tag)
                     check_tag = [ord(c) for c in clan_tag]
                     for char in check_tag:
                         if 0x20 > char or 0x7F < char:
@@ -1304,8 +1315,7 @@ class specqueue(minqlx.Plugin):
                 where = None
                 spec_player = None
 
-                if abs(difference) > 0 and \
-                        self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
+                if abs(difference) > 0 and self._specPlayer[7] <= p_count <= self._specPlayer[8]:
                     if difference == -1:
                         self.get_player_for_spec(teams["blue"].copy())
                         spec_player = self._players[0]
@@ -1342,12 +1352,11 @@ class specqueue(minqlx.Plugin):
                                  .format("^7, ".join(players), where))
                         self.even_the_teams(False)
                     elif spec_player:
-                        delay_time = self.get_cvar("qlx_queueCheckTeamsDelay", int)
                         self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate ^7if not fixed."
                                  .format(spec_player))
-
-                        self.msg("^2Looking at teams again in {} seconds to assess even status.".format(delay_time))
-                        time.sleep(delay_time)
+                        self.msg("^2Looking at teams again in {} seconds to assess even status."
+                                 .format(self._specPlayer[9]))
+                        time.sleep(self._specPlayer[9])
                         self.even_the_teams(False)
                 else:
                     self.even_the_teams(True)
@@ -1360,9 +1369,9 @@ class specqueue(minqlx.Plugin):
             if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 if delay:
                     if self.game.type_short == "ft":
-                        countdown = self.get_cvar("g_freezeRoundDelay", int)
+                        countdown = self._specPlayer[5]
                     else:
-                        countdown = self.get_cvar("g_roundWarmupDelay", int)
+                        countdown = self._specPlayer[6]
                     time.sleep(max(countdown / 1000 - 0.3, 0))
 
                 teams = self.teams()
@@ -1378,8 +1387,7 @@ class specqueue(minqlx.Plugin):
                 where = None
                 spec_player = None
 
-                if abs(difference) > 0 and \
-                        self.get_cvar("qlx_queueMinPlayers", int) <= p_count <= self.get_cvar("qlx_queueMaxPlayers", int):
+                if abs(difference) > 0 and self._specPlayer[3] <= p_count <= self._specPlayer[4]:
                     if difference == -1:
                         self.get_player_for_spec(teams["blue"].copy())
                         spec_player = self._players[0]
@@ -1415,6 +1423,14 @@ class specqueue(minqlx.Plugin):
         except Exception as e:
             minqlx.console_print("^1specqueue even the teams Exception: {}".format([e]))
 
+    def get_cvars(self):
+        primary = self.get_cvar("qlx_queueSpecByPrimary").lower()
+        self._specPlayer = [self.get_cvar("qlx_queueSpecByTime", bool), self.get_cvar("qlx_queueSpecByScore", bool),
+                            1 if primary == "score" else 0, self.get_cvar("qlx_queueMinPlayers", int),
+                            self.get_cvar("qlx_queueMaxPlayers", int), self.get_cvar("g_freezeRoundDelay", int),
+                            self.get_cvar("g_roundWarmupDelay", int), self.get_cvar("qlx_queueMinPlayers", int),
+                            self.get_cvar("qlx_queueMaxPlayers", int), self.get_cvar("qlx_queueCheckTeamsDelay", int)]
+
     # Finds the player, that meets the set criteria, to move to spectate and returns that player
     # Does not start its own thread
     def get_player_for_spec(self, team):
@@ -1437,32 +1453,35 @@ class specqueue(minqlx.Plugin):
                 elif p_score == lowest_score:
                     s_players.append(player)
             if self.game.state == "in_progress":
-                if self.get_cvar("qlx_queueSpecByTime", bool) and self.get_cvar("qlx_queueSpecByScore", bool):
-                    if self.get_cvar("qlx_queueSpecByPrimary") == "score":
-                        if len(s_players) > 1:
-                            self._players = [t_players[0]]
-                        else:
-                            self._players = [s_players[0]]
-                    else:
-                        if len(t_players) > 1:
+                if self._specPlayer[0] and self._specPlayer[1]:
+                    if self._specPlayer[2] == 1:
+                        if len(s_players) == 1:
                             self._players = [s_players[0]]
                         else:
+                            t = 0
+                            for player in s_players:
+                                pt = self.get_join_time(player)
+                                if pt > t:
+                                    t = pt
+                                    self._players = [player]
+                    else:
+                        if len(t_players) == 1:
                             self._players = [t_players[0]]
-                elif self.get_cvar("qlx_queueSpecByScore", bool):
-                    if len(s_players) > 1:
-                        self._players = [s_players[randrange(len(s_players))]]
-                    else:
-                        self._players = [s_players[0]]
-                else:
-                    if len(t_players) > 1:
-                        self._players = [t_players[randrange(len(t_players))]]
-                    else:
-                        self._players = [t_players[0]]
-                return
-            else:
-                self._players = [t_players[0]]
+                        else:
+                            s = 999
+                            for player in t_players:
+                                ps = player.score
+                                if ps < s:
+                                    s = ps
+                                    self._players = [player]
+                    return
+                elif self._specPlayer[1]:
+                    self._players = [s_players[randrange(len(s_players))]]
+                    return
+            self._players = [t_players[randrange(len(t_players))]]
         except Exception as e:
             minqlx.console_print("^1specqueue get player for spec Exception: {}".format([e]))
+        return
 
     # Function meant to return the player that would be sent to spectate because
     #  the get_player_for_spec function does not return anything
@@ -1501,12 +1520,12 @@ class specqueue(minqlx.Plugin):
                 t_players[str(self.get_join_time(player))] = player
                 s_players[str(player.stats.score)] = player
 
-            if self.get_cvar("qlx_queueSpecByTime", bool) and self.get_cvar("qlx_queueSpecByScore", bool):
-                if self.get_cvar("qlx_queueSpecByPrimary") == "score":
+            if self._specPlayer[0] and self._specPlayer[1]:
+                if self._specPlayer[2] == 1:
                     sorted_players = sorted(((k, v) for k, v in s_players.items()), reverse=False)
                 else:
                     sorted_players = sorted(((k, v) for k, v in t_players.items()), reverse=True)
-            elif self.get_cvar("qlx_queueSpecByScore", bool):
+            elif self._specPlayer[1]:
                 sorted_players = sorted(((k, v) for k, v in s_players.items()), reverse=False)
             else:
                 sorted_players = sorted(((k, v) for k, v in t_players.items()), reverse=True)
