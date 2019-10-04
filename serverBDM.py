@@ -137,7 +137,7 @@ import random
 import requests
 import re
 
-VERSION = "2.03.0"
+VERSION = "2.03.1"
 # TO_BE_ADDED = ("duel", "dom", "ad", "1f", "har")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "tdm", "ictf")
@@ -290,9 +290,7 @@ class serverBDM(minqlx.Plugin):
 
     def process_chat(self, msg, channel):
         try:
-            # don't process the chat if it was in the wrong channel
-            if channel in ["chat", "red_team_chat", "blue_team_chat", "free_chat", "spectator_chat"] and\
-                    "what is bdm" in msg.lower():
+            if "what is bdm" in msg.lower():
                 channel.reply("^6BDM ^7is ^6B^7asic ^6D^7amage ^6M^7etric. It is a server side skill calculation "
                               "similar to ^5ELO^7. Since it is server side your ^6BDM ^7is based only on performance "
                               "on each individual server.\nCommands: ^1{0}bdm^7, ^1{0}bdms^7, ^1{0}bdmh"
@@ -421,7 +419,8 @@ class serverBDM(minqlx.Plugin):
         try:
             self.rounds_played = int(data["ROUND"])
             if self._bdm_gtype in ROUND_BASED_GAMETYPES:
-                self.round_stats_record()
+                if not self.round_stats_record():
+                    minqlx.console_print("^1serverBDM process_round_end call round_stats_record() Error")
                 if all(self._players_agree):
                     if self._bdm_gtype in NO_COUNTDOWN_GAMESTYPES or self._short_ft_countdown:
                         self.execute_switch()
@@ -1918,13 +1917,14 @@ class serverBDM(minqlx.Plugin):
     def execute_switch(self, delay=False):
         try:
             if delay:
-                time.sleep(2)
-            self._players_agree = [False, False]
-            self._suggested_switch = 0
+                time.sleep(3)
             if not bool(int(minqlx.get_cvar("qlx_bdmEnableSwitch"))):
                 self.msg("^4This script is still collecting data.")
                 self.msg("^4The server admin will enable this switch function when enough data has been collected.")
-            elif self._agreeing_players:
+                return
+            self._players_agree = [False, False]
+            self._suggested_switch = 0
+            if self._agreeing_players:
                 player1 = self.player(int(self._agreeing_players[0]))
                 player2 = self.player(int(self._agreeing_players[1]))
                 try:
@@ -1962,12 +1962,13 @@ class serverBDM(minqlx.Plugin):
     def round_stats_record(self):
         try:
             teams = self.teams()
-            for player in teams["red"]:
+            for player in teams["red"] + teams["blue"]:
                 sid = str(player.steam_id)
                 if sid[0] == "9":
                     continue
                 if sid not in self._played_time:
-                    self.init_played_time(sid)
+                    self._played_time[sid] = {}
+                    self._played_time[sid]["team"] = ""
                 stats = player.stats
                 self._played_time[sid]["score"] = stats.score
                 self._played_time[sid]["kills"] = stats.kills
@@ -1975,19 +1976,10 @@ class serverBDM(minqlx.Plugin):
                 self._played_time[sid]["damage_dealt"] = stats.damage_dealt
                 self._played_time[sid]["damage_taken"] = stats.damage_taken
                 self._played_time[sid]["time"] = stats.time
-            for player in teams["blue"]:
-                sid = str(player.steam_id)
-                if sid[0] == "9":
-                    continue
-                stats = player.stats
-                self._played_time[sid]["score"] = stats.score
-                self._played_time[sid]["kills"] = stats.kills
-                self._played_time[sid]["deaths"] = stats.deaths
-                self._played_time[sid]["damage_dealt"] = stats.damage_dealt
-                self._played_time[sid]["damage_taken"] = stats.damage_taken
-                self._played_time[sid]["time"] = stats.time
+            return True
         except Exception as e:
             minqlx.console_print("^1serverBDM round_stats_record Exception: {}".format(e))
+            return False
 
     @minqlx.thread
     def players_in_teams(self):
@@ -2003,10 +1995,10 @@ class serverBDM(minqlx.Plugin):
                 if self._bdm_gtype in TEAM_BASED_GAMETYPES:
                     for player in teams["red"]:
                         sid = str(player.steam_id)
-                        if sid not in self._played_time:
-                            self.init_played_time(sid)
                         if sid[0] == "9":
                             continue
+                        if sid not in self._played_time:
+                            self.init_played_time(sid)
                         self._played_time[sid]["team"] = "red"
                     for player in teams["blue"]:
                         sid = str(player.steam_id)
