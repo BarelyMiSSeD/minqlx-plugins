@@ -19,7 +19,7 @@ set qlx_protectPassLevel "5" // Sets the minqlx server permission level needed t
 set qlx_protectFTS "5" // Sets the minqlx server permisson level needed to force teamsize.
 // Percentage of total server players required to vote yes to pass the AFK vote
 // (0 will just look for more yes than no votes)
-set qlx_protectPlayerPercForVote "26"
+set qlx_protectPlayerPercForVote "0"
 """
 
 import minqlx
