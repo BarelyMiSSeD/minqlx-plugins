@@ -5,18 +5,21 @@
 # created by BarelyMiSSeD on 11-10-15
 # 
 """
-Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
-qlx_protectMapVoting  "1" - Enabling does not allow map voting during match play but does not effect map voting during warm-up. ("1" on, "0" off)
-qlx_protectAfkVoting  "1" - Enabling will allow players to be voted into spectator. ("1" on, "0" off)
-qlx_protectJoinMapMessage "0" - Sends join message to players if map voting protection is enabled. ("1" on, "0" off)
-qlx_protectJoinAfkMessage "1" - Sends join message to players if voting players to spectator is enabled. ("1" on, "0" off)
-qlx_protectPermissionLevel "5" - Sets the lowest level bot permission level to  automatically protect
-qlx_protectMuteVoting "1" - Allows voting muting and unmuting of a player. ("1" on, "0" off)
-qlx_protectJoinMuteVoting "1" - Sends join message to players if mute voting is enabled. ("1" on, "0" off)
-qlx_protectAdminLevel "5" - Sets the minqlx server permission level needed to add/del/list the protect list, and display the protect.py version number.
-qlx_protectPassLevel "5" - Sets the minqlx server permission level needed to set/unset the server join password.
-qlx_protectFTS "5" - Sets the minqlx server permisson level needed to force teamsize.
-qlx_protectPlayerPercForVote "26" - Percentage of players voting yes to pass the AFK vote
+// Set these cvars in your server.cfg (or wherever you set your minqlx variables).:
+// These lines can be copied directly into your server.cfg if desired
+set qlx_protectMapVoting  "1" // Enabling does not allow map voting during match play but does not effect map voting during warm-up. ("1" on, "0" off)
+set qlx_protectAfkVoting  "1" // Enabling will allow players to be voted into spectator. ("1" on, "0" off)
+set qlx_protectJoinMapMessage "0" // Sends join message to players if map voting protection is enabled. ("1" on, "0" off)
+set qlx_protectJoinAfkMessage "1" // Sends join message to players if voting players to spectator is enabled. ("1" on, "0" off)
+set qlx_protectPermissionLevel "5" // Sets the lowest level bot permission level to  automatically protect
+set qlx_protectMuteVoting "1" // Allows voting muting and unmuting of a player. ("1" on, "0" off)
+set qlx_protectJoinMuteVoting "1" // Sends join message to players if mute voting is enabled. ("1" on, "0" off)
+set qlx_protectAdminLevel "5" // Sets the minqlx server permission level needed to add/del/list the protect list, and display the protect.py version number.
+set qlx_protectPassLevel "5" // Sets the minqlx server permission level needed to set/unset the server join password.
+set qlx_protectFTS "5" // Sets the minqlx server permisson level needed to force teamsize.
+// Percentage of total server players required to vote yes to pass the AFK vote
+// (0 will just look for more yes than no votes)
+set qlx_protectPlayerPercForVote "26"
 """
 
 import minqlx
@@ -27,14 +30,18 @@ import random
 import time
 import re
 
-VERSION = "2.3"
+VERSION = "2.4"
 PROTECT_FILE = "protect.txt"
+# Add/Remove votes from this list, following the format shown.
+# These votes are ones you don't want to have allowed during an active game
+BLOCK_VOTES = ["map", "nextmap", "map_restart"]
 
 
 class protect(minqlx.Plugin):
     def __init__(self):
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
         self.add_hook("player_loaded", self.player_loaded)
+        self.add_hook("vote", self.process_vote, priority=minqlx.PRI_LOWEST)
 
         # Cvars.
         self.set_cvar_once("qlx_protectMapVoting", "1")
@@ -169,8 +176,8 @@ class protect(minqlx.Plugin):
         try:
             # Map Voting
             vote = vote.lower()
-            if vote in ["map", "nextmap", "map_restart"] and self.mapProtect and self.game.state == "in_progress":
-                caller.tell("^3Map voting is not allowed during an active match")
+            if vote in BLOCK_VOTES and self.mapProtect and self.game.state == "in_progress":
+                caller.tell("^1{} ^3voting is not allowed during an active match".format(vote))
                 return minqlx.RET_STOP_ALL
             # Kick Voting
             elif vote in ["kick", "clientkick"]:
@@ -248,20 +255,32 @@ class protect(minqlx.Plugin):
             minqlx.client_command(caller.id, "vote yes")
             self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
             voter_perc = self.get_cvar("qlx_protectPlayerPercForVote", int)
+            self.vote_count[0] = 1
+            self.vote_count[1] = 0
+            thread_number = random.randrange(1, 10000000)
+            self.vote_count[2] = thread_number
             if voter_perc > 0:
-                self.vote_count[0] = 1
-                self.vote_count[1] = 0
-                thread_number = random.randrange(0, 10000000)
-                self.vote_count[2] = thread_number
                 teams = self.teams()
                 voters = len(teams["red"]) + len(teams["blue"])
                 time.sleep(28.7)
                 if self.vote_count[2] == thread_number and self.vote_count[0] / voters * 100 >= voter_perc and\
                         self.vote_count[0] > self.vote_count[1]:
                     self.force_vote(True)
+            else:
+                time.sleep(28.7)
+                if self.vote_count[2] == thread_number and self.vote_count[0] > self.vote_count[1]:
+                    self.force_vote(True)
+            self.vote_count[2] = 0
             return
         except Exception as e:
             minqlx.console_print("^1protect.py callvote_to_spec Exception: {}".format([e]))
+
+    def process_vote(self, player, yes):
+        if self.vote_count[2]:
+            if yes:
+                self.vote_count[0] += 1
+            else:
+                self.vote_count[1] += 1
 
     # Checks for a protect.txt file and loads the entries if the file exists. Creates one if it doesn't.
     def cmd_load_protects(self, player=None, msg=None, channel=None):
