@@ -54,7 +54,7 @@ class protect(minqlx.Plugin):
         self.set_cvar_once("qlx_protectAdminLevel", "5")
         self.set_cvar_once("qlx_protectPassLevel", "5")
         self.set_cvar_once("qlx_protectFTS", "5")
-        self.set_cvar_once("qlx_protectPlayerPercForVote", "26")
+        self.set_cvar_once("qlx_protectPlayerPercForVote", "0")
 
         self.protectPermission = self.get_cvar("qlx_protectPermissionLevel", int)
         self.mapProtect = self.get_cvar("qlx_protectMapVoting", bool)
