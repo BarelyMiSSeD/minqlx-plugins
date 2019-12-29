@@ -18,12 +18,18 @@
 
 # created by BarelyMiSSeD on 8-1-2019
 
+"""
+// sets the percentage of total players on the teams needing to vote yes for it to pass.
+// (set to 0 to just pass if yes votes are greater than no votes)
+set qlx_balanceDoVotePerc "26"
+"""
+
 import minqlx
 from .balance import balance
 import random
 import time
 
-VERSION = "1.1"
+VERSION = "1.2"
 
 
 class doVote(balance):
@@ -31,6 +37,7 @@ class doVote(balance):
         super().__init__()
         self.set_cvar_once("qlx_balanceDoVotePerc", "26")
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
+        self.add_hook("vote", self.handle_vote_count)
         self.add_command("force_agree", self.cmd_force_agree, 3)
         self.vote_count = [0, 0, 0]
 
@@ -40,8 +47,19 @@ class doVote(balance):
                 caller.tell("^3There are no suggested players to switch.")
                 return minqlx.RET_STOP_ALL
             if not all(self.suggested_agree):
+                self.vote_count = [0, 0, 0]
                 self.force_switch_vote(caller, vote)
                 return minqlx.RET_STOP_ALL
+
+    def handle_vote_count(self, player, yes):
+        if self.vote_count[2]:
+            try:
+                if yes:
+                    self.vote_count[0] += 1
+                else:
+                    self.vote_count[1] += 1
+            except Exception as e:
+                minqlx.console_print("^1doVote handle_vote_count Exception: {}".format(e))
 
     @minqlx.thread
     def force_switch_vote(self, caller, vote):
@@ -51,16 +69,19 @@ class doVote(balance):
             minqlx.client_command(caller.id, "vote yes")
             self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
             voter_perc = self.get_cvar("qlx_balanceDoVotePerc", int)
+            self.vote_count[0] = 1
+            self.vote_count[1] = 0
+            self.vote_count[2] = thread_number = random.randrange(0, 10000000)
+            teams = self.teams()
             if voter_perc > 0:
-                self.vote_count[0] = 1
-                self.vote_count[1] = 0
-                thread_number = random.randrange(0, 10000000)
-                self.vote_count[2] = thread_number
-                teams = self.teams()
                 voters = len(teams["red"]) + len(teams["blue"])
                 time.sleep(28.7)
                 if self.vote_count[2] == thread_number and self.vote_count[0] / voters * 100 >= voter_perc and\
                         self.vote_count[0] > self.vote_count[1]:
+                    self.force_vote(True)
+            else:
+                time.sleep(28.7)
+                if self.vote_count[2] == thread_number and self.vote_count[0] > self.vote_count[1]:
                     self.force_vote(True)
             return
         except Exception as e:
