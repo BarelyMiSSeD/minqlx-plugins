@@ -22,6 +22,10 @@
 // sets the percentage of total players on the teams needing to vote yes for it to pass.
 // (set to 0 to just pass if yes votes are greater than no votes)
 set qlx_balanceDoVotePerc "26"
+// enabling this will end the vote at the end of the round (if at least 5 seconds of vote time has passed) and
+// pass or fail the vote based on the current votes. (recommend setting above to 0 if this is enabled)
+// (0=disabled, 1=enabled)
+set qlx_balanceDoVoteEnd "0"
 """
 
 import minqlx
@@ -29,17 +33,21 @@ from .balance import balance
 import random
 import time
 
-VERSION = "1.2"
+VERSION = "1.3"
 
 
 class doVote(balance):
     def __init__(self):
         super().__init__()
         self.set_cvar_once("qlx_balanceDoVotePerc", "26")
+        self.set_cvar_once("qlx_balanceDoVoteEnd", "0")
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
         self.add_hook("vote", self.handle_vote_count)
+        self.add_hook("round_end", self.handle_round_end)
         self.add_command("force_agree", self.cmd_force_agree, 3)
         self.vote_count = [0, 0, 0]
+        self.vote_active = False
+        self.vote_start_time = None
 
     def handle_vote_called(self, caller, vote, args):
         if vote.lower() == "do":
@@ -48,6 +56,7 @@ class doVote(balance):
                 return minqlx.RET_STOP_ALL
             if not all(self.suggested_agree):
                 self.vote_count = [0, 0, 0]
+                self.vote_start_time = time.time()
                 self.force_switch_vote(caller, vote)
                 return minqlx.RET_STOP_ALL
 
@@ -61,6 +70,33 @@ class doVote(balance):
             except Exception as e:
                 minqlx.console_print("^1doVote handle_vote_count Exception: {}".format(e))
 
+    def handle_round_end(self, data):
+        self.process_round_end()
+
+    @minqlx.thread
+    def process_round_end(self):
+        try:
+            if self.vote_active and self.get_cvar("qlx_balanceDoVoteEnd", bool) and\
+                    time.time() - self.vote_start_time >= 5:
+                voter_perc = self.get_cvar("qlx_balanceDoVotePerc", int)
+                if voter_perc > 0:
+                    teams = self.teams()
+                    voters = len(teams["red"]) + len(teams["blue"])
+                    if self.vote_count[0] / voters * 100 >= voter_perc and self.vote_count[0] > self.vote_count[1]:
+                        time.sleep(1)
+                        self.force_vote(True)
+                    else:
+                        self.force_vote(False)
+                else:
+                    if self.vote_count[0] > self.vote_count[1]:
+                        time.sleep(1)
+                        self.force_vote(True)
+                    else:
+                        self.force_vote(False)
+                self.vote_active = False
+        except Exception as e:
+            minqlx.console_print("^doVote handle_round_end Exception: {}".format(e))
+
     @minqlx.thread
     def force_switch_vote(self, caller, vote):
         try:
@@ -69,6 +105,7 @@ class doVote(balance):
             minqlx.client_command(caller.id, "vote yes")
             self.msg("{}^7 called vote /cv {}".format(caller.name, vote))
             voter_perc = self.get_cvar("qlx_balanceDoVotePerc", int)
+            self.vote_active = True
             self.vote_count[0] = 1
             self.vote_count[1] = 0
             self.vote_count[2] = thread_number = random.randrange(0, 10000000)
@@ -76,13 +113,15 @@ class doVote(balance):
             if voter_perc > 0:
                 voters = len(teams["red"]) + len(teams["blue"])
                 time.sleep(28.7)
-                if self.vote_count[2] == thread_number and self.vote_count[0] / voters * 100 >= voter_perc and\
-                        self.vote_count[0] > self.vote_count[1]:
+                if self.vote_active and self.vote_count[2] == thread_number and\
+                        self.vote_count[0] / voters * 100 >= voter_perc and self.vote_count[0] > self.vote_count[1]:
                     self.force_vote(True)
+                    self.vote_active = False
             else:
                 time.sleep(28.7)
-                if self.vote_count[2] == thread_number and self.vote_count[0] > self.vote_count[1]:
+                if self.vote_active and self.vote_count[2] == thread_number and self.vote_count[0] > self.vote_count[1]:
                     self.force_vote(True)
+                    self.vote_active = False
             return
         except Exception as e:
             minqlx.console_print("^1doVote check_force_switch_vote Exception: {}".format(e))
