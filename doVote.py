@@ -33,7 +33,7 @@ from .balance import balance
 import random
 import time
 
-VERSION = "1.3"
+VERSION = "1.4"
 
 
 class doVote(balance):
@@ -44,6 +44,7 @@ class doVote(balance):
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
         self.add_hook("vote", self.handle_vote_count)
         self.add_hook("round_end", self.handle_round_end)
+        self.add_hook("game_start", self.handle_game_start)
         self.add_command("force_agree", self.cmd_force_agree, 3)
         self.vote_count = [0, 0, 0]
         self.vote_active = False
@@ -96,6 +97,20 @@ class doVote(balance):
                 self.vote_active = False
         except Exception as e:
             minqlx.console_print("^doVote handle_round_end Exception: {}".format(e))
+
+    def handle_game_start(self, data):
+        if self.get_cvar("qlx_balanceAuto", bool):
+            gt = self.game.type_short
+            if gt not in SUPPORTED_GAMETYPES:
+                return
+
+            @minqlx.delay(1.5)
+            def f():
+                players = self.teams()
+                players = dict([(p.steam_id, gt) for p in players["red"] + players["blue"]])
+                self.add_request(players, self.callback_balance, minqlx.CHAT_CHANNEL)
+
+            f()
 
     @minqlx.thread
     def force_switch_vote(self, caller, vote):
