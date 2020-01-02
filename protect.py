@@ -17,7 +17,7 @@ set qlx_protectJoinMuteVoting "1" // Sends join message to players if mute votin
 set qlx_protectAdminLevel "5" // Sets the minqlx server permission level needed to add/del/list the protect list, and display the protect.py version number.
 set qlx_protectPassLevel "5" // Sets the minqlx server permission level needed to set/unset the server join password.
 set qlx_protectFTS "5" // Sets the minqlx server permisson level needed to force teamsize.
-// Percentage of total server players required to vote yes to pass the AFK vote
+// Percentage of total server players required to vote yes to pass the Mute, UnMute, or AFK votes
 // (0 will just look for more yes than no votes)
 set qlx_protectPlayerPercForVote "0"
 """
@@ -30,7 +30,7 @@ import random
 import time
 import re
 
-VERSION = "2.4"
+VERSION = "2.5"
 PROTECT_FILE = "protect.txt"
 # Add/Remove votes from this list, following the format shown.
 # These votes are ones you don't want to have allowed during an active game
@@ -223,10 +223,7 @@ class protect(minqlx.Plugin):
                 if self.db.has_permission(player[1], self.protectPermission):
                     caller.tell("^2That player is too important on this server and can't be muted.")
                     return minqlx.RET_STOP_ALL
-                name = player[0].name
-                self.callvote("mute {}".format(player[2]), "Mute {}?".format(self.clean_text(name)))
-                minqlx.client_command(caller.id, "vote yes")
-                self.msg("{}^7 called vote ^6mute {}".format(caller.name, name))
+                self.callvote_mute(caller, "Mute", player[0].name, player[0].id)
                 return minqlx.RET_STOP_ALL
             # Voting to unMute people
             elif vote == "unmute" or vote == "unsilence":
@@ -240,13 +237,37 @@ class protect(minqlx.Plugin):
                 if int(caller.id) == player[2]:
                     caller.tell("^3Sorry, you cannot callvote to unmute yourself.")
                     return minqlx.RET_STOP_ALL
-                name = player[0].name
-                self.callvote("unmute {}".format(player[2]), "UnMute {}?".format(self.clean_text(name)))
-                minqlx.client_command(caller.id, "vote yes")
-                self.msg("{}^7 called vote ^6unmute {}".format(caller.name, name))
+                self.callvote_mute(caller, "UnMute", player[0].name, player[0].id)
                 return minqlx.RET_STOP_ALL
         except Exception as e:
             minqlx.console_print("^1protect.py handle_vote_called Exception: {}".format([e]))
+
+    @minqlx.thread
+    def callvote_mute(self, caller, vote, player_name, player_id):
+        try:
+            self.callvote("{} {}".format(vote.lower(), player_id), "{} {}?".format(vote, player_name))
+            minqlx.client_command(caller.id, "vote yes")
+            self.msg("{}^7 called vote ^6{} {}".format(caller.name, vote, player_name))
+            voter_perc = self.get_cvar("qlx_protectPlayerPercForVote", int)
+            self.vote_count[0] = 1
+            self.vote_count[1] = 0
+            thread_number = random.randrange(1, 10000000)
+            self.vote_count[2] = thread_number
+            if voter_perc > 0:
+                teams = self.teams()
+                voters = len(teams["red"]) + len(teams["blue"])
+                time.sleep(28.7)
+                if self.vote_count[2] == thread_number and self.vote_count[0] / voters * 100 >= voter_perc and \
+                        self.vote_count[0] > self.vote_count[1]:
+                    self.force_vote(True)
+            else:
+                time.sleep(28.7)
+                if self.vote_count[2] == thread_number and self.vote_count[0] > self.vote_count[1]:
+                    self.force_vote(True)
+            self.vote_count[2] = 0
+            return
+        except Exception as e:
+            minqlx.console_print("^1protect.py callvote_mute Exception: {}".format([e]))
 
     @minqlx.thread
     def callvote_to_spec(self, caller, vote, player_name, player_id):
