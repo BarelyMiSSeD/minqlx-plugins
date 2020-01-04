@@ -1,4 +1,5 @@
-I put these files together to allow server admins to update their maps on their server by just running these bash shell scripts.<br>
+# Download Files
+I put the download files together to allow server admins to update their maps on their server by just running these bash shell scripts.<br>
 *** Make sure to set execute permissions on these .sh files ***<br>
 
 Here is how I use them:<br>
@@ -49,3 +50,5 @@ The remaining variables should not need to be edited.<br>
 If the status messages are not appearing correctly you may have a workshop.txt that is not correctly formatted for Linux.<br>
 Try running dos2unix on the file. EX: dos2unix workshop.txt<br>
 This will convert the line feeds from windows format to the standard linux format.
+
+
