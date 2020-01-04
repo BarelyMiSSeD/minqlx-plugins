@@ -51,4 +51,10 @@ If the status messages are not appearing correctly you may have a workshop.txt t
 Try running dos2unix on the file. EX: dos2unix workshop.txt<br>
 This will convert the line feeds from windows format to the standard linux format.
 
-
+# Server Restarting
+<b>server_reboot.py and ServerStatus.py</b><br>
+The files must be used together. They allow rebooting the linux server if the Quake Live servers are empty.<br>
+The server_reboot.py is responsible for checking and rebooting the linux server.<br>
+The ServerStatus.py is a minqlx plugin that saves the current player count to the redis database so it can be read by server_reboot.py.<br>
+The setup instructions for the files are in the files at the top. The ServerStatus.py should only need to be loaded as a plugin on each Quake Live server, it has no variables that need to be set.<br>
+The server_reboot.py has variables at the top of the file, the ones in all CAPS, that need to be set. The redis database password is the only one that HAS to be set if you use a password for your database, otherwise set it to "".<br>
