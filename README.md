@@ -1,7 +1,7 @@
 # minqlx-plugins
 
 # getmap.py
-Allows downloading of maps to your QL server from within the server or from rcon. See the description at the top if the getmap.py 
+Allows downloading of maps to your QL server from within the server or from rcon. See the description at the top of the getmap.py 
 
 # specqueue.py
 <b>This is a queueing plugin for the minqlx admin bot.</b><br>
