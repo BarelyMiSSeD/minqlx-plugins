@@ -100,7 +100,9 @@ set qlx_queueShowQPosition "1"
 set qlx_queuePositionLabel "0"  // custom ex: set qlx_queuePositionLabel "~~"
 // This setting will perform check the clan tags saved in the database. Set it to the desired action.
 // 0=Do Nothing, 1=Delete clan tags with special characters, 2=Delete all saved clan tags
-qlx_queueCleanClanTags "0"
+set qlx_queueCleanClanTags "0"
+// Will enforce even teams if enabled (0=disabled, 1=enabled)
+set qlx_queueEnforceEvenTeams "1"
 """
 
 import minqlx
@@ -109,7 +111,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.11.9"
+VERSION = "2.12.2"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ["afk", "food", "away", "phone"]
@@ -351,6 +353,7 @@ class specqueue(minqlx.Plugin):
         self.set_cvar_once("qlx_queueShowQPosition", "1")
         self.set_cvar_once("qlx_queuePositionLabel", "0")
         self.set_cvar_once("qlx_queueCleanClanTags", "0")
+        self.set_cvar_once("qlx_queueEnforceEvenTeams", "1")
 
         # Minqlx bot Hooks
         self.add_hook("new_game", self.handle_new_game)
@@ -1304,18 +1307,21 @@ class specqueue(minqlx.Plugin):
                     time.sleep(delay)
                 teams = self.teams()
                 difference = len(teams["red"]) - len(teams["blue"])
-                if abs(difference) > 0 and self._latch_ignore or self._ignore:
+                abs_diff = abs(difference)
+                if abs_diff == 1 and not self.get_cvar("qlx_queueEnforceEvenTeams", bool):
+                    return
+                if abs_diff > 0 and self._latch_ignore or self._ignore:
                     if not self._ignore_msg_already_said:
                         self.msg("^6Uneven teams action^7: no action will be taken due to admin setting!")
                         self._ignore_msg_already_said = True
                     return
-                p_count = len(teams["red"] + teams["blue"])
+                p_count = len(teams["red"]) + len(teams["blue"])
                 players = []
                 move_players = []
                 where = None
                 spec_player = None
 
-                if abs(difference) > 0 and self._specPlayer[7] <= p_count <= self._specPlayer[8]:
+                if abs_diff > 0 and self._specPlayer[7] <= p_count <= self._specPlayer[8]:
                     if difference == -1:
                         self.get_player_for_spec(teams["blue"].copy())
                         spec_player = self._players[0]
@@ -1323,7 +1329,7 @@ class specqueue(minqlx.Plugin):
                         self.get_player_for_spec(teams["red"].copy())
                         spec_player = self._players[0]
                     else:
-                        move = int(abs(difference) / 2)
+                        move = int(abs_diff / 2)
                         if (difference % 2) == 0:
                             spec = 0
                         else:
@@ -1365,6 +1371,8 @@ class specqueue(minqlx.Plugin):
 
     @minqlx.thread
     def even_the_teams(self, delay=False):
+        if not self.get_cvar("qlx_queueEnforceEvenTeams", bool):
+            return
         try:
             if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 if delay:
@@ -1455,33 +1463,47 @@ class specqueue(minqlx.Plugin):
             if self.game.state == "in_progress":
                 if self._specPlayer[0] and self._specPlayer[1]:
                     if self._specPlayer[2] == 1:
-                        if len(s_players) == 1:
+                        if len(s_players) > 1:
+                            if len(t_players) == 1 and t_players[0] in s_players:
+                                self._players = [t_players[0]]
+                            elif len(t_players) > 1:
+                                tp = None
+                                t = 0
+                                for p in t_players:
+                                    if p in s_players and self.get_join_time(p) > t:
+                                        tp = p
+                                if tp:
+                                    self._players = [tp]
+                                else:
+                                    self._players = [s_players[randrange(len(s_players))]]
+                            else:
+                                self._players = [s_players[randrange(len(s_players))]]
+                        else:
                             self._players = [s_players[0]]
-                        else:
-                            t = 0
-                            for player in s_players:
-                                pt = self.get_join_time(player)
-                                if pt > t:
-                                    t = pt
-                                    self._players = [player]
                     else:
-                        if len(t_players) == 1:
-                            self._players = [t_players[0]]
+                        if len(t_players) > 1:
+                            if len(s_players) == 1 and s_players[0] in t_players:
+                                self._players = [s_players[0]]
+                            elif len(s_players) > 1:
+                                tp = None
+                                t = 0
+                                for p in s_players:
+                                    if p in t_players and self.get_join_time(p) > t:
+                                        tp = p
+                                if tp:
+                                    self._players = [tp]
+                                else:
+                                    self._players = [t_players[randrange(len(t_players))]]
+                            else:
+                                self._players = [t_players[randrange(len(t_players))]]
                         else:
-                            s = 999
-                            for player in t_players:
-                                ps = player.score
-                                if ps < s:
-                                    s = ps
-                                    self._players = [player]
-                    return
+                            self._players = [t_players[0]]
                 elif self._specPlayer[1]:
                     self._players = [s_players[randrange(len(s_players))]]
-                    return
-            self._players = [t_players[randrange(len(t_players))]]
+                else:
+                    self._players = [t_players[randrange(len(t_players))]]
         except Exception as e:
             minqlx.console_print("^1specqueue get player for spec Exception: {}".format([e]))
-        return
 
     # Function meant to return the player that would be sent to spectate because
     #  the get_player_for_spec function does not return anything
