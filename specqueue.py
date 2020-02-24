@@ -1467,13 +1467,10 @@ class specqueue(minqlx.Plugin):
                             if len(t_players) == 1 and t_players[0] in s_players:
                                 self._players = [t_players[0]]
                             elif len(t_players) > 1:
-                                tp = None
-                                t = 0
-                                for p in t_players:
-                                    if p in s_players and self.get_join_time(p) > t:
-                                        tp = p
-                                if tp:
-                                    self._players = [tp]
+                                # construct a list of common items
+                                tp = [p for p in s_players if p in t_players]
+                                if len(tp):
+                                    self._players = [tp[0]]
                                 else:
                                     self._players = [s_players[randrange(len(s_players))]]
                             else:
@@ -1485,13 +1482,10 @@ class specqueue(minqlx.Plugin):
                             if len(s_players) == 1 and s_players[0] in t_players:
                                 self._players = [s_players[0]]
                             elif len(s_players) > 1:
-                                tp = None
-                                t = 0
-                                for p in s_players:
-                                    if p in t_players and self.get_join_time(p) > t:
-                                        tp = p
-                                if tp:
-                                    self._players = [tp]
+                                # construct a list of common items
+                                tp = [p for p in s_players if p in t_players]
+                                if len(tp):
+                                    self._players = [tp[0]]
                                 else:
                                     self._players = [t_players[randrange(len(t_players))]]
                             else:
