@@ -111,7 +111,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.12.2"
+VERSION = "2.12.3"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ["afk", "food", "away", "phone"]
@@ -1432,12 +1432,12 @@ class specqueue(minqlx.Plugin):
             minqlx.console_print("^1specqueue even the teams Exception: {}".format([e]))
 
     def get_cvars(self):
-        primary = self.get_cvar("qlx_queueSpecByPrimary").lower()
         self._specPlayer = [self.get_cvar("qlx_queueSpecByTime", bool), self.get_cvar("qlx_queueSpecByScore", bool),
-                            1 if primary == "score" else 0, self.get_cvar("qlx_queueMinPlayers", int),
-                            self.get_cvar("qlx_queueMaxPlayers", int), self.get_cvar("g_freezeRoundDelay", int),
-                            self.get_cvar("g_roundWarmupDelay", int), self.get_cvar("qlx_queueMinPlayers", int),
-                            self.get_cvar("qlx_queueMaxPlayers", int), self.get_cvar("qlx_queueCheckTeamsDelay", int)]
+                            True if self.get_cvar("qlx_queueSpecByPrimary").lower() == "score" else False,
+                            self.get_cvar("qlx_queueMinPlayers", int), self.get_cvar("qlx_queueMaxPlayers", int),
+                            self.get_cvar("g_freezeRoundDelay", int), self.get_cvar("g_roundWarmupDelay", int),
+                            self.get_cvar("qlx_queueMinPlayers", int), self.get_cvar("qlx_queueMaxPlayers", int),
+                            self.get_cvar("qlx_queueCheckTeamsDelay", int)]
 
     # Finds the player, that meets the set criteria, to move to spectate and returns that player
     # Does not start its own thread
@@ -1462,34 +1462,24 @@ class specqueue(minqlx.Plugin):
                     s_players.append(player)
             if self.game.state == "in_progress":
                 if self._specPlayer[0] and self._specPlayer[1]:
-                    if self._specPlayer[2] == 1:
+                    if self._specPlayer[2]:
                         if len(s_players) > 1:
-                            if len(t_players) == 1 and t_players[0] in s_players:
-                                self._players = [t_players[0]]
-                            elif len(t_players) > 1:
-                                # construct a list of common items
-                                tp = [p for p in s_players if p in t_players]
-                                if len(tp):
-                                    self._players = [tp[0]]
-                                else:
-                                    self._players = [s_players[randrange(len(s_players))]]
-                            else:
-                                self._players = [s_players[randrange(len(s_players))]]
+                            lowest_time = 0
+                            temp_player = s_players[0]
+                            for player in s_players:
+                                if self.get_join_time(player) > lowest_time:
+                                    temp_player = player
+                            self._players = [temp_player]
                         else:
                             self._players = [s_players[0]]
                     else:
                         if len(t_players) > 1:
-                            if len(s_players) == 1 and s_players[0] in t_players:
-                                self._players = [s_players[0]]
-                            elif len(s_players) > 1:
-                                # construct a list of common items
-                                tp = [p for p in s_players if p in t_players]
-                                if len(tp):
-                                    self._players = [tp[0]]
-                                else:
-                                    self._players = [t_players[randrange(len(t_players))]]
-                            else:
-                                self._players = [t_players[randrange(len(t_players))]]
+                            lowest_score = 999
+                            temp_player = t_players[0]
+                            for player in t_players:
+                                if player.stats.score < lowest_score:
+                                    temp_player = player
+                            self._players = [temp_player]
                         else:
                             self._players = [t_players[0]]
                 elif self._specPlayer[1]:
@@ -1537,7 +1527,7 @@ class specqueue(minqlx.Plugin):
                 s_players[str(player.stats.score)] = player
 
             if self._specPlayer[0] and self._specPlayer[1]:
-                if self._specPlayer[2] == 1:
+                if self._specPlayer[2]:
                     sorted_players = sorted(((k, v) for k, v in s_players.items()), reverse=False)
                 else:
                     sorted_players = sorted(((k, v) for k, v in t_players.items()), reverse=True)
