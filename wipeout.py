@@ -194,24 +194,23 @@ class wipeout(minqlx.Plugin):
         del self.went_to_spec[:]
 
     def process_team_switch(self, player, team):
-        if team in ['red', 'blue'] and self.game.state in ["in_progress", "countdown"] and\
-                self.add_new and not self.countdown and not player.is_alive:
-            if player.steam_id in self.went_to_spec:
-                self.went_to_spec.remove(player.steam_id)
-                team_slot = 0 if team == "red" else 1
-                with self.lock:
-                    self.dead_players[player.id] = time.time() + self.team_timeout[team_slot]
-                self.team_timeout[team_slot] += self.add_seconds
+        if self.game.state in ["in_progress", "countdown"]:
+            if team in ['red', 'blue'] and self.add_new and not self.countdown and not player.is_alive:
+                if player.steam_id in self.went_to_spec:
+                    self.went_to_spec.remove(player.steam_id)
+                    team_slot = 0 if team == "red" else 1
+                    with self.lock:
+                        self.dead_players[player.id] = time.time() + self.team_timeout[team_slot]
+                    self.team_timeout[team_slot] += self.add_seconds
+                else:
+                    minqlx.player_spawn(player.id)
+                    self.give_power_up(player)
             else:
-                minqlx.player_spawn(player.id)
-                self.give_power_up(player)
-        else:
-            if player.steam_id not in self.went_to_spec:
-                minqlx.console_print("Added {} to in game spectator".format(player))
-                self.went_to_spec.append(player.steam_id)
-            with self.lock:
-                if player.id in self.dead_players:
-                    del self.dead_players[player.id]
+                if player.steam_id not in self.went_to_spec:
+                    self.went_to_spec.append(player.steam_id)
+                with self.lock:
+                    if player.id in self.dead_players:
+                        del self.dead_players[player.id]
 
     @minqlx.delay(9.8)
     def assign_items(self):
