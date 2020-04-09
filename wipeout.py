@@ -195,16 +195,17 @@ class wipeout(minqlx.Plugin):
 
     def process_team_switch(self, player, team):
         if self.game.state in ["in_progress", "countdown"]:
-            if team in ['red', 'blue'] and self.add_new and not self.countdown and not player.is_alive:
-                if player.steam_id in self.went_to_spec:
-                    self.went_to_spec.remove(player.steam_id)
-                    team_slot = 0 if team == "red" else 1
-                    with self.lock:
-                        self.dead_players[player.id] = time.time() + self.team_timeout[team_slot]
-                    self.team_timeout[team_slot] += self.add_seconds
-                else:
-                    minqlx.player_spawn(player.id)
-                    self.give_power_up(player)
+            if team in ['red', 'blue']:
+                if self.add_new and not self.countdown and not player.is_alive:
+                    if player.steam_id in self.went_to_spec:
+                        self.went_to_spec.remove(player.steam_id)
+                        team_slot = 0 if team == "red" else 1
+                        with self.lock:
+                            self.dead_players[player.id] = time.time() + self.team_timeout[team_slot]
+                        self.team_timeout[team_slot] += self.add_seconds
+                    else:
+                        minqlx.player_spawn(player.id)
+                        self.give_power_up(player)
             else:
                 if player.steam_id not in self.went_to_spec:
                     self.went_to_spec.append(player.steam_id)
