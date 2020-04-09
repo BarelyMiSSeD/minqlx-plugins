@@ -1,5 +1,10 @@
 # minqlx-plugins
 
+# wipeout.py
+This adds a gametpye to QL that runs under the Clan Arena mode. To win a round a team has to have the entire enemy team dead at the same time. When a player dies they remain in spectate for a period of time before respawning. The time in spectate increases with each team mate death, so as the round progresses it becomes more likely that the entire enemy team can be dead at the same time.<br>
+Chat '!wipeout' in game and read the description, in the console, about the game and the player needed setup.<br>
+Read the top of the wipeout.py file for server settings, though the default settings seem good to me.<br>
+
 # getmap.py
 Allows downloading and removing of maps to/from your QL server from within the server or from rcon. See the description at the top of the getmap.py 
 
