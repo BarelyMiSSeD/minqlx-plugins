@@ -40,7 +40,7 @@ import time
 import random
 from threading import Lock
 
-VERSION = "1.2"
+VERSION = "1.3"
 
 # Settings used in Wipeout (These settings get executed on script initialization)
 SETTINGS = ["roundtimelimit 18000", "g_startingweapons 8447", "g_startingAmmo_rg 50", "g_startingAmmo_rl 50",
@@ -163,19 +163,20 @@ class wipeout(minqlx.Plugin):
         self.print_instructions(player)
 
     def print_instructions(self, player):
-        player.tell("^4Wipeout is a Quake Live game mode run under Clan Arena.\nA team wins by having all the"
-                    " players on the opposing team dead at the same time.\nWhen a player dies they spectate for"
-                    " a certain time period. The time period starts at 5 seconds but is increased by {1} seconds"
-                    " for each death on the team.\nThe first team to win {2} rounds wins the match.\n"
-                    "^3You need to have a key bound to the Quake 'use item' command to use the holdables and the"
-                    " quotes used in the BIND commands need to be ^6double-quotes^3.\n"
-                    "^2bind <key> \"+button2\"\n"
-                    "^3The Command: ^1{0}power^3 allows the switching of your holdable item\nbetween the med kit"
-                    " and power item.\n"
-                    "To bind a key use ^2bind <key> \"say {0}power\"^3.\n"
+        player.tell("^4Wipeout is a modified Clan Arena gametype with respawns played in Quake Live.\n"
+                    "A team wins by having all the players on the opposing team dead at the same time.\n"
+                    "When a player dies they spectate for a certain time period. "
+                    "The time period starts at 5 seconds but is increased by {1} seconds"
+                    " for each death on the player's team.\nThe first team to win {2} rounds wins the match.\n"
+                    "When round starts you are given 2 power up holdables. Medkit and either\n"
+                    "Invulnerability-Shield/Teleport/Flight/Kamikazee\nwith a {3} percent chance of getting kamakazi.\n"
+                    "^1To use them you need to have 2 keys bound:\n"
+                    "^61) ^1bind <key> \"+button2\" ^3This is the use bind\n"
+                    "^62) ^1bind <key> \"say {0}power\" ^3Item swap (medkit and powerup) bind\n"
+                    "Quotes used in the BIND commands need to be ^6double-quotes^3.\n"
                     "If the server is blocking saying {0}power in chat, it will not spam the server."
                     .format(minqlx.get_cvar("qlx_commandPrefix"), self.add_seconds,
-                            self.get_cvar("qlx_wipeoutRounds")))
+                            self.get_cvar("qlx_wipeoutRounds"), self.get_cvar("qlx_wipeoutKamakazi")))
 
     def reset_all(self):
         self.kamakazi = self.get_cvar("qlx_wipeoutKamakazi", int) / 100.0
