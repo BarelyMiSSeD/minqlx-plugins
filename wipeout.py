@@ -90,6 +90,7 @@ class wipeout(minqlx.Plugin):
         # Minqlx bot commands
         self.add_command("power", self.cmd_power)
         self.add_command("wipeout", self.cmd_wipeout)
+        self.add_command("test", self.cmd_test)
 
         self.red = minqlx.RedTeamChatChannel()
         self.blue = minqlx.BlueTeamChatChannel()
@@ -114,7 +115,7 @@ class wipeout(minqlx.Plugin):
         self.went_to_spec = []
         self.went_to_spec_lock = Lock()
         self.block_power = self.get_cvar("qlx_wipeoutBlockPower", bool)
-        self.wipeout_gametype = self.get_cvar("qlx_wipeoutFactory") == "wipeout" if self.wipeout_only else\
+        self.wipeout_gametype = self.get_cvar("g_factory") == "wipeout" if self.wipeout_only else\
             self.game.type_short == "ca"
 
         if ENABLE_LOG:
@@ -130,6 +131,9 @@ class wipeout(minqlx.Plugin):
             self.wipeout_log.addHandler(file_handler)
             self.wipeout_log.info("============================= Logger started @ {} ============================="
                                   .format(datetime.now()))
+
+    def cmd_test(self, player, msg, channel):
+        minqlx.console_print("Wipeout {}".format(self.wipeout_gametype))
 
     def handle_new_game(self):
         if ENABLE_LOG:
@@ -187,7 +191,7 @@ class wipeout(minqlx.Plugin):
         self.hunt_sound = self.get_cvar("qlx_wipeoutHuntSound")
         self.block_power = self.get_cvar("qlx_wipeoutBlockPower", bool)
         self.wipeout_only = self.get_cvar("qlx_wipeoutFactory", bool)
-        self.wipeout_gametype = self.get_cvar("qlx_wipeoutFactory") == "wipeout" if self.wipeout_only else\
+        self.wipeout_gametype = self.get_cvar("g_factory") == "wipeout" if self.wipeout_only else\
             self.game.type_short == "ca"
         self.countdown = False
         self.reset_all()
