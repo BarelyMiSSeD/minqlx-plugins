@@ -90,7 +90,6 @@ class wipeout(minqlx.Plugin):
         # Minqlx bot commands
         self.add_command("power", self.cmd_power)
         self.add_command("wipeout", self.cmd_wipeout)
-        self.add_command("test", self.cmd_test)
 
         self.red = minqlx.RedTeamChatChannel()
         self.blue = minqlx.BlueTeamChatChannel()
@@ -131,9 +130,6 @@ class wipeout(minqlx.Plugin):
             self.wipeout_log.addHandler(file_handler)
             self.wipeout_log.info("============================= Logger started @ {} ============================="
                                   .format(datetime.now()))
-
-    def cmd_test(self, player, msg, channel):
-        minqlx.console_print("Wipeout {}".format(self.wipeout_gametype))
 
     def handle_new_game(self):
         if ENABLE_LOG:
