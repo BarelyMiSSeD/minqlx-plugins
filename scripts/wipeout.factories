@@ -1,0 +1,25 @@
+[{
+    "cvars": {
+        "roundtimelimit": "18000",
+        "g_startingweapons": "8447",
+        "g_startingAmmo_rg": "50",
+        "g_startingAmmo_rl": "50",
+        "g_startingAmmo_gl": "15",
+        "g_startingAmmo_lg": "200",
+        "g_startingAmmo_pg": "200",
+        "g_startingAmmo_sg": "50",
+        "g_startingAmmo_hmg": "200",
+        "g_startingAmmo_mg": "200",
+        "dmflags": "28",
+        "g_startingArmor": "100",
+        "g_startingHealthBonus": "0",
+        "g_startingHealth": "200",
+        "g_allowKill": "0",
+        "g_overtime": "0"
+    },
+    "author": "BarelyMiSSeD",
+    "description": "Wipeout gametype",
+    "basegt": "ca",
+    "id": "wipeout",
+    "title": "Wipeout"
+}]

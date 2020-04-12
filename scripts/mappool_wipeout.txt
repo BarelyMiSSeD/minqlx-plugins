@@ -1,0 +1,42 @@
+# specify 1 map per line, mapname|factoryid
+# ex: aerowalk|ffa
+# see factories.txt for valid factory id values
+6plusplus|wipeout
+almostlost|wipeout
+asylum|wipeout
+brimstoneabbey|wipeout
+campgrounds|wipeout
+ca_tamb|wipeout
+chemicalreaction|wipeout
+corrosion|wipeout
+cowsmap|wipeout
+deepinside|wipeout
+devilish|wipeout
+dreadfulplace|wipeout
+eviscerated|wipeout
+foolishlegacy|wipeout
+henhouse|wipeout
+hiddenfortress|wipeout
+intervention|wipeout
+leftbehind|wipeout
+leviathan|wipeout
+limbus|wipeout
+lockdown|wipeout
+monastery|wipeout
+overkill|wipeout
+prodcmap7|wipeout
+proverek2|wipeout
+psidm7|wipeout
+purgatory|wipeout
+quarantine|wipeout
+realmofsteelrats|wipeout
+repent|wipeout
+retribution|wipeout
+terminatria|wipeout
+theedge|wipeout
+theoldendomain|wipeout
+tornado|wipeout
+trinity|wipeout
+ts_ca1|wipeout
+warehouse|wipeout
+windsongkeep|wipeout

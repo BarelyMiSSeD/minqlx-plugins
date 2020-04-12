@@ -33,6 +33,11 @@ set qlx_wipeoutHuntSound "sound/vo_evil/1_frag.ogg"
 // Enable/Disable the echoing of players saying !power in chat. It is blocked by default because this
 // chat command is frequently used by players during game play.
 set qlx_wipeoutBlockPower "1"
+// Enable/Disable message on player connect
+set qlx_wipeoutMessage "1"
+// Enable/Disable use only wipeout factory
+// (if you use the wipeout factory the wipeout.factories must be in the baseq3/scripts directory)
+set qlx_wipeoutFactory "1"
 """
 
 import minqlx
@@ -40,9 +45,10 @@ import time
 import random
 from threading import Lock
 
-VERSION = "2.1"
+VERSION = "2.3"
 
 # Settings used in Wipeout (These settings get executed on script initialization)
+# If the wipeout factory is used (set qlx_wipeoutFactory "1") these settings are not executed.
 SETTINGS = ["roundtimelimit 18000", "g_startingweapons 8447", "g_startingAmmo_rg 50", "g_startingAmmo_rl 50",
             "g_startingAmmo_gl 15", "g_startingAmmo_lg 200", "g_startingAmmo_pg 200", "g_startingAmmo_sg 50",
             "g_startingAmmo_hmg 200", "g_startingAmmo_mg 200"]
@@ -64,6 +70,8 @@ class wipeout(minqlx.Plugin):
         self.set_cvar_once("qlx_wipeoutKamakazi", "2")
         self.set_cvar_once("qlx_wipeoutNewPlayers", "1")
         self.set_cvar_once("qlx_wipeoutBlockPower", "1")
+        self.set_cvar_once("qlx_wipeoutMessage", "1")
+        self.set_cvar_once("qlx_wipeoutFactory", "1")
         self.set_cvar_once("qlx_wipeoutHuntSound", "sound/vo_evil/1_frag.ogg")
 
         # Minqlx bot Hooks
@@ -77,6 +85,7 @@ class wipeout(minqlx.Plugin):
         self.add_hook("team_switch", self.handle_team_switch)
         self.add_hook("chat", self.handle_chat)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
+        self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
 
         # Minqlx bot commands
         self.add_command("power", self.cmd_power)
@@ -101,10 +110,12 @@ class wipeout(minqlx.Plugin):
         self.countdown = False
         self.round_end = False
         self.hunt_sound = None
-        self.ca_gametype = self.game.type_short == "ca"
+        self.wipeout_only = self.get_cvar("qlx_wipeoutFactory", bool)
         self.went_to_spec = []
         self.went_to_spec_lock = Lock()
         self.block_power = self.get_cvar("qlx_wipeoutBlockPower", bool)
+        self.wipeout_gametype = self.get_cvar("qlx_wipeoutFactory") == "wipeout" if self.wipeout_only else\
+            self.game.type_short == "ca"
 
         if ENABLE_LOG:
             self.wipeout_log = logging.Logger(__name__)
@@ -124,11 +135,12 @@ class wipeout(minqlx.Plugin):
         if ENABLE_LOG:
             self.wipeout_log.info("Game Starting: {}".format(datetime.now()))
         self.reset_all()
-        if self.ca_gametype:
-            for setting in SETTINGS:
-                if ENABLE_LOG:
-                    self.wipeout_log.info("Sending: {}".format(setting))
-                minqlx.console_command(setting)
+        if self.wipeout_gametype:
+            if not self.wipeout_only:
+                for setting in SETTINGS:
+                    if ENABLE_LOG:
+                        self.wipeout_log.info("Sending: {}".format(setting))
+                    minqlx.console_command(setting)
             if ENABLE_LOG:
                 self.wipeout_log.info("Set roundlimit to {}".format(self.get_cvar("qlx_wipeoutRounds", int)))
             minqlx.console_command("roundlimit {}".format(self.get_cvar("qlx_wipeoutRounds", int)))
@@ -144,7 +156,7 @@ class wipeout(minqlx.Plugin):
         if ENABLE_LOG:
             self.wipeout_log.info("Round Countdown: {}".format(datetime.now()))
         self.round_end = True
-        if self.ca_gametype:
+        if self.wipeout_gametype:
             self.reset_all()
             self.assign_items()
 
@@ -163,7 +175,7 @@ class wipeout(minqlx.Plugin):
         if ENABLE_LOG:
             dead = victim if victim is not None else "None"
             self.wipeout_log.info("Player Death: {} : {}".format(datetime.now(), dead))
-        if self.ca_gametype and victim is not None:
+        if self.wipeout_gametype and victim is not None:
             self.player_died(victim)
 
     def handle_map(self, mapname, factory):
@@ -174,14 +186,16 @@ class wipeout(minqlx.Plugin):
         self.add_seconds = self.get_cvar("qlx_wipeoutAddSeconds", int)
         self.hunt_sound = self.get_cvar("qlx_wipeoutHuntSound")
         self.block_power = self.get_cvar("qlx_wipeoutBlockPower", bool)
-        self.ca_gametype = self.game.type_short == "ca"
+        self.wipeout_only = self.get_cvar("qlx_wipeoutFactory", bool)
+        self.wipeout_gametype = self.get_cvar("qlx_wipeoutFactory") == "wipeout" if self.wipeout_only else\
+            self.game.type_short == "ca"
         self.countdown = False
         self.reset_all()
 
     def handle_team_switch(self, player, old_team, new_team):
         if ENABLE_LOG:
             self.wipeout_log.info("Team Switch: {} : {} {}".format(datetime.now(), player, new_team))
-        if self.ca_gametype:
+        if self.wipeout_gametype:
             self.process_team_switch(player, new_team)
 
     def handle_chat(self, player, msg, channel):
@@ -211,6 +225,18 @@ class wipeout(minqlx.Plugin):
             if ENABLE_LOG:
                 self.wipeout_log.info("Player Disconnected Exception: {} : {}".format(datetime.now(), [e]))
 
+    def handle_player_loaded(self, player):
+        if ENABLE_LOG:
+            self.wipeout_log.info("Player Loaded: {} : {}".format(datetime.now(), player))
+        self.process_player_loaded(player)
+        return
+
+    @minqlx.delay(4)
+    def process_player_loaded(self, player):
+        if self.get_cvar("qlx_wipeoutMessage", bool):
+            player.center_print("^4Welcome to ^1Quake Live ^2Wipeout\n^7Type ^3!wipeout ^7 for information")
+            player.tell("^4Welcome to ^1Quake Live ^2Wipeout\n^7Type ^3!wipeout ^7 for information")
+
     def cmd_wipeout(self, player, msg, channel):
         self.print_instructions(player)
 
@@ -231,8 +257,6 @@ class wipeout(minqlx.Plugin):
                             self.get_cvar("qlx_wipeoutRounds"), self.get_cvar("qlx_wipeoutKamakazi")))
 
     def reset_all(self):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Reset All: {}".format(datetime.now()))
         try:
             with self.team_timeout_lock:
                 self.team_timeout = [5, 5]
@@ -247,11 +271,11 @@ class wipeout(minqlx.Plugin):
                 self.wipeout_log.info("Reset All Exception: {} : {}".format(datetime.now(), [e]))
 
     def process_team_switch(self, player, team):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Process Team Switch: {}".format(datetime.now()))
         try:
             if self.game.state == "in_progress":
                 if team in ['red', 'blue']:
+                    if ENABLE_LOG:
+                        self.wipeout_log.info("Process Team Switch {}: {} to {}".format(datetime.now(), player, team))
                     if not self.countdown and self.add_new:
                         was_in_game = False
                         with self.went_to_spec_lock:
@@ -280,8 +304,6 @@ class wipeout(minqlx.Plugin):
 
     @minqlx.delay(9.8)
     def assign_items(self):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Assign items: {}".format(datetime.now()))
         try:
             if self.game.state in ["in_progress", "countdown"]:
                 with self.holdables_lock:
@@ -295,8 +317,6 @@ class wipeout(minqlx.Plugin):
 
     @minqlx.next_frame
     def give_power_up(self, player):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Give Power Up: {} : {}".format(datetime.now(), player))
         rand = random.random()
         try:
             if rand < self.kamakazi:
@@ -308,6 +328,9 @@ class wipeout(minqlx.Plugin):
             minqlx.set_holdable(player.id, select)
             if select == 34:
                 player.flight(fuel=10000, max_fuel=10000, thrust=2500, refuel=0)
+            if ENABLE_LOG:
+                self.wipeout_log.info("Give Power Up {}: {} {} {}".format(datetime.now(), player, self.conversion[28],
+                                                                          self.conversion[select]))
         except Exception as e:
             if ENABLE_LOG:
                 self.wipeout_log.info("Give Power Up Exception: {} : {}".format(datetime.now(), [e]))
@@ -322,7 +345,8 @@ class wipeout(minqlx.Plugin):
     @minqlx.next_frame
     def execute_power(self, player):
         if ENABLE_LOG:
-            self.wipeout_log.info("Executing Power Command: {} : {}".format(datetime.now(), player))
+            self.wipeout_log.info("Executing Power Command: {} : {} {}".format(datetime.now(), player,
+                                                                               self.holdables[player.id]))
         try:
             holdable = player.state.holdable
             with self.holdables_lock:
@@ -338,8 +362,6 @@ class wipeout(minqlx.Plugin):
                 self.wipeout_log.info("Executing Power Command Exception: {} : {}".format(datetime.now(), [e]))
 
     def player_died(self, player):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Player Died: {} : {}".format(datetime.now(), player))
         try:
             if self.game.state == "in_progress" and not self.countdown:
                 team = player.team
@@ -352,14 +374,15 @@ class wipeout(minqlx.Plugin):
                     self.dead_players[player.id] = death_time + timeout
                 if not self.countdown:
                     self.check_for_last(team)
+                if ENABLE_LOG:
+                    self.wipeout_log.info("Player Died {}: {} {} seconds timeout"
+                                          .format(datetime.now(), player, timeout))
         except Exception as e:
             if ENABLE_LOG:
                 self.wipeout_log.info("Player Died Exception: {} : {}".format(datetime.now(), [e]))
 
     @minqlx.next_frame
     def check_for_last(self, team):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Check for Last: {}".format(datetime.now()))
         try:
             teams = self.teams()
             count = self.team_count(teams[team])
@@ -375,8 +398,6 @@ class wipeout(minqlx.Plugin):
                 self.wipeout_log.info("Check for Last Exception: {} : {}".format(datetime.now(), [e]))
 
     def team_count(self, team):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Team Count: {}".format(datetime.now()))
         try:
             count = 0
             for player in team:
@@ -441,6 +462,8 @@ class wipeout(minqlx.Plugin):
             if not self.round_end:
                 player.update()
                 minqlx.player_spawn(player.id)
+                if ENABLE_LOG:
+                    self.wipeout_log.info("Respawning Player {}: {}".format(datetime.now(), player))
                 self.give_power_up(player)
         except minqlx.NonexistentPlayerError:
             return
