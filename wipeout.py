@@ -22,6 +22,8 @@ NOTE: THIS WILL ONLY RUN IN THE CA GAME TYPE MODE. IF THE SERVER IS CHANGED TO A
 //script cvars to be put in server configuration file (default: server.cfg). Default values shown.
 // set the rounds needed to win to win the wipeout game
 set qlx_wipeoutRounds "3"
+// set the clan arena rounds (if qlx_wipeoutFactory is enabled)
+set qlx_wipeoutCaRounds "10"
 // set the seconds added to the respawn timer for each team death
 set qlx_wipeoutAddSeconds "5"
 // set the probability percentage of getting kamakazi when power holdables are given
@@ -45,7 +47,7 @@ import time
 import random
 from threading import Lock
 
-VERSION = "2.3"
+VERSION = "2.4"
 
 # Settings used in Wipeout (These settings get executed on script initialization)
 # If the wipeout factory is used (set qlx_wipeoutFactory "1") these settings are not executed.
@@ -53,7 +55,7 @@ SETTINGS = ["roundtimelimit 18000", "g_startingweapons 8447", "g_startingAmmo_rg
             "g_startingAmmo_gl 15", "g_startingAmmo_lg 200", "g_startingAmmo_pg 200", "g_startingAmmo_sg 50",
             "g_startingAmmo_hmg 200", "g_startingAmmo_mg 200"]
 
-ENABLE_LOG = True  # set to False to disable logging
+ENABLE_LOG = False  # set to False to disable logging
 
 if ENABLE_LOG:
     import logging
@@ -66,6 +68,7 @@ class wipeout(minqlx.Plugin):
     def __init__(self):
         # wipeout cvars
         self.set_cvar_once("qlx_wipeoutRounds", "3")
+        self.set_cvar_once("qlx_wipeoutCaRounds", "10")
         self.set_cvar_once("qlx_wipeoutAddSeconds", "5")
         self.set_cvar_once("qlx_wipeoutKamakazi", "2")
         self.set_cvar_once("qlx_wipeoutNewPlayers", "1")
@@ -145,6 +148,8 @@ class wipeout(minqlx.Plugin):
                 self.wipeout_log.info("Set roundlimit to {}".format(self.get_cvar("qlx_wipeoutRounds", int)))
             minqlx.console_command("roundlimit {}".format(self.get_cvar("qlx_wipeoutRounds", int)))
             self.start_timer()
+        else:
+            minqlx.console_command("roundlimit {}".format(self.get_cvar("qlx_wipeoutCaRounds", int)))
 
     def handle_game_end(self, data):
         if ENABLE_LOG:
