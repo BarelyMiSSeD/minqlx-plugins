@@ -172,7 +172,7 @@ import random
 import time
 import re
 
-VERSION = "5.7"
+VERSION = "5.8"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -761,7 +761,7 @@ class myFun(minqlx.Plugin):
         return None
 
     def cmd_sound_off_list(self, player, msg, channel):
-        self.sound_off_list(player, msg, channel)
+        self.sound_off_list(player)
 
     @minqlx.thread
     # list the disabled sound to the requesting player
