@@ -47,7 +47,7 @@ import time
 import random
 from threading import Lock
 
-VERSION = "2.4"
+VERSION = "2.6"
 
 # Settings used in Wipeout (These settings get executed on script initialization)
 # If the wipeout factory is used (set qlx_wipeoutFactory "1") these settings are not executed.
@@ -55,7 +55,7 @@ SETTINGS = ["roundtimelimit 18000", "g_startingweapons 8447", "g_startingAmmo_rg
             "g_startingAmmo_gl 15", "g_startingAmmo_lg 200", "g_startingAmmo_pg 200", "g_startingAmmo_sg 50",
             "g_startingAmmo_hmg 200", "g_startingAmmo_mg 200"]
 
-ENABLE_LOG = False  # set to False to disable logging
+ENABLE_LOG = False  # set to True/False to enable/disable logging
 
 if ENABLE_LOG:
     import logging
@@ -78,7 +78,7 @@ class wipeout(minqlx.Plugin):
         self.set_cvar_once("qlx_wipeoutHuntSound", "sound/vo_evil/1_frag.ogg")
 
         # Minqlx bot Hooks
-        self.add_hook("new_game", self.handle_new_game)
+        self.add_hook("game_countdown", self.handle_game_countdown)
         self.add_hook("game_end", self.handle_game_end)
         self.add_hook("round_countdown", self.handle_round_countdown)
         self.add_hook("round_start", self.handle_round_start)
@@ -134,9 +134,9 @@ class wipeout(minqlx.Plugin):
             self.wipeout_log.info("============================= Logger started @ {} ============================="
                                   .format(datetime.now()))
 
-    def handle_new_game(self):
+    def handle_game_countdown(self):
         if ENABLE_LOG:
-            self.wipeout_log.info("Game Starting: {}".format(datetime.now()))
+            self.wipeout_log.info("Game Countdown: {} - {}".format(datetime.now(), self.get_cvar("g_factory")))
         self.reset_all()
         if self.wipeout_gametype:
             if not self.wipeout_only:
@@ -150,6 +150,20 @@ class wipeout(minqlx.Plugin):
             self.start_timer()
         else:
             minqlx.console_command("roundlimit {}".format(self.get_cvar("qlx_wipeoutCaRounds", int)))
+
+    def handle_map(self, mapname, factory):
+        if ENABLE_LOG:
+            self.wipeout_log.info("Map Changed: {} To: {} {}".format(datetime.now(), mapname, factory))
+        self.kamakazi = self.get_cvar("qlx_wipeoutKamakazi", int) / 100.0
+        self.add_new = self.get_cvar("qlx_wipeoutNewPlayers", bool)
+        self.add_seconds = self.get_cvar("qlx_wipeoutAddSeconds", int)
+        self.hunt_sound = self.get_cvar("qlx_wipeoutHuntSound")
+        self.block_power = self.get_cvar("qlx_wipeoutBlockPower", bool)
+        self.wipeout_only = self.get_cvar("qlx_wipeoutFactory", bool)
+        self.wipeout_gametype = self.get_cvar("g_factory") == "wipeout" if self.wipeout_only else\
+            self.game.type_short == "ca"
+        self.countdown = False
+        self.reset_all()
 
     def handle_game_end(self, data):
         if ENABLE_LOG:
@@ -178,24 +192,10 @@ class wipeout(minqlx.Plugin):
 
     def handle_death(self, victim, killer, data):
         if ENABLE_LOG:
-            dead = victim if victim is not None else "None"
+            dead = victim if victim else "None"
             self.wipeout_log.info("Player Death: {} : {}".format(datetime.now(), dead))
         if self.wipeout_gametype and victim is not None:
             self.player_died(victim)
-
-    def handle_map(self, mapname, factory):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Map Changed: {} To: {} {}".format(datetime.now(), mapname, factory))
-        self.kamakazi = self.get_cvar("qlx_wipeoutKamakazi", int) / 100.0
-        self.add_new = self.get_cvar("qlx_wipeoutNewPlayers", bool)
-        self.add_seconds = self.get_cvar("qlx_wipeoutAddSeconds", int)
-        self.hunt_sound = self.get_cvar("qlx_wipeoutHuntSound")
-        self.block_power = self.get_cvar("qlx_wipeoutBlockPower", bool)
-        self.wipeout_only = self.get_cvar("qlx_wipeoutFactory", bool)
-        self.wipeout_gametype = self.get_cvar("g_factory") == "wipeout" if self.wipeout_only else\
-            self.game.type_short == "ca"
-        self.countdown = False
-        self.reset_all()
 
     def handle_team_switch(self, player, old_team, new_team):
         if ENABLE_LOG:
@@ -330,7 +330,7 @@ class wipeout(minqlx.Plugin):
                 select = self.selections[random.randrange(self.length)]
             with self.holdables_lock:
                 self.holdables[player.id] = [2, 28, select]
-            minqlx.set_holdable(player.id, select)
+            self.set_holdable(player.id, select)
             if select == 34:
                 player.flight(fuel=10000, max_fuel=10000, thrust=2500, refuel=0)
             if ENABLE_LOG:
@@ -360,11 +360,17 @@ class wipeout(minqlx.Plugin):
                 if not holdable:
                     self.holdables[player.id][holding] = 0
                 if self.holdables[player.id][other]:
-                    minqlx.set_holdable(player.id, self.holdables[player.id][other])
+                    if holdable:
+                        self.set_holdable(player.id, 0)
+                    self.set_holdable(player.id, self.holdables[player.id][other])
                     self.holdables[player.id][0] = other
         except Exception as e:
             if ENABLE_LOG:
                 self.wipeout_log.info("Executing Power Command Exception: {} : {}".format(datetime.now(), [e]))
+
+    @minqlx.next_frame
+    def set_holdable(self, pid, n):
+        minqlx.set_holdable(pid, n)
 
     def player_died(self, player):
         try:
@@ -421,6 +427,7 @@ class wipeout(minqlx.Plugin):
     def start_timer(self):
         if ENABLE_LOG:
             self.wipeout_log.info("Respawn Timer Process Starting: {}".format(datetime.now()))
+        time.sleep(1)
         count = 0
         current = time.time()
         while self.game.state in ["in_progress", "countdown"]:
@@ -458,8 +465,7 @@ class wipeout(minqlx.Plugin):
                         self.blue.reply("^2Team Spawn in ^1{} ^2seconds".format(lowest[1]))
             except Exception as e:
                 if ENABLE_LOG:
-                    self.wipeout_log.info("Respawn Timer Process Exception: {} : {}"
-                                          .format(datetime.now(), [e]))
+                    self.wipeout_log.info("Respawn Timer Process Exception: {} : {}".format(datetime.now(), [e]))
 
     @minqlx.next_frame
     def spawn_player(self, player):
