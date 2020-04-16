@@ -5,7 +5,9 @@ This adds a gametpye to QL that runs under the Clan Arena mode. To win a round a
 Chat '!wipeout' in game and read the description, in the console, about the game and the player needed setup.<br>
 Read the top of the wipeout.py file for server settings, though the default settings seem good to me.<br>
 If you want want to use the wipeout as a factory get the wipeout.factories from the scripts folder.<br>
-Ther is a short mappool.txt in there as well, to help you get started.<br>
+There is a short mappool.txt in there as well, to help you get started.<br>
+<b>Check out instructions for the players <a href="https://www.reddit.com/r/QuakeLive/comments/g2qpq6/here_are_some_helpful_instructions_for_the_new_ql/">HERE</a> on reddit.<br>
+
 
 # getmap.py
 Allows downloading and removing of maps to/from your QL server from within the server or from rcon. See the description at the top of the getmap.py 
