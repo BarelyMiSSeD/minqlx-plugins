@@ -6,7 +6,7 @@ Chat '!wipeout' in game and read the description, in the console, about the game
 Read the top of the wipeout.py file for server settings, though the default settings seem good to me.<br>
 If you want want to use the wipeout as a factory get the wipeout.factories from the scripts folder.<br>
 There is a short mappool.txt in there as well, to help you get started.<br>
-<b>Check out instructions for the players <a href="https://www.reddit.com/r/QuakeLive/comments/g2qpq6/here_are_some_helpful_instructions_for_the_new_ql/">HERE</a> on reddit.<br>
+<b>Check out instructions for the players <a href="https://www.reddit.com/r/QuakeLive/comments/g2r1b3/here_are_some_helpful_instructions_for_the_new_ql/">HERE</a> on reddit.<br>
 
 
 # getmap.py
