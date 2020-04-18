@@ -2,7 +2,7 @@
 
 # wipeout.py
 This adds a gametype to QL that runs under the Clan Arena mode. To win a round a team has to have the entire enemy team dead at the same time. When a player dies they remain in spectate for a period of time before respawning. The time in spectate increases with each team mate death, so as the round progresses it becomes more likely that the entire enemy team can be dead at the same time.<br>
-<i>LOGGING</i> is disabled by default. If you would like logging enabled, change the ENABLE_LOG setting,near the top of the file, to True<br>
+<i>LOGGING</i> is disabled by default. If you would like logging enabled, change the ENABLE_LOG setting,near the top of the file, to True. Logs are written to the fs_homepath in a logs sub-directory.<br>
 Chat '!wipeout' in game and read the description, in the console, about the game and the player needed setup.<br>
 Chat '!binds' in game to get just the 2 needed binds.<br>
 Read the top of the wipeout.py file for server settings, though the default settings seem good to me.<br>
