@@ -25,21 +25,21 @@
 //script cvars to be put in server configuration file (default: server.cfg). Default values shown.
 // set the permission level for admins to allow setting and unsetting of the fun warm up mode
 set qlx_getmapAdmin "5"
-//set the location to the steamcmd.sh directory (do not end with a /)
-set qlx_getmapSteamCmd "/home/steam/steamcmd"
+//set the executable path for steamcmd (the executable may be steamcmd.sh or steamcmd)
+set qlx_getmapSteamCmd "/home/steam/steamcmd/steamcmd.sh"
 """
 
 import minqlx
 import subprocess
 import shlex
 
-VERSION = "1.1"
+VERSION = "1.2"
 
 
 class getmap(minqlx.Plugin):
     def __init__(self):
         self.set_cvar_once("qlx_getmapAdmin", "5")
-        self.set_cvar_once("qlx_getmapSteamCmd", "/home/steam/steamcmd")
+        self.set_cvar_once("qlx_getmapSteamCmd", "/home/steam/steamcmd/steamcmd.sh")
 
         self.add_command(("getmap", "get"), self.cmd_getmap, self.get_cvar("qlx_getmapAdmin", int))
         self.add_command(("delmap", "remmap"), self.cmd_delmap, self.get_cvar("qlx_getmapAdmin", int))
@@ -64,7 +64,7 @@ class getmap(minqlx.Plugin):
             stdout, stderr = proc.communicate()
             return proc.returncode, stdout, stderr
 
-        args = shlex.split("{}/steamcmd.sh +login anonymous +force_install_dir {}/ +workshop_download_item 282440 {}"
+        args = shlex.split("{} +login anonymous +force_install_dir {}/ +workshop_download_item 282440 {}"
                            " +quit".format(steam_cmd, base_path, map_id))
         code, out, err = run(args)
         lines = out.split()
