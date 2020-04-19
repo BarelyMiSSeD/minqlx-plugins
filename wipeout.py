@@ -50,7 +50,7 @@ import time
 import random
 from threading import Lock
 
-VERSION = "2.7"
+VERSION = "2.8"
 
 # Settings used in Wipeout (These settings get executed on script initialization)
 # If the wipeout factory is used (set qlx_wipeoutFactory "1") these settings are not executed.
@@ -146,6 +146,7 @@ class wipeout(minqlx.Plugin):
         if ENABLE_LOG:
             self.wipeout_log.info("Game Countdown: {} - {} Wipeout Gametype: {}"
                                   .format(datetime.now(), self.get_cvar("g_factory"), self.wipeout_gametype))
+        self.countdown = True
         self.reset_all()
         if self.wipeout_gametype:
             if not self.wipeout_only:
@@ -214,24 +215,7 @@ class wipeout(minqlx.Plugin):
 
     def handle_player_spawn(self, player):
         if self.wipeout_gametype and self.game.state == "warmup" and self.get_cvar("qlx_wipeoutWarmupPowers", bool):
-            self.warm_up_power_up(player)
-
-    def warm_up_power_up(self, player):
-        rand = random.random()
-        try:
-            if rand < self.kamakazi:
-                select = 37
-            else:
-                select = self.selections[random.randrange(self.length)]
-            self.set_holdable(player.id, select)
-            if select == 34:
-                player.flight(fuel=8000, max_fuel=8000, thrust=2500, refuel=0)
-            if ENABLE_LOG:
-                self.wipeout_log.info("Warm up Power Up {}: {} {}"
-                                      .format(datetime.now(), player, self.conversion[select]))
-        except Exception as e:
-            if ENABLE_LOG:
-                self.wipeout_log.info("Warm up Power Up Exception: {} : {}".format(datetime.now(), [e]))
+            self.give_power_up(player)
 
     def handle_death(self, victim, killer, data):
         if ENABLE_LOG:
@@ -252,25 +236,7 @@ class wipeout(minqlx.Plugin):
     def handle_player_disconnect(self, player, reason):
         if ENABLE_LOG:
             self.wipeout_log.info("Player Disconnected: {} : {}".format(datetime.now(), player))
-        try:
-            pid = player.id
-            sid = player.steam_id
-            try:
-                player.update()
-            except minqlx.NonexistentPlayerError:
-                pass
-            with self.holdables_lock:
-                if pid in self.holdables:
-                    del self.holdables[pid]
-            with self.dead_players_lock:
-                if pid in self.dead_players:
-                    del self.dead_players[pid]
-            with self.went_to_spec_lock:
-                if sid in self.went_to_spec:
-                    self.went_to_spec.remove(sid)
-        except Exception as e:
-            if ENABLE_LOG:
-                self.wipeout_log.info("Player Disconnected Exception: {} : {}".format(datetime.now(), [e]))
+        self.del_player_info(player, True)
 
     def handle_player_loaded(self, player):
         if ENABLE_LOG:
@@ -280,7 +246,7 @@ class wipeout(minqlx.Plugin):
 
     @minqlx.delay(4)
     def process_player_loaded(self, player):
-        if self.get_cvar("qlx_wipeoutMessage", bool):
+        if self.wipeout_gametype and self.get_cvar("qlx_wipeoutMessage", bool):
             player.center_print("^4Welcome to ^1Quake Live ^2Wipeout\n^7Type ^3!wipeout ^7 for information")
             player.tell("^4Welcome to ^1Quake Live ^2Wipeout\n^7Type ^3!wipeout ^7 for information")
 
@@ -353,9 +319,36 @@ class wipeout(minqlx.Plugin):
                     with self.dead_players_lock:
                         if player.id in self.dead_players:
                             del self.dead_players[player.id]
+            else:
+                if team == "spectator":
+                    self.del_player_info(player)
         except Exception as e:
             if ENABLE_LOG:
                 self.wipeout_log.info("Process Team Switch Exception: {} : {}".format(datetime.now(), [e]))
+
+    def del_player_info(self, player, disconnected=False):
+        if ENABLE_LOG:
+            self.wipeout_log.info("Delete Player Info: {} : {}".format(datetime.now(), player))
+        try:
+            pid = player.id
+            sid = player.steam_id
+            try:
+                player.update()
+            except minqlx.NonexistentPlayerError:
+                pass
+            with self.holdables_lock:
+                if pid in self.holdables:
+                    del self.holdables[pid]
+            with self.dead_players_lock:
+                if pid in self.dead_players:
+                    del self.dead_players[pid]
+            if disconnected:
+                with self.went_to_spec_lock:
+                    if sid in self.went_to_spec:
+                        self.went_to_spec.remove(sid)
+        except Exception as e:
+            if ENABLE_LOG:
+                self.wipeout_log.info("Delete Player Info Exception: {} : {}".format(datetime.now(), [e]))
 
     @minqlx.delay(9.8)
     def assign_items(self):
@@ -392,7 +385,7 @@ class wipeout(minqlx.Plugin):
 
     def cmd_power(self, player, msg, channel):
         if len(msg) == 1:
-            if self.game.state == "in_progress" and player.is_alive and not self.countdown:
+            if player.is_alive and not self.countdown:
                 self.execute_power(player)
             if self.block_power:
                 return minqlx.RET_STOP_ALL
