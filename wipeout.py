@@ -40,8 +40,9 @@ set qlx_wipeoutMessage "1"
 // Enable/Disable use only wipeout factory
 // (if you use the wipeout factory the wipeout.factories must be in the baseq3/scripts directory)
 set qlx_wipeoutFactory "1"
+// This will enable/disable the power-ups given to players.
+set qlx_wipeoutEnablePowers "1"
 // Enable/Disable giving power-ups during warmup
-// This will only give one of powers, NOT A MED-KIT, because this is un-managed
 set qlx_wipeoutWarmupPowers "1"
 """
 
@@ -50,7 +51,7 @@ import time
 import random
 from threading import Lock
 
-VERSION = "2.8"
+VERSION = "2.9"
 
 # Settings used in Wipeout (These settings get executed on script initialization)
 # If the wipeout factory is used (set qlx_wipeoutFactory "1") these settings are not executed.
@@ -78,6 +79,7 @@ class wipeout(minqlx.Plugin):
         self.set_cvar_once("qlx_wipeoutBlockPower", "1")
         self.set_cvar_once("qlx_wipeoutMessage", "1")
         self.set_cvar_once("qlx_wipeoutFactory", "1")
+        self.set_cvar_once("qlx_wipeoutEnablePowers", "1")
         self.set_cvar_once("qlx_wipeoutWarmupPowers", "1")
         self.set_cvar_once("qlx_wipeoutHuntSound", "sound/vo_evil/1_frag.ogg")
 
@@ -125,6 +127,7 @@ class wipeout(minqlx.Plugin):
         self.went_to_spec_lock = Lock()
         self.respawn_timer_active = False
         self.wipeout_gametype = False
+        self.enable_powers = False
 
         if ENABLE_LOG:
             self.wipeout_log = logging.Logger(__name__)
@@ -176,6 +179,7 @@ class wipeout(minqlx.Plugin):
         self.hunt_sound = self.get_cvar("qlx_wipeoutHuntSound")
         self.block_power = self.get_cvar("qlx_wipeoutBlockPower", bool)
         self.wipeout_only = self.get_cvar("qlx_wipeoutFactory", bool)
+        self.enable_powers = self.get_cvar("qlx_wipeoutEnablePowers", bool)
         if self.wipeout_only:
             self.wipeout_gametype = self.get_cvar("g_factory") == "wipeout"
         else:
@@ -197,7 +201,8 @@ class wipeout(minqlx.Plugin):
         self.round_end = True
         if self.wipeout_gametype:
             self.reset_all()
-            self.assign_items()
+            if self.enable_powers:
+                self.assign_items()
             if not self.respawn_timer_active:
                 self.reset_all()
                 self.start_timer()
@@ -214,7 +219,8 @@ class wipeout(minqlx.Plugin):
         self.countdown = True
 
     def handle_player_spawn(self, player):
-        if self.wipeout_gametype and self.game.state == "warmup" and self.get_cvar("qlx_wipeoutWarmupPowers", bool):
+        if self.wipeout_gametype and self.game.state == "warmup" and\
+                self.get_cvar("qlx_wipeoutWarmupPowers", bool) and self.enable_powers:
             self.give_power_up(player)
 
     def handle_death(self, victim, killer, data):
@@ -260,22 +266,24 @@ class wipeout(minqlx.Plugin):
                "When a player dies they spectate for a certain time period.\n"\
                "The time period starts at 5 seconds but is increased by {0} seconds\n"\
                " for each death on the player's team.\nThe first team to win {1} rounds wins the match.\n"\
-               "When round starts you are given 2 power up holdables. Medkit and either\n"\
-               "Invulnerability-Shield/Teleport/Flight/Kamikazee\n" \
-               " with a {2} percent chance of getting kamakazi.\n"\
-               .format(self.add_seconds, self.get_cvar("qlx_wipeoutRounds"), self.get_cvar("qlx_wipeoutKamakazi"))
-        msg2 = "^1To use them you need to have 2 keys bound:\n"\
-               "^61) ^1bind <key> +button2 ^3This is the use bind\n"\
-               "^62) ^1bind <key> say {0}power ^3Item swap (medkit and powerup) bind\n"\
-               "If the server is blocking saying {0}power in chat, it will not spam the server.\n"\
-               .format(self.get_cvar("qlx_commandPrefix"))
+            .format(self.add_seconds, self.get_cvar("qlx_wipeoutRounds"))
         minqlx.send_server_command(player.id, "print \"{}\"".format(msg1))
-        minqlx.send_server_command(player.id, "print \"{}\"".format(msg2))
+        if self.enable_powers:
+            msg2 = "When round starts you are given 2 power up holdables. Medkit and either\n" \
+                   "Invulnerability-Shield/Teleport/Flight/Kamikaze\n" \
+                   " with a {1} percent chance of getting kamikaze.\n" \
+                   "^1To use them you need to have 2 keys bound:\n" \
+                   "^61) ^1bind <key> +button2 ^3This is the use bind\n" \
+                   "^62) ^1bind <key> say {0}power ^3Item swap (medkit and powerup) bind\n" \
+                   "If the server is blocking saying {0}power in chat, it will not spam the server.\n" \
+                .format(self.get_cvar("qlx_commandPrefix"), self.get_cvar("qlx_wipeoutKamakazi"))
+            minqlx.send_server_command(player.id, "print \"{}\"".format(msg2))
 
     def cmd_binds(self, player, msg, channel):
-        player.tell("^61) ^1bind <key> +button2 ^3This is the use bind")
-        player.tell("^62) ^1bind <key> say {0}power ^3Item swap (medkit and powerup) bind"
-                    .format(self.get_cvar("qlx_commandPrefix")))
+        if self.enable_powers:
+            player.tell("^61) ^1bind <key> +button2 ^3This is the use bind")
+            player.tell("^62) ^1bind <key> say {0}power ^3Item swap (medkit and powerup) bind"
+                        .format(self.get_cvar("qlx_commandPrefix")))
 
     def reset_all(self):
         try:
@@ -392,24 +400,25 @@ class wipeout(minqlx.Plugin):
 
     @minqlx.next_frame
     def execute_power(self, player):
-        if ENABLE_LOG:
-            self.wipeout_log.info("Executing Power Command: {} : {} {}".format(datetime.now(), player,
-                                                                               self.holdables[player.id]))
-        try:
-            holdable = player.state.holdable
-            with self.holdables_lock:
-                holding = self.holdables[player.id][0]
-                other = 2 if holding == 1 else 1
-                if not holdable:
-                    self.holdables[player.id][holding] = 0
-                if self.holdables[player.id][other]:
-                    if holdable:
-                        self.set_holdable(player.id, 0)
-                    self.set_holdable(player.id, self.holdables[player.id][other])
-                    self.holdables[player.id][0] = other
-        except Exception as e:
+        if self.enable_powers:
             if ENABLE_LOG:
-                self.wipeout_log.info("Executing Power Command Exception: {} : {}".format(datetime.now(), [e]))
+                self.wipeout_log.info("Executing Power Command: {} : {} {}".format(datetime.now(), player,
+                                                                                   self.holdables[player.id]))
+            try:
+                holdable = player.state.holdable
+                with self.holdables_lock:
+                    holding = self.holdables[player.id][0]
+                    other = 2 if holding == 1 else 1
+                    if not holdable:
+                        self.holdables[player.id][holding] = 0
+                    if self.holdables[player.id][other]:
+                        if holdable:
+                            self.set_holdable(player.id, 0)
+                        self.set_holdable(player.id, self.holdables[player.id][other])
+                        self.holdables[player.id][0] = other
+            except Exception as e:
+                if ENABLE_LOG:
+                    self.wipeout_log.info("Executing Power Command Exception: {} : {}".format(datetime.now(), [e]))
 
     @minqlx.next_frame
     def set_holdable(self, pid, n):
@@ -522,6 +531,7 @@ class wipeout(minqlx.Plugin):
                 minqlx.player_spawn(player.id)
                 if ENABLE_LOG:
                     self.wipeout_log.info("Respawning Player {}: {}".format(datetime.now(), player))
-                self.give_power_up(player)
+                if self.enable_powers:
+                    self.give_power_up(player)
         except minqlx.NonexistentPlayerError:
             return
