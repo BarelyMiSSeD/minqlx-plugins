@@ -24,6 +24,10 @@ NOTE: THIS WILL ONLY RUN IN THE CA GAME TYPE MODE. IF THE SERVER IS CHANGED TO A
 set qlx_wipeoutRounds "3"
 // set the clan arena rounds (if qlx_wipeoutFactory is enabled)
 set qlx_wipeoutCaRounds "10"
+// set the death timer to be team or individual based
+// 1 = team: everyone's death adds to the player's respawn time
+// 0 = individual: only a player's death adds to that player's respawn time
+set qlx_wipeoutRespawnTeamTime "0"
 // set the seconds added to the respawn timer for each team death
 set qlx_wipeoutAddSeconds "5"
 // set the probability percentage of getting kamakazi when power holdables are given
@@ -51,7 +55,7 @@ import time
 import random
 from threading import Lock
 
-VERSION = "2.9"
+VERSION = "3.0"
 
 # Settings used in Wipeout (These settings get executed on script initialization)
 # If the wipeout factory is used (set qlx_wipeoutFactory "1") these settings are not executed.
@@ -73,6 +77,7 @@ class wipeout(minqlx.Plugin):
         # wipeout cvars
         self.set_cvar_once("qlx_wipeoutRounds", "3")
         self.set_cvar_once("qlx_wipeoutCaRounds", "10")
+        self.set_cvar_once("qlx_wipeoutRespawnTeamTime", "0")
         self.set_cvar_once("qlx_wipeoutAddSeconds", "5")
         self.set_cvar_once("qlx_wipeoutKamakazi", "2")
         self.set_cvar_once("qlx_wipeoutNewPlayers", "1")
@@ -113,6 +118,7 @@ class wipeout(minqlx.Plugin):
         self.kamakazi = 0.0
         self.dead_players = {}
         self.dead_players_lock = Lock()
+        self.player_timeout = {}
         self.team_timeout = []
         self.team_timeout_lock = Lock()
         self.length = len(self.selections)
@@ -287,8 +293,9 @@ class wipeout(minqlx.Plugin):
 
     def reset_all(self):
         try:
+            self.player_timeout.clear()
             with self.team_timeout_lock:
-                self.team_timeout = [5, 5]
+                self.team_timeout = [self.add_seconds, self.add_seconds]
             with self.dead_players_lock:
                 self.dead_players.clear()
             with self.went_to_spec_lock:
@@ -312,12 +319,21 @@ class wipeout(minqlx.Plugin):
                                 was_in_game = True
                                 self.went_to_spec.remove(player.steam_id)
                         if was_in_game:
-                            team_slot = 0 if team == "red" else 1
-                            with self.team_timeout_lock:
-                                timeout = self.team_timeout[team_slot]
-                                self.team_timeout[team_slot] += self.add_seconds
-                            with self.dead_players_lock:
-                                self.dead_players[player.id] = time.time() + timeout
+                            if self.get_cvar("qlx_wipeoutRespawnTeamTime", bool):
+                                team_slot = 0 if team == "red" else 1
+                                with self.team_timeout_lock:
+                                    timeout = self.team_timeout[team_slot]
+                                    self.team_timeout[team_slot] += self.add_seconds
+                                with self.dead_players_lock:
+                                    self.dead_players[player.id] = time.time() + timeout
+                            else:
+                                with self.dead_players_lock:
+                                    if player.id in self.player_timeout:
+                                        self.dead_players[player.id] = time.time() + self.player_timeout[player.id]
+                                        self.player_timeout[player.id] += self.add_seconds
+                                    else:
+                                        self.player_timeout[player.id] += self.add_seconds
+                                        self.dead_players[player.id] = time.time() + self.player_timeout[player.id]
                         else:
                             self.spawn_player(player)
                 else:
@@ -429,12 +445,22 @@ class wipeout(minqlx.Plugin):
             if self.game.state == "in_progress" and not self.countdown:
                 team = player.team
                 death_time = time.time()
-                team_slot = 0 if team == "red" else 1
-                with self.team_timeout_lock:
-                    timeout = self.team_timeout[team_slot]
-                    self.team_timeout[team_slot] += self.add_seconds
-                with self.dead_players_lock:
-                    self.dead_players[player.id] = death_time + timeout
+                if self.get_cvar("qlx_wipeoutRespawnTeamTime", bool):
+                    team_slot = 0 if team == "red" else 1
+                    with self.team_timeout_lock:
+                        timeout = self.team_timeout[team_slot]
+                        self.team_timeout[team_slot] += self.add_seconds
+                    with self.dead_players_lock:
+                        self.dead_players[player.id] = death_time + timeout
+                else:
+                    with self.dead_players_lock:
+                        if player.id in self.player_timeout:
+                            self.player_timeout[player.id] += self.add_seconds
+                            self.dead_players[player.id] = death_time + self.player_timeout[player.id]
+                        else:
+                            self.player_timeout[player.id] = self.add_seconds
+                            self.dead_players[player.id] = death_time + self.player_timeout[player.id]
+                        timeout = self.player_timeout[player.id]
                 if not self.countdown:
                     self.check_for_last(team)
                 if ENABLE_LOG:
