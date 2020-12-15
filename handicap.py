@@ -15,6 +15,7 @@ It will calculate the percentage of a handicap to put on a player based on the l
 
 import minqlx
 import requests
+import time
 
 """
 The handicap given to players above the LOWER_ELO setting.
@@ -41,7 +42,7 @@ PING_ADJUSTMENT = 70
 MAX_ATTEMPTS = 3
 BDM_KEY = "minqlx:players:{}:bdm:{}:{}"
 ELO_KEY = "minqlx:players:{}:elo:{}:{}"
-VERSION = 2.01
+VERSION = 2.02
 
 
 class handicap(minqlx.Plugin):
@@ -84,17 +85,17 @@ class handicap(minqlx.Plugin):
     def check_players(self):
         if self.handicap_on:
             players = self.players()
+            loaded_scripts = self.plugins
 
             if self.get_cvar("qlx_handicapUseBDM", bool):
-                if "serverBDM" not in minqlx.Plugin._loaded_plugins:
+                if "serverBDM" not in loaded_scripts:
                     minqlx.console_print("The serverBDM plugin needs to be loaded to use {} with BDMs."
                                          .format(self.__class__.__name__))
                     return minqlx.RET_STOP_ALL
 
                 for player in players:
                     pid = player.steam_id
-                    rating = minqlx.Plugin._loaded_plugins["serverBDM"]\
-                        .get_bdm_field(player, self.handicap_gametype, "rating")
+                    rating = loaded_scripts["serverBDM"].get_bdm_field(player, self.handicap_gametype, "rating")
 
                     if rating > LOWER_BDM:
                         percentage = 100 - abs(round(((LOWER_BDM - rating) / (UPPER_BDM - LOWER_BDM)) * 100))
@@ -141,7 +142,7 @@ class handicap(minqlx.Plugin):
 
             for player in players:
                 pid = player.steam_id
-                if self.handicapped_players[str(pid)]:
+                if str(pid) in self.handicapped_players:
                     percentage = int(self.handicapped_players[str(pid)])
                     ping = player.ping
                     if ping > PING_ADJUSTMENT:
@@ -222,79 +223,76 @@ class handicap(minqlx.Plugin):
                         .format(self.__class__.__name__))
         return minqlx.RET_STOP_ALL
 
-    @minqlx.delay(6)
     def handle_player_loaded(self, player):
-        @minqlx.thread
-        def check_handi():
-            if self.get_cvar("qlx_handicapUseBDM", bool):
-                if "serverBDM" not in minqlx.Plugin._loaded_plugins:
-                    minqlx.console_print("The serverBDM plugin needs to be loaded to use {} with BDMs."
-                                         .format(self.__class__.__name__))
-                    return minqlx.RET_STOP_ALL
-
-                rating = minqlx.Plugin._loaded_plugins["serverBDM"]\
-                    .get_bdm_field(player, self.handicap_gametype, "rating")
-
-                if rating > LOWER_BDM:
-                    ping_adjustment = None
-                    percentage = 100 - abs(round(((LOWER_BDM - rating) / (UPPER_BDM - LOWER_BDM)) * 100))
-                    ping = player.ping
-                    if ping > PING_ADJUSTMENT:
-                        ping_adjustment = round(percentage + (ping * ping * ping * ping / 15000000))
-                    if ping_adjustment:
-                        if ping_adjustment > 100:
-                            ping_adjustment = 100
-                        player.handicap = ping_adjustment
-                    else:
-                        player.handicap = percentage
-                    self.modify_handicapped(player.steam_id, "add", percentage, ping_adjustment)
-                    if int(self.get_cvar("qlx_handicapMsgPlayer")):
-                        self.message_player(player, percentage, ping_adjustment, "bdm")
-
-            else:
-                elo = self.get_cvar("qlx_balanceApi")
-                response = False
-                pid = player.steam_id
-                ping = player.ping
-                url = "http://{}/{}/{}".format(self.get_cvar("qlx_balanceUrl"), elo, pid)
-                rating = 0
-                attempts = 0
-                while attempts < MAX_ATTEMPTS:
-                    attempts += 1
-                    info = requests.get(url)
-                    if info.status_code != requests.codes.ok:
-                        continue
-                    info_js = info.json()
-                    if "players" in info_js:
-                        attempts = MAX_ATTEMPTS
-                        response = True
-                if response:
-                    for info in info_js["players"]:
-                        rating = int(info[str(self.handicap_gametype)]["elo"])
-                        self.db[ELO_KEY.format(int(pid), elo, self.handicap_gametype)] =\
-                            int(info[str(self.handicap_gametype)]["elo"])
-                else:
-                    try:
-                        rating = int(self.db.get(ELO_KEY.format(pid, elo, self.handicap_gametype)))
-                    except:
-                        return
-                if rating > LOWER_ELO:
-                    ping_adjustment = None
-                    percentage = 100 - abs(round(((LOWER_ELO - rating) / (UPPER_ELO - LOWER_ELO)) * 100))
-                    if ping > PING_ADJUSTMENT:
-                        ping_adjustment = round(percentage + (ping * ping * ping * ping / 15000000))
-                    if ping_adjustment:
-                        if ping_adjustment > 100:
-                            ping_adjustment = 100
-                        player.handicap = ping_adjustment
-                    else:
-                        player.handicap = percentage
-                    self.modify_handicapped(pid, "add", percentage, ping_adjustment)
-                    if int(self.get_cvar("qlx_handicapMsgPlayer")):
-                        self.message_player(player, percentage, ping_adjustment, "elo")
-
         if self.handicap_on:
-            check_handi()
+            self.check_handi(player)
+
+    @minqlx.thread
+    def check_handi(self, player):
+        time.sleep(6)
+        if self.get_cvar("qlx_handicapUseBDM", bool):
+            if "serverBDM" not in minqlx.Plugin._loaded_plugins:
+                minqlx.console_print("The serverBDM plugin needs to be loaded to use {} with BDMs."
+                                     .format(self.__class__.__name__))
+                return minqlx.RET_STOP_ALL
+            rating = minqlx.Plugin._loaded_plugins["serverBDM"]\
+                .get_bdm_field(player, self.handicap_gametype, "rating")
+            if rating > LOWER_BDM:
+                ping_adjustment = None
+                percentage = 100 - abs(round(((LOWER_BDM - rating) / (UPPER_BDM - LOWER_BDM)) * 100))
+                ping = player.ping
+                if ping > PING_ADJUSTMENT:
+                    ping_adjustment = round(percentage + (ping * ping * ping * ping / 15000000))
+                if ping_adjustment:
+                    if ping_adjustment > 100:
+                        ping_adjustment = 100
+                    player.handicap = ping_adjustment
+                else:
+                    player.handicap = percentage
+                self.modify_handicapped(player.steam_id, "add", percentage, ping_adjustment)
+                if int(self.get_cvar("qlx_handicapMsgPlayer")):
+                    self.message_player(player, percentage, ping_adjustment, "bdm")
+        else:
+            elo = self.get_cvar("qlx_balanceApi")
+            response = False
+            pid = player.steam_id
+            ping = player.ping
+            url = "http://{}/{}/{}".format(self.get_cvar("qlx_balanceUrl"), elo, pid)
+            rating = 0
+            attempts = 0
+            while attempts < MAX_ATTEMPTS:
+                attempts += 1
+                info = requests.get(url)
+                if info.status_code != requests.codes.ok:
+                    continue
+                info_js = info.json()
+                if "players" in info_js:
+                    attempts = MAX_ATTEMPTS
+                    response = True
+            if response:
+                for info in info_js["players"]:
+                    rating = int(info[str(self.handicap_gametype)]["elo"])
+                    self.db[ELO_KEY.format(int(pid), elo, self.handicap_gametype)] =\
+                        int(info[str(self.handicap_gametype)]["elo"])
+            else:
+                try:
+                    rating = int(self.db.get(ELO_KEY.format(pid, elo, self.handicap_gametype)))
+                except:
+                    return
+            if rating > LOWER_ELO:
+                ping_adjustment = None
+                percentage = 100 - abs(round(((LOWER_ELO - rating) / (UPPER_ELO - LOWER_ELO)) * 100))
+                if ping > PING_ADJUSTMENT:
+                    ping_adjustment = round(percentage + (ping * ping * ping * ping / 15000000))
+                if ping_adjustment:
+                    if ping_adjustment > 100:
+                        ping_adjustment = 100
+                    player.handicap = ping_adjustment
+                else:
+                    player.handicap = percentage
+                self.modify_handicapped(pid, "add", percentage, ping_adjustment)
+                if int(self.get_cvar("qlx_handicapMsgPlayer")):
+                    self.message_player(player, percentage, ping_adjustment, "elo")
 
     def message_player(self, player, percentage, ping_adjustment, type="bdm"):
         if type == "bdm":
@@ -319,7 +317,7 @@ class handicap(minqlx.Plugin):
 
     def handle_user_info(self, player, info):
         if not self.end_screen and 'handicap' in info:
-            if self.handicapped_players[str(player.steam_id)] and self.handicap_on:
+            if str(player.steam_id) in self.handicapped_players and self.handicap_on:
                 if int(info["handicap"]) > self.handicapped_players[str(player.steam_id)] or int(info["handicap"]) == 0:
                     player.tell("^1Your handicap is being set by the server to ^1{}％ ^7and can't be changed."
                                 .format(self.handicapped_players[str(player.steam_id)]))
@@ -327,8 +325,12 @@ class handicap(minqlx.Plugin):
                     return info
         return
 
-    @minqlx.delay(5)
     def handle_new_game(self):
+        self.process_new_game()
+        return
+
+    @minqlx.delay(5)
+    def process_new_game(self):
         self.end_screen = False
         gtype = self.game.type_short
         if gtype != self.handicap_gametype and self.handicap_on:
@@ -339,6 +341,10 @@ class handicap(minqlx.Plugin):
         self.end_screen = True
 
     def handle_player_disconnect(self, player, reason):
+        self.process_player_disconnect(player)
+        return
+
+    def process_player_disconnect(self, player):
         pid = player.steam_id
-        if self.handicapped_players[str(pid)]:
+        if str(pid) in self.handicapped_players:
             self.modify_handicapped(pid, "del")
