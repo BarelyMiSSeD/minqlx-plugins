@@ -17,18 +17,22 @@ import os
 import time
 import datetime
 
+
 PLAYER_KEY = "minqlx:players:{}"
 PLAYER_DB_KEY = "minqlx:players:{}:{}"
 PERMS_FILE = "server_perms.txt"
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+DB_FILE = "server_db.txt"
 
-VERSION = "1.7"
+VERSION = "1.9"
 
 
 class players_db(minqlx.Plugin):
     def __init__(self):
         self.add_command("getperms", self.get_perms, 5)
+        self.add_command("getdb", self.get_db, 5)
         self.add_command("addperms", self.add_perms, 5)
+        self.add_command("savedb", self.add_db, 5)
         self.add_command(("perms", "listperms"), self.list_perms, 3)
         self.add_command(("bans", "banned", "listbans"), self.list_bans, 3)
         self.add_command(("silenced", "silences", "listsilenced"), self.list_silenced, 3)
@@ -36,34 +40,166 @@ class players_db(minqlx.Plugin):
         self.add_command("warned", self.list_warned, 3)
         self.add_command("sid", self.sid_info, 3)
 
-    def get_perms(self, player, msg, channel):
-        self.save_perms()
+    def get_db_field(self, field):
+        try:
+            entry_type = self.db.type(field)
+            if entry_type == "set":
+                return entry_type, self.db.smembers(field)
+            elif entry_type == "hash":
+                return entry_type, self.db.hgetall(field)
+            elif entry_type == "list":
+                return entry_type, self.db.lrange(field, 0, -1)
+            elif entry_type == "zset":
+                # value = self.db.zrange(field, 0, -1)
+                return None, None
+            else:
+                return entry_type, self.db.get(field)
+        except Exception as e:
+            # minqlx.console_print("^1players_db get_db_field {} Exception: {}".format(self.db.type(field), e))
+            return None, None
+
+    def get_db(self, player, msg, channel):
+        self.save_db(player)
         return minqlx.RET_STOP_ALL
 
     @minqlx.thread
-    def save_perms(self):
+    def save_db(self, player):
+        player.tell("^1Starting DB retrieval and writing to {} (this may take a while).".format(DB_FILE))
+        file = os.path.join(self.get_cvar("fs_homepath"), DB_FILE)
+        try:
+            h = open(file, "w")
+        except Exception as e:
+            minqlx.console_print("^1ERROR Opening bdm file: {}".format(e))
+            return minqlx.RET_STOP_ALL
+        db_entries = self.db.keys("minqlx:players:*")
+        for entry in db_entries:
+            try:
+                entry_type, value = self.get_db_field(entry)
+                if entry_type:
+                    if entry_type == "set":
+                        value_list = []
+                        for item in value:
+                            value_list.append(item)
+                        h.write("{}//{}//{}\n".format(entry_type, entry, "//".join(value_list)))
+                    elif entry_type == "list":
+                        value_list = []
+                        for item in value:
+                            value_list.append(item)
+                        h.write("{}//{}//{}\n".format(entry_type, entry, "//".join(value_list)))
+                    elif entry_type == "hash":
+                        value_list = []
+                        for key, item in value.items():
+                            value_list.append(key)
+                            value_list.append(item)
+                        h.write("{}//{}//{}\n".format(entry_type, entry, "//".join(value_list)))
+                    else:
+                        h.write("{}//{}//{}\n".format(entry_type, entry, value))
+            except:
+                continue
+
+        ip_entries = self.db.keys("minqlx:ips:*")
+        for entry in ip_entries:
+            try:
+                entry_type, value = self.get_db_field(entry)
+                if entry_type:
+                    value_list = []
+                    for item in value:
+                        value_list.append(item)
+                    h.write("{}//{}//{}\n".format(entry_type, entry, "//".join(value_list)))
+            except:
+                continue
+
+        try:
+            value = self.db.smembers("minqlx:players")
+            value_list = []
+            for item in value:
+                value_list.append(item)
+            h.write("{}//{}//{}\n".format("set", "minqlx:players", "//".join(value_list)))
+        except:
+            pass
+
+        try:
+            value = self.db.smembers("minqlx:ips")
+            value_list = []
+            for item in value:
+                value_list.append(item)
+            h.write("{}//{}//{}\n".format("set", "minqlx:ips", "//".join(value_list)))
+            h.close()
+            player.tell("^1Finished saving player db to {}".format(DB_FILE))
+        except:
+            pass
+
+    def add_db(self, player, msg, channel):
+        self.enter_db(player)
+        return minqlx.RET_STOP_ALL
+
+    @minqlx.thread
+    def enter_db(self, player):
+        player.tell("^1Starting DB entries from {} (this may take a while).".format(DB_FILE))
+        file = os.path.join(self.get_cvar("fs_homepath"), DB_FILE)
+        try:
+            h = open(file, "r")
+        except Exception as e:
+            player.tell("^1ERROR Opening db file: {}".format(e))
+            return minqlx.RET_STOP_ALL
+        line = h.readline()
+        while line:
+            try:
+                info = line.rstrip("\n").split("//")
+                if info[0] == "string":
+                    self.db.set(info[1], info[2])
+                elif info[0] == "set":
+                    for item in info[2:]:
+                        if item not in self.db.smembers(info[1]):
+                            self.db.sadd(info[1], item)
+                elif info[0] == "list":
+                    for item in info[2:]:
+                        if item not in self.db.lrange(info[1], 0, -1):
+                            self.db.lpush(info[1], item)
+                elif info[0] == "hash":
+                    db = self.db.pipeline()
+                    key = ":".join(info[1].split(":")[0:4])
+                    slot = self.db.zcard(key)
+                    expires = info[info.index("expires") + 1]
+                    db.zadd(key, datetime.datetime.strptime(expires, TIME_FORMAT).timestamp(), slot)
+                    data = {"expires": expires, "reason": info[info.index("reason") + 1],
+                            "issued": info[info.index("issued") + 1], "issued_by": info[info.index("issued_by") + 1]}
+                    db.hmset("{}:{}".format(key, slot), data)
+                    db.execute()
+            except:
+                pass
+            line = h.readline()
+        player.tell("^1Finished entering information to the database.")
+        h.close()
+
+    def get_perms(self, player, msg, channel):
+        self.save_perms(player)
+        return minqlx.RET_STOP_ALL
+
+    @minqlx.thread
+    def save_perms(self, player):
         playerlist = self.db.keys(PLAYER_DB_KEY.format("*", "permission"))
         file = os.path.join(self.get_cvar("fs_homepath"), PERMS_FILE)
         try:
             h = open(file, "w")
         except Exception as e:
-            minqlx.console_print("^1ERROR Opening perms file: {}".format(e))
+            player.tell("^1ERROR Opening perms file: {}".format(e))
             return minqlx.RET_STOP_ALL
         for player in playerlist:
             steam_id = player.split(":")[2]
             if len(str(steam_id)) == 17:
                 h.write("{}:{}".format(steam_id, self.db.get(player)) + "\n")
-        minqlx.console_print("^1Finished saving player permissions to {}".format(PERMS_FILE))
+        player.tell("^1Finished saving player permissions to {}".format(PERMS_FILE))
         h.close()
 
         return minqlx.RET_STOP_ALL
 
     def add_perms(self, player, msg, channel):
-        self.enter_perms()
+        self.enter_perms(player)
         return minqlx.RET_STOP_ALL
 
     @minqlx.thread
-    def enter_perms(self):
+    def enter_perms(self, player):
         file = os.path.join(self.get_cvar("fs_homepath"), PERMS_FILE)
         try:
             h = open(file, "r")
@@ -73,7 +209,7 @@ class players_db(minqlx.Plugin):
         for player in h.readlines():
             info = player.split(":")
             self.db.set(PLAYER_DB_KEY.format(info[0], "permission"), int(info[1]))
-        minqlx.console_print("^1Finished entering player permissions to the database.")
+        player.tell("^1Finished entering player permissions to the database.")
         h.close()
 
         return minqlx.RET_STOP_ALL
