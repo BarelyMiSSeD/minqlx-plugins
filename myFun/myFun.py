@@ -172,7 +172,7 @@ import random
 import time
 import re
 
-VERSION = "5.8"
+VERSION = "6.0"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -307,7 +307,7 @@ class myFun(minqlx.Plugin):
     def enable_packs(self, player):
         packs = self.get_cvar("qlx_funEnableSoundPacks", int)
         binary = bin(packs)[2:]
-        length = len(str(binary))
+        length = len(binary)
         count = 0
         
         # save the packs value's binary representation to the slots in self.Enabled_SoundPacks
@@ -316,6 +316,10 @@ class myFun(minqlx.Plugin):
             self.Enabled_SoundPacks[count] = int(binary[length - 1])
             count += 1
             length -= 1
+        for x in range(length):
+            del self.db["minqlx:myFun:triggers:{}".format(x)]
+
+        self.populate_database(reload=True)
 
         # If this command was issued by a user them notify the user of the enables soundpacks
         #  and reload the soundpack dictionaries
@@ -331,7 +335,6 @@ class myFun(minqlx.Plugin):
             while dicts < len(self.Enabled_SoundPacks):
                 self.soundLists[dicts] = []
                 dicts += 1
-            self.populate_database()
             player.tell("Completed Sound Pack reload.")
             return minqlx.RET_STOP_ALL
 
@@ -1021,9 +1024,7 @@ class myFun(minqlx.Plugin):
     # populates the sound list that is used to list the available sounds on the server
     @minqlx.thread
     def populate_sound_lists(self):
-        self.soundLists = []
-        for s in self.Enabled_SoundPacks:
-            self.soundLists.append(None)
+        self.soundLists = [None] * len(self.Enabled_SoundPacks)
         self.sound_list_count = 0
         self.help_msg = []
         slot = 0
@@ -1246,11 +1247,11 @@ class myFun(minqlx.Plugin):
     # These are the sounds available on the server put into the dictionaries used to search for a sound trigger match
     #  when processing normal chat messages
     @minqlx.thread
-    def populate_database(self):
+    def populate_database(self, reload=False):
         old_version = 0.0
         if self.db.exists("minqlx:myFun:version"):
             old_version = self.db.get("minqlx:myFun:version")
-        if old_version == VERSION and\
+        if old_version == VERSION and not reload and\
                 self.db.get("minqlx:myFun:enabled") == self.get_cvar("qlx_funEnableSoundPacks"):
             self.populate_sound_lists()
             return
