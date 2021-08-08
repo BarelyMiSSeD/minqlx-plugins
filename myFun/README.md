@@ -183,6 +183,7 @@ Lists the custom sound trigers that have been added for the sound.
 Usage: !listtriggers \<sound trigger\>
 
 <b>•	Permission level 5</b>
+
 These 2 commands will reset the enabled sounds to the qlx_funEnableSoundPacks cvar and reload the sounds dictionaries.
 This erases the sound triggers in the Redis database. The Redis database is controlled by an ouside process,
 so the execution of the filldb command should not be immediately after the erasedb command (wait a couple of seconds is all).
