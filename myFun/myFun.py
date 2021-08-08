@@ -321,9 +321,7 @@ class myFun(minqlx.Plugin):
 
     @minqlx.thread
     def erase_db(self, player, msg=None, channel=None):
-        packs = self.get_cvar("qlx_funEnableSoundPacks", int)
-        binary = bin(packs)[2:]
-        length = len(binary)
+        length = len(self.Enabled_SoundPacks)
         self.erase_triggers(player, length)
         self.soundLists = [None] * len(self.Enabled_SoundPacks)
         player.tell("^1Completed Database Sound Trigger Erase.")
