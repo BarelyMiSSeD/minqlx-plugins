@@ -172,7 +172,7 @@ import random
 import time
 import re
 
-VERSION = "6.0"
+VERSION = "6.1"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -182,7 +182,7 @@ TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
 
 class myFun(minqlx.Plugin):
     def __init__(self):
-        super().__init__()
+        # super().__init__()
 
         # Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
         self.set_cvar_once("qlx_funUnrestrictAdmin", "0")
@@ -220,7 +220,7 @@ class myFun(minqlx.Plugin):
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
         self.add_command("cookies", self.cmd_cookies)
-        self.add_command(("getsounds", "listsounds", "listsound"), self.list_sounds)
+        self.add_command(("listsounds", "getsounds", "listsound"), self.list_sounds)
         self.add_command(("myfun", "fun"), self.cmd_help)
         self.add_command(("off", "soundoff"), self.sound_off, client_cmd_perm=0)
         self.add_command(("on", "soundon"), self.sound_on, client_cmd_perm=0)
@@ -230,12 +230,14 @@ class myFun(minqlx.Plugin):
         self.add_command("disablesound", self.cmd_disable_sound, client_cmd_perm=5, usage="<sound trigger>")
         self.add_command("enablesound", self.cmd_enable_sound, client_cmd_perm=5, usage="<sound trigger>")
         self.add_command(("listdisabledsounds", "listdisabled"), self.cmd_list_disabled, client_cmd_perm=5)
-        self.add_command(("reenablesounds", "reloadsounds"), self.enable_sound_packs, 5)
         self.add_command("addtrigger", self.add_trigger, 5)
         self.add_command("deltrigger", self.del_trigger, 5)
         self.add_command("listtriggers", self.request_triggers, 3)
         self.add_command("sounds", self.cmd_enable_sounds, usage="<0/1>")
+        self.add_command(("erase_sounds", "erasedb"), self.start_erase_db, 5)
+        self.add_command(("fill_sounds", "filldb"), self.start_fill_db, 5)
 
+        self.populating = False
         # variable to show when a sound has been played
         self.played = False
         # variable to store the sound to be called
@@ -256,7 +258,7 @@ class myFun(minqlx.Plugin):
         # List to store the enable/disabled status of the sound packs
         self.Enabled_SoundPacks = [0, 0, 0, 0, 0, 0]
         # set the desired sound packs to enabled
-        self.enable_sound_packs()
+        self.enable_packs(player=None)
         # List of sound pack names
         self.soundPacks = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
                            "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live",
@@ -300,43 +302,57 @@ class myFun(minqlx.Plugin):
             except:
                 continue
 
-    def enable_sound_packs(self, player=None, msg=None, channel=None):
-        self.enable_packs(player)
-
     @minqlx.thread
-    def enable_packs(self, player):
+    def enable_packs(self):
         packs = self.get_cvar("qlx_funEnableSoundPacks", int)
         binary = bin(packs)[2:]
         length = len(binary)
         count = 0
-        
+
         # save the packs value's binary representation to the slots in self.Enabled_SoundPacks
         # to identify the enabled sound packs
         while length > 0:
             self.Enabled_SoundPacks[count] = int(binary[length - 1])
             count += 1
             length -= 1
-        for x in range(length):
-            del self.db["minqlx:myFun:triggers:{}".format(x)]
 
-        self.populate_database(reload=True)
+    def start_erase_db(self, player, msg=None, channel=None):
+        self.erase_db(player)
 
-        # If this command was issued by a user them notify the user of the enables soundpacks
-        #  and reload the soundpack dictionaries
-        if player:
-            sound_packs = []
-            count = 0
-            while count < len(self.Enabled_SoundPacks):
-                if self.Enabled_SoundPacks[count]:
-                    sound_packs.append(self.soundPacks[count])
-                count += 1
-            player.tell("Enabled Sound Packs are: ^3{}".format(", ".join(sound_packs)))
-            dicts = 0
-            while dicts < len(self.Enabled_SoundPacks):
-                self.soundLists[dicts] = []
-                dicts += 1
-            player.tell("Completed Sound Pack reload.")
-            return minqlx.RET_STOP_ALL
+    @minqlx.thread
+    def erase_db(self, player, msg=None, channel=None):
+        packs = self.get_cvar("qlx_funEnableSoundPacks", int)
+        binary = bin(packs)[2:]
+        length = len(binary)
+        self.erase_triggers(player, length)
+        self.soundLists = [None] * len(self.Enabled_SoundPacks)
+        player.tell("^1Completed Database Sound Trigger Erase.")
+
+    def start_fill_db(self, player, msg=None, channel=None):
+        self.fill_db(player)
+
+    @minqlx.thread
+    def fill_db(self, player, msg=None, channel=None):
+        self.populate_database()
+        sound_packs = []
+        count = 0
+        while count < len(self.Enabled_SoundPacks):
+            if self.Enabled_SoundPacks[count]:
+                sound_packs.append(self.soundPacks[count])
+            count += 1
+        player.tell("Enabled Sound Packs are: ^3{}".format(", ".join(sound_packs)))
+        self.populate_database()
+        player.tell("Completed Sound Pack reload.")
+
+    def erase_triggers(self, player, length, all_triggers=True):
+        if all_triggers:
+            for x in range(length):
+                y = self.db.keys(SOUND_TRIGGERS.format(x, "*"))
+                for key in y:
+                    del self.db[key]
+            # for x in range(10, 0, -1):
+            #     player.tell("Waiting {} more seconds for database cleanup".format(x))
+            #     time.sleep(1)
 
     @minqlx.delay(2)
     def handle_player_loaded(self, player):
@@ -1024,31 +1040,36 @@ class myFun(minqlx.Plugin):
     # populates the sound list that is used to list the available sounds on the server
     @minqlx.thread
     def populate_sound_lists(self):
-        self.soundLists = [None] * len(self.Enabled_SoundPacks)
-        self.sound_list_count = 0
-        self.help_msg = []
-        slot = 0
-        while slot < len(self.Enabled_SoundPacks):
-            if self.Enabled_SoundPacks[slot]:
-                self.soundLists[slot] = []
-                self.sound_list_count += 1
-                self.help_msg.append(self.categories[slot])
-                keys = self.db.keys(SOUND_TRIGGERS.format(slot, "*"))
-                for key in keys:
-                    db_key = self.db.get(key)
-                    entry = db_key.split(';')
-                    if len(entry) < 2:
-                        continue
-                    if self.db.exists(DISABLED_SOUNDS.format(entry[1])):
-                        continue
-                    trigger = key.split(":")[4]
-                    self.soundLists[slot].append(trigger)
-                    if self._enable_dictionary:
-                        self._sound_dictionary[slot][trigger] = db_key
-                        if self.db.exists(TRIGGERS_LOCATION.format(entry[1])):
-                            self._custom_triggers[entry[1]] = self.db.lrange(TRIGGERS_LOCATION.format(entry[1]), 0, -1)
-                self.soundLists[slot].sort()
-            slot += 1
+        try:
+            if not self.populating:
+                self.populating = True
+                self.soundLists = [None] * len(self.Enabled_SoundPacks)
+                self.sound_list_count = 0
+                self.help_msg = []
+                slot = 0
+                while slot < len(self.Enabled_SoundPacks):
+                    if self.Enabled_SoundPacks[slot]:
+                        self.soundLists[slot] = []
+                        self.sound_list_count += 1
+                        self.help_msg.append(self.categories[slot])
+                        keys = self.db.keys(SOUND_TRIGGERS.format(slot, "*"))
+                        for key in keys:
+                            db_key = self.db.get(key)
+                            entry = db_key.split(';')
+                            if len(entry) < 2:
+                                continue
+                            if self.db.exists(DISABLED_SOUNDS.format(entry[1])):
+                                continue
+                            trigger = key.split(":")[4]
+                            self.soundLists[slot].append(trigger)
+                            if self._enable_dictionary:
+                                self._sound_dictionary[slot][trigger] = db_key
+                                if self.db.exists(TRIGGERS_LOCATION.format(entry[1])):
+                                    self._custom_triggers[entry[1]] = self.db.lrange(TRIGGERS_LOCATION.format(entry[1]), 0, -1)
+                        self.soundLists[slot].sort()
+                    slot += 1
+        finally:
+            self.populating = False
 
     def cmd_cookies(self, player, msg, channel):
         x = random.randint(0, 100)
@@ -1113,16 +1134,16 @@ class myFun(minqlx.Plugin):
     @minqlx.thread
     def cmd_list_sounds(self, player, msg, channel):
         sounds = ["^4SOUNDS^7: ^3Type these words/phrases in normal chat to play a sound on the server.\n"]
-
+        length = len(msg)
         count = 0
         category = None
         search = None
-        if len(msg) == 2:
+        if length == 2 and msg[1]:
             if msg[1].startswith("#"):
                 category = msg[1]
             else:
                 search = msg[1]
-        elif len(msg) > 2:
+        elif length > 2 and msg[1]:
             if msg[1].startswith("#"):
                 category = msg[1]
                 search = " ".join(msg[2:])
@@ -1177,30 +1198,34 @@ class myFun(minqlx.Plugin):
                 sounds_line = ""
                 if self.Enabled_SoundPacks[slot]:
                     found = 0
-                    sounds.append("^4" + self.soundPacks[slot] + "\n")
-                    for item in self.soundLists[slot]:
-                        if search and search not in item:
-                            continue
-                        add_sound, status = self.line_up(sounds_line, item)
-                        if status == 1:
-                            sounds.append("^1" + sounds_line + "\n")
-                            sounds_line = add_sound
-                        elif status == 2:
-                            sounds_line += add_sound
-                            sounds.append("^1" + sounds_line + "\n")
-                            sounds_line = ""
-                        else:
-                            sounds_line += add_sound
-                        count += 1
-                        found += 1
+                    if self.soundLists[slot]:
+                        sounds.append("^4" + self.soundPacks[slot] + "\n")
+                        for item in self.soundLists[slot]:
+                            if search and search not in item:
+                                continue
+                            add_sound, status = self.line_up(sounds_line, item)
+                            if status == 1:
+                                sounds.append("^1" + sounds_line + "\n")
+                                sounds_line = add_sound
+                            elif status == 2:
+                                sounds_line += add_sound
+                                sounds.append("^1" + sounds_line + "\n")
+                                sounds_line = ""
+                            else:
+                                sounds_line += add_sound
+                            count += 1
+                            found += 1
                     if len(sounds_line):
                         sounds.append("^1" + sounds_line + "\n")
                     if found == 0:
                         sounds.append("^3No Matches\n")
                 slot += 1
 
-            if count == 0:
+            if count == 0 and search:
                 player.tell("^4Server^7: No sounds contain the search string ^1{}^7.".format(search))
+                return
+            if count == 0:
+                player.tell("^4Server^7: No sounds were found")
                 return
 
             if self.sound_list_count > 1 and not category and not search:
@@ -1247,19 +1272,16 @@ class myFun(minqlx.Plugin):
     # These are the sounds available on the server put into the dictionaries used to search for a sound trigger match
     #  when processing normal chat messages
     @minqlx.thread
-    def populate_database(self, reload=False):
+    def populate_database(self):
         old_version = 0.0
         if self.db.exists("minqlx:myFun:version"):
             old_version = self.db.get("minqlx:myFun:version")
-        if old_version == VERSION and not reload and\
-                self.db.get("minqlx:myFun:enabled") == self.get_cvar("qlx_funEnableSoundPacks"):
-            self.populate_sound_lists()
-            return
-        else:
-            self.db.set("minqlx:myFun:version", VERSION)
-            self.db.set("minqlx:myFun:enabled", self.get_cvar("qlx_funEnableSoundPacks"))
+        self.db.set("minqlx:myFun:version", VERSION)
+        self.db.set("minqlx:myFun:enabled", self.get_cvar("qlx_funEnableSoundPacks"))
         if float(old_version) < 4.2:
             self.fix_disabled()
+        minqlx.console_print("Packs: {}".format(self.Enabled_SoundPacks))
+        minqlx.console_print("HERE 444")
         if self.Enabled_SoundPacks[0]:
             self.db.set(SOUND_TRIGGERS.format(0, "battlesuit"), "^battlesuit\\W?$;sound/vo/battlesuit.ogg")
             self.db.set(SOUND_TRIGGERS.format(0, "bite"), "^bite\\W?$;sound/vo/bite.ogg")
