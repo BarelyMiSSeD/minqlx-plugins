@@ -255,10 +255,10 @@ class myFun(minqlx.Plugin):
         self.admin_limiting = {}
         # List to store steam ids of muted players
         self.muted_players = []
-        # List to store the enable/disabled status of the sound packs
+        # List to store the enable/disabled status of the sound packs (they should all be 0 here)
         self.Enabled_SoundPacks = [0, 0, 0, 0, 0, 0]
         # set the desired sound packs to enabled
-        self.enable_packs(player=None)
+        self.enable_packs()
         # List of sound pack names
         self.soundPacks = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
                            "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live",
@@ -309,6 +309,9 @@ class myFun(minqlx.Plugin):
         length = len(binary)
         count = 0
 
+        for x in range(len(self.Enabled_SoundPacks)):
+            self.Enabled_SoundPacks[x] = 0
+
         # save the packs value's binary representation to the slots in self.Enabled_SoundPacks
         # to identify the enabled sound packs
         while length > 0:
@@ -331,6 +334,7 @@ class myFun(minqlx.Plugin):
 
     @minqlx.thread
     def fill_db(self, player, msg=None, channel=None):
+        self.enable_packs()
         self.populate_database()
         sound_packs = []
         count = 0
