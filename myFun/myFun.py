@@ -1275,8 +1275,6 @@ class myFun(minqlx.Plugin):
         self.db.set("minqlx:myFun:enabled", self.get_cvar("qlx_funEnableSoundPacks"))
         if float(old_version) < 4.2:
             self.fix_disabled()
-        minqlx.console_print("Packs: {}".format(self.Enabled_SoundPacks))
-        minqlx.console_print("HERE 444")
         if self.Enabled_SoundPacks[0]:
             self.db.set(SOUND_TRIGGERS.format(0, "battlesuit"), "^battlesuit\\W?$;sound/vo/battlesuit.ogg")
             self.db.set(SOUND_TRIGGERS.format(0, "bite"), "^bite\\W?$;sound/vo/bite.ogg")
