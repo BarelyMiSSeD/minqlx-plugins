@@ -350,9 +350,6 @@ class myFun(minqlx.Plugin):
                 y = self.db.keys(SOUND_TRIGGERS.format(x, "*"))
                 for key in y:
                     del self.db[key]
-            # for x in range(10, 0, -1):
-            #     player.tell("Waiting {} more seconds for database cleanup".format(x))
-            #     time.sleep(1)
 
     @minqlx.delay(2)
     def handle_player_loaded(self, player):
