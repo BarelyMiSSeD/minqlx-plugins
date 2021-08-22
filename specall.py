@@ -20,7 +20,7 @@ Commands:
 import minqlx
 import requests
 
-VERSION = "v1.3"
+VERSION = "v1.4"
 
 
 class specall(minqlx.Plugin):
@@ -74,10 +74,10 @@ class specall(minqlx.Plugin):
     def player_loaded(self, player):
         try:
             if player.steam_id == minqlx.owner() or \
-                    self.get_permission(player) >= int(minqlx.get_cvar("qlx_specallAdminLevel")):
+                    self.db.has_permission(player, self.get_cvar("qlx_specallAdminLevel", int)):
                 self.check_version(player=player)
         except:
-            minqlx.log_exception("specall")
+            return
 
     # Forces everyone on the server to spectate.
     # If a teamsize is included after the command it will also set the teamsize.
