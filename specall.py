@@ -20,7 +20,8 @@ Commands:
 import minqlx
 import requests
 
-VERSION = "v1.02"
+VERSION = "v1.3"
+
 
 class specall(minqlx.Plugin):
     def __init__(self):
@@ -47,16 +48,20 @@ class specall(minqlx.Plugin):
                 line = line.replace(b'"', b'')
                 # If called manually and outdated
                 if channel and VERSION.encode() != line:
-                    channel.reply("^4Server: ^7Currently using  ^4BarelyMiSSeD^7's ^6{}^7 plugin ^1outdated^7 version ^6{}^7. The latest version is ^6{}".format(self.__class__.__name__, VERSION, line.decode()))
+                    channel.reply("^4Server: ^7Currently using  ^4BarelyMiSSeD^7's ^6{}^7 plugin ^1outdated^7"
+                                  " version ^6{}^7. The latest version is ^6{}"
+                                  .format(self.__class__.__name__, VERSION, line.decode()))
                     channel.reply("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
                 # If called manually and alright
                 elif channel and VERSION.encode() == line:
-                    channel.reply("^4Server: ^7Currently using ^4BarelyMiSSeD^7's  latest ^6{}^7 plugin version ^6{}^7.".format(self.__class__.__name__, VERSION))
+                    channel.reply("^4Server: ^7Currently using ^4BarelyMiSSeD^7's  latest ^6{}^7 plugin version ^6{}^7."
+                                  .format(self.__class__.__name__, VERSION))
                     channel.reply("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
                 # If routine check and it's not alright.
                 elif player and VERSION.encode() != line:
                     try:
-                        player.tell("^4Server: ^3Plugin update alert^7:^6 {}^7's latest version is ^6{}^7 and you're using ^6{}^7!".format(self.__class__.__name__, line.decode(), VERSION))
+                        player.tell("^4Server: ^3Plugin update alert^7:^6 {}^7's latest version is ^6{}^7 and"
+                                    " you're using ^6{}^7!".format(self.__class__.__name__, line.decode(), VERSION))
                         player.tell("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
                     except Exception as e: minqlx.console_command("echo {}".format(e))
                 return
@@ -67,21 +72,28 @@ class specall(minqlx.Plugin):
     # Player Join actions. Version checker.
     @minqlx.delay(4)
     def player_loaded(self, player):
-        if player.steam_id == minqlx.owner() or self.db.has_permission(player,self.get_cvar("qlx_specallAdminLevel")):
-            self.check_version(player=player)
+        try:
+            if player.steam_id == minqlx.owner() or \
+                    self.get_permission(player) >= int(minqlx.get_cvar("qlx_specallAdminLevel")):
+                self.check_version(player=player)
+        except:
+            minqlx.log_exception("specall")
 
-    # Forces everyone on the server to spectate. If a teamsize is included after the command it will also set the teamsize.
+    # Forces everyone on the server to spectate.
+    # If a teamsize is included after the command it will also set the teamsize.
     def cmd_specAll(self, player, msg, channel):
 
         if self.game.state == "in_progress":
-            player.tell("^4Server: ^7There is a game in progress. To force everyone to spectator use the ^1!specallforce ^7command")
+            player.tell("^4Server: ^7There is a game in progress. To force everyone to spectator use the"
+                        " ^1!specallforce ^7command")
             return minqlx.RET_STOP_EVENT
 
         try:
             wanted_teamsize = int(msg[1])
         except:
             if len(msg) > 1:
-                player.tell("^4Server: ^7If a temasize was intended to be set please include an intelligible teamsize in the command.")
+                player.tell("^4Server: ^7If a temasize was intended to be set please include an intelligible"
+                            " teamsize in the command.")
             wanted_teamsize = int(0)
 
         teams = self.teams()
@@ -93,7 +105,8 @@ class specall(minqlx.Plugin):
 
         if wanted_teamsize:
             self.game.teamsize = wanted_teamsize
-            self.msg("^4Server: ^7The teamsize was set to ^1{}^7, players were put to spectator to allow the change.".format(wanted_teamsize))
+            self.msg("^4Server: ^7The teamsize was set to ^1{}^7, players were put to spectator to allow the change."
+                     .format(wanted_teamsize))
             return minqlx.RET_STOP_EVENT
 
         self.msg("^4Server: ^7All players were put to spectator by a server admin.")
@@ -104,7 +117,8 @@ class specall(minqlx.Plugin):
             wanted_teamsize = int(msg[1])
         except:
             if len(msg) > 1:
-                player.tell("^4Server: ^7If a temasize was intended to be set please include an intelligible teamsize in the command.")
+                player.tell("^4Server: ^7If a temasize was intended to be set please include an intelligible"
+                            " teamsize in the command.")
             wanted_teamsize = int(0)
 
         teams = self.teams()
@@ -116,7 +130,8 @@ class specall(minqlx.Plugin):
 
         if wanted_teamsize:
             self.game.teamsize = wanted_teamsize
-            self.msg("^4Server: ^7The teamsize was set to ^1{}^7, players were put to spectator to allow the change.".format(wanted_teamsize))
+            self.msg("^4Server: ^7The teamsize was set to ^1{}^7, players were put to spectator to allow the change."
+                     .format(wanted_teamsize))
             return minqlx.RET_STOP_EVENT
         self.msg("^4Server: ^7All players were put to spectator by a server admin.")
         return minqlx.RET_STOP_EVENT
