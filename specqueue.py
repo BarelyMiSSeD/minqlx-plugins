@@ -111,7 +111,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.12.4"
+VERSION = "2.12.5"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ["afk", "food", "away", "phone"]
@@ -338,6 +338,7 @@ class PlayerQueue:
 
 class specqueue(minqlx.Plugin):
     def __init__(self):
+        self._queue_label = "[]"
         if ENABLE_LOG:
             self.queue_log = logging.Logger(__name__)
             file_dir = os.path.join(minqlx.get_cvar("fs_homepath"), "logs")
@@ -433,7 +434,6 @@ class specqueue(minqlx.Plugin):
         self._checking_opening = None
         self._countdown = False
         self._queue_tags = False
-        self._queue_label = None
         self._specPlayer = []
 
         # Initialize Commands
@@ -574,6 +574,8 @@ class specqueue(minqlx.Plugin):
                 s_id = str(sid)
             # If the player is in spectate and queue tags are on, process the spectator tag
             if args['t'] == '3' and self._queue_tags:
+                if not self._queue_label:
+                    self._queue_label = "[]"
                 # if the player is in the queue, set the queue position tag
                 if sid in self._queue:
                     args['xcn'] = args['cn'] = "{}{}{}" \
