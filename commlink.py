@@ -116,7 +116,8 @@ class commlink(minqlx.Plugin):
 
     def handle_player_connect(self, player):
         if self.irc and self.get_cvar("qlx_enableConnectDisconnectMessages", bool):
-            if str(player.steam_id)[0] == "9": return
+            if str(player.steam_id)[0] == "9":
+                return
             self.irc.msg(self.identity, self.translate_colors("{} connected.".format(player.name)))
 
     def handle_player_disconnect(self, player, reason):
@@ -129,7 +130,7 @@ class commlink(minqlx.Plugin):
         
     def handle_msg(self, irc, user, channel, msg):
         def broadcast_commlink(pm):
-            if pm[0].startswith("Dueling-") or pm[0].startswith("Free-") and pm[1].startswith("Spec-"):
+            if pm[0].startswith("Duel-") or pm[0].startswith("Free-") and pm[1].startswith("Spec-"):
                 if not self.status_request:
                     return
                 self.unset_server_status()
@@ -155,18 +156,8 @@ class commlink(minqlx.Plugin):
         if not msg:
             return
         if msg[0] == 'request_status':
-            teams = self.teams()
-            free = len(teams["free"])
-            red = len(teams["red"])
-            blue = len(teams["blue"])
-            spec = len(teams["spectator"])
-            if self.game.type_short == "duel":
-                status = "Dueling-{}, Spec-{} {}:{}".format(free, spec, self.server_ip, self.server_port)
-            elif self.game.type_short in TEAM_BASED_GAMETYPES:
-                status = "Red-{}, Blue-{}, Spec-{} {}:{}".format(red, blue, spec, self.server_ip, self.server_port)
-            else:
-                status = "Free-{}, Spec-{} {}:{}".format(free, spec, self.server_ip, self.server_port)
-            self.irc.msg(self.identity, status)
+            status = self.get_status_msg()
+            self.irc.msg(self.identity, "{} {}:{}".format(status, self.server_ip, self.server_port))
         else:
             broadcast_commlink(msg)
 
@@ -183,21 +174,26 @@ class commlink(minqlx.Plugin):
         self.irc.msg(self.identity, self.translate_colors(text))
         player.tell("Message sent via ^3CommLink^7.")
 
-    def server_status(self, player, msg, channel):
+    def get_status_msg(self):
         teams = self.teams()
         free = len(teams["free"])
         red = len(teams["red"])
         blue = len(teams["blue"])
         spec = len(teams["spectator"])
         if self.game.type_short == "duel":
-            status = "^3Dueling-{}, ^6Spec-{}".format(free, spec)
+            status = "^3Duel-{}, ^6Spec-{}".format(free, spec)
         elif self.game.type_short in TEAM_BASED_GAMETYPES:
             status = "^1Red-{}, ^4Blue-{}, ^6Spec-{}".format(red, blue, spec)
         else:
             status = "^3Free-{}, ^6Spec-{}".format(free, spec)
+        return status
+
+    def server_status(self, player, msg, channel):
+        free = self.teams()["free"]
+        status = self.get_status_msg()
         minqlx.console_print("[CommLink] ^5{}^7: {}".format(self.clientName, status))
         for p in self.players():
-            if self.game.type_short == "duel" and p in teams["free"] and self.game.state != "warmup":
+            if self.game.type_short == "duel" and p in free and self.game.state != "warmup":
                 continue
             if self.db.get_flag(p, "commlink:enabled", default=(self.get_cvar("qlx_enableCommlinkMessages", bool))):
                 p.tell("[CommLink] ^4{}^7: {}".format(self.clientName, status))
@@ -218,12 +214,7 @@ class commlink(minqlx.Plugin):
         else:
             needed = 1
         player.tell("^6Sent player request to other servers")
-        teams = self.teams()
-        free = len(teams["free"])
-        red = len(teams["red"])
-        blue = len(teams["blue"])
-        spec = len(teams["spectator"])
-        status = "Team Status: Free-{}, Red-{}, Blue-{}, Spec-{}".format(free, red, blue, spec)
+        status = self.get_status_msg()
         self.irc.msg(self.identity, "Need {} player{} here: {} /connect {}:{}"
                      .format(needed, "s" if needed > 1 else "", status, self.server_ip, self.server_port))
          
