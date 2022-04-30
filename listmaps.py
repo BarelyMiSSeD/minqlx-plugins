@@ -14,7 +14,7 @@ import minqlx
 import requests
 import re
 
-VERSION = "v1.17"
+VERSION = "v1.19"
 FILE_NAME = "server_{}_map_list.txt"
 MAP_NAME_FILE = 'Map_Names.txt'
 _map_buffer = []
@@ -41,7 +41,7 @@ class listmaps(minqlx.Plugin):
 
         self.get_maps()
 
-    # listmaps.py version checker. Thanks to iouonegirl for most of this section's code.
+    # listmaps.py version checker. Thanks to iouonegirl for most of this function's code.
     @minqlx.thread
     def check_version(self, player=None, channel=None):
         url = "https://raw.githubusercontent.com/barelymissed/minqlx-plugins/master/{}.py"\
@@ -55,8 +55,8 @@ class listmaps(minqlx.Plugin):
                 line = line.replace(b'"', b'')
                 # If called manually and outdated
                 if channel and VERSION.encode() != line:
-                    channel.reply("^4Server: ^7Currently using  ^4BarelyMiSSeD^7's ^6{}^7 plugin ^1outdated^7 version"
-                                  " ^6{}^7. The latest version is ^6{}"
+                    channel.reply("^4Server: ^7Currently using  ^4BarelyMiSSeD^7's ^6{}^7 plugin ^1missmatched^7"
+                                  " version ^6{}^7. The latest github version is ^6{}"
                                   .format(self.__class__.__name__, VERSION, line.decode()))
                     channel.reply("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
                 # If called manually and alright
@@ -70,7 +70,8 @@ class listmaps(minqlx.Plugin):
                         player.tell("^4Server: ^3Plugin update alert^7:^6 {}^7's latest version is ^6{}^7 and you're"
                                     " using ^6{}^7!".format(self.__class__.__name__, line.decode(), VERSION))
                         player.tell("^4Server: ^7See ^3https://github.com/BarelyMiSSeD/minqlx-plugins")
-                    except Exception as e: minqlx.console_command("echo {}".format(e))
+                    except Exception as e:
+                        minqlx.console_print("LISTMAPS Version Checking Error: {}".format(e))
                 return
 
     def listmaps_version(self, player, msg, channel):
@@ -122,23 +123,26 @@ class listmaps(minqlx.Plugin):
 
             def __exit__(self, exc_type, exc_val, exc_tb):
                 global _map_redirection, _map_buffer
-                f = open(listmaps.map_file, "w")
+                map_write = open(listmaps.map_file, "w")
                 for item in _map_buffer:
-                    f.write(str(item))
-                f.close()
+                    map_write.write(str(item))
+                map_write.close()
                 _map_redirection = False
                 _map_buffer.clear()
 
         return Redirector()
 
-    @minqlx.thread
     def cmd_list_maps(self, player, msg, channel):
+        self.list_map_names(player, msg, channel)
+
+    @minqlx.thread
+    def list_map_names(self, player, msg, channel):
         title = ["^1MAPS: These are the map designations, not always the map name. Use these in a callvote.^7\n"]
         maps = []
         try:
-            f = open(listmaps.map_file, 'r')
-            lines = f.readlines()
-            f.close()
+            maps_file = open(listmaps.map_file, 'r')
+            lines = maps_file.readlines()
+            maps_file.close()
         except IOError:
             channel.reply("^4Server^7: Map List creation ^1failed^7. Contact a server admin.")
             return
@@ -220,9 +224,9 @@ class listmaps(minqlx.Plugin):
             channel.reply("^3Usage^7: <map callvote name> ^4(found with the ^3!listmaps^4 command)")
             return
         try:
-            f = open(MAP_NAME_FILE, 'r')
-            lines = f.readlines()
-            f.close()
+            map_file = open(MAP_NAME_FILE, 'r')
+            lines = map_file.readlines()
+            map_file.close()
         except IOError:
             player.tell("^4Server^7: There is no Map Name file to reference. Talk to a server admin.")
             return
