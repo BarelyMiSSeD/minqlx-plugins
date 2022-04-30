@@ -189,6 +189,10 @@ class commlink(minqlx.Plugin):
         return status
 
     def server_status(self, player, msg, channel):
+        self.query_status()
+
+    @minqlx.thread
+    def query_status(self):
         free = self.teams()["free"]
         status = self.get_status_msg()
         minqlx.console_print("[CommLink] ^5{}^7: {}".format(self.clientName, status))
