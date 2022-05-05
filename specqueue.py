@@ -111,7 +111,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.12.6"
+VERSION = "2.12.7"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ("afk", "food", "away", "phone")
@@ -435,7 +435,7 @@ class specqueue(minqlx.Plugin):
         self._countdown = False
         self._queue_tags = False
         self._specPlayer = []
-        self._afk_tag = "afk"
+        self._afk_tag = {}
 
         # Initialize Commands
         self.add_spectators()
@@ -589,7 +589,7 @@ class specqueue(minqlx.Plugin):
                         clan = self.db[location]
                     if s_id in self._afk and clan not in SPEC_TAGS:
                         args['xcn'] = args['cn'] = "{}{}{}"\
-                            .format(self._queue_label[0], self._afk_tag, self._queue_label[1])
+                            .format(self._queue_label[0], self._afk_tag[s_id], self._queue_label[1])
                     elif clan in SPEC_TAGS:
                         if 3 < len(clan):
                             args['xcn'] = args['cn'] = "{}".format(clan)
@@ -615,7 +615,6 @@ class specqueue(minqlx.Plugin):
                 self.q_game_info[1] = teamsize
                 if not self.end_screen:
                     self.check_for_opening(1.5)
-        self._afk_tag = "afk"
 
     def update_queue_tags(self):
         if self.get_cvar("qlx_queueShowQPosition", bool):
@@ -2047,7 +2046,7 @@ class specqueue(minqlx.Plugin):
         try:
             self._afk.add_to_times(player.steam_id)
             player.center_print("^6AFK Mode\n^7Type ^4!here ^7when back.")
-            self._afk_tag = afk_tag
+            self._afk_tag[str(player.steam_id)] = afk_tag
             player.clan = player.clan
         except Exception as e:
             if ENABLE_LOG:
@@ -2061,6 +2060,8 @@ class specqueue(minqlx.Plugin):
                 if msg:
                     player.center_print("^3Not marked AFK\n^7Join to play or enter the queue.")
                     player.clan = player.clan
+            if str(sid) in self._afk_tag:
+                del self._afk_tag[str(sid)]
         except Exception as e:
             if ENABLE_LOG:
                 self.queue_log.info("specqueue remove_from_afk Exception: {}".format([e]))
