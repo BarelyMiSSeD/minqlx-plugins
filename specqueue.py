@@ -111,7 +111,7 @@ from threading import Lock
 from random import randrange
 import re
 
-VERSION = "2.12.7"
+VERSION = "2.12.8"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ("afk", "food", "away", "phone")
@@ -548,7 +548,7 @@ class specqueue(minqlx.Plugin):
                 if len(self.teams()["free"]) >= self.get_max_players():
                     at_max_players = True
                 join_locked = self.red_locked or self.blue_locked
-            if self._queue or join_locked or self.game.state in ["in_progress", "countdown"] or\
+            if self._queue or join_locked or self.game and self.game.state in ["in_progress", "countdown"] or\
                     at_max_players:
                 self.add_to_queue(player)
                 self.remove_from_spec(player)
@@ -777,7 +777,7 @@ class specqueue(minqlx.Plugin):
 
     def process_death_monitor(self):
         try:
-            if self.game.state in ["in_progress", "countdown"]:
+            if self.game and self.game.state in ["in_progress", "countdown"]:
                 if self.q_game_info[0] in NON_ROUND_BASED_GAMETYPES:
                     self.death_count += 1
                     if self.death_count > 5 and self.death_count > self.q_game_info[2] / 5:
@@ -1400,7 +1400,8 @@ class specqueue(minqlx.Plugin):
     @minqlx.thread
     def look_at_teams(self, delay=None):
         try:
-            if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+            if self.game and self.game.state in ["in_progress", "countdown"] and\
+                    self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 if delay:
                     time.sleep(delay)
                 teams = self.teams()
@@ -1473,7 +1474,8 @@ class specqueue(minqlx.Plugin):
         if not self.get_cvar("qlx_queueEnforceEvenTeams", bool):
             return
         try:
-            if self.game.state in ["in_progress", "countdown"] and self.q_game_info[0] in TEAM_BASED_GAMETYPES:
+            if self.game and self.game.state in ["in_progress", "countdown"] and\
+                    self.q_game_info[0] in TEAM_BASED_GAMETYPES:
                 if delay:
                     if self.game.type_short == "ft":
                         countdown = self._specPlayer[5]
