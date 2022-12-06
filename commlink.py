@@ -25,6 +25,7 @@
 # Modified by BarelyMiSSeD on 10/6/2019: (only team games modifications)
 # added - !status (responds with the player status of the other servers)
 # added - !need <num> (tells other server that num of players is needed on the requesting server)
+# 12/6/2022: added checking for self.game in places it is used before executing further code
 
 """
 
@@ -96,7 +97,7 @@ class commlink(minqlx.Plugin):
         self.server_ip = ip[0:-2]
 
     def game_countdown(self):
-        if self.game.type_short == "duel":
+        if self.game and self.game.type_short == "duel":
             self.msg("^3CommLink^7 message reception has been disabled during your Duel.")
             
     def cmd_toggle_commlink(self, player, msg, channel):
@@ -148,7 +149,7 @@ class commlink(minqlx.Plugin):
             minqlx.console_print("[CommLink] ^5{}^7:^3 {}".format(user[0], " ".join(pm)))
             duelers = self.teams()["free"]
             for p in self.players():
-                if self.game.type_short == "duel" and p in duelers and self.game.state != "warmup":
+                if self.game and self.game.type_short == "duel" and p in duelers and self.game.state != "warmup":
                     continue
                 if self.db.get_flag(p, "commlink:enabled", default=(self.get_cvar("qlx_enableCommlinkMessages", bool))):
                     p.tell("[CommLink] ^4{}^7:^3 {}".format(user[0], " ".join(pm)))
@@ -180,13 +181,14 @@ class commlink(minqlx.Plugin):
         red = len(teams["red"])
         blue = len(teams["blue"])
         spec = len(teams["spectator"])
-        if self.game.type_short == "duel":
-            status = "^3Duel-{}, ^6Spec-{}".format(free, spec)
-        elif self.game.type_short in TEAM_BASED_GAMETYPES:
-            status = "^1Red-{}, ^4Blue-{}, ^6Spec-{}".format(red, blue, spec)
-        else:
-            status = "^3Free-{}, ^6Spec-{}".format(free, spec)
-        return status
+        if self.game:
+            if self.game.type_short == "duel":
+                status = "^3Duel-{}, ^6Spec-{}".format(free, spec)
+            elif self.game.type_short in TEAM_BASED_GAMETYPES:
+                status = "^1Red-{}, ^4Blue-{}, ^6Spec-{}".format(red, blue, spec)
+            else:
+                status = "^3Free-{}, ^6Spec-{}".format(free, spec)
+            return status
 
     def server_status(self, player, msg, channel):
         self.query_status()
@@ -196,13 +198,14 @@ class commlink(minqlx.Plugin):
         free = self.teams()["free"]
         status = self.get_status_msg()
         minqlx.console_print("[CommLink] ^5{}^7: {}".format(self.clientName, status))
-        for p in self.players():
-            if self.game.type_short == "duel" and p in free and self.game.state != "warmup":
-                continue
-            if self.db.get_flag(p, "commlink:enabled", default=(self.get_cvar("qlx_enableCommlinkMessages", bool))):
-                p.tell("[CommLink] ^4{}^7: {}".format(self.clientName, status))
-        self.status_request = True
-        self.irc.msg(self.identity, "request_status")
+        if self.game:
+            for p in self.players():
+                if self.game.type_short == "duel" and p in free and self.game.state != "warmup":
+                    continue
+                if self.db.get_flag(p, "commlink:enabled", default=(self.get_cvar("qlx_enableCommlinkMessages", bool))):
+                    p.tell("[CommLink] ^4{}^7: {}".format(self.clientName, status))
+            self.status_request = True
+            self.irc.msg(self.identity, "request_status")
 
     @minqlx.delay(1.5)
     def unset_server_status(self):
