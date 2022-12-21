@@ -126,8 +126,9 @@ class commlink(minqlx.Plugin):
             reason = reason + "."
         
         if self.irc and self.get_cvar("qlx_enableConnectDisconnectMessages", bool):
-            if str(player.steam_id)[0] == "9": return
-            self.irc.msg(self.identity, self.translate_colors("{} {}".format(player.name, reason)))
+            if str(player.steam_id)[0] == "9":
+                return
+            self.irc.msg(self.identity, self.translate_colors("{} {} disconnected.".format(player.name, reason)))
         
     def handle_msg(self, irc, user, channel, msg):
         def broadcast_commlink(pm):
@@ -153,14 +154,20 @@ class commlink(minqlx.Plugin):
                     continue
                 if self.db.get_flag(p, "commlink:enabled", default=(self.get_cvar("qlx_enableCommlinkMessages", bool))):
                     p.tell("[CommLink] ^4{}^7:^3 {}".format(user[0], " ".join(pm)))
-
-        if not msg:
+        try:
+            if not msg:
+                return
+            if msg[0] == 'request_status':
+                status = self.get_status_msg()
+                self.irc.msg(self.identity, "{} {}:{}".format(status, self.server_ip, self.server_port))
+            else:
+                if msg[0].endswith('connected.') or msg[0].endswith('disconnected.') and \
+                        not self.get_cvar("qlx_enableConnectDisconnectMessages", bool):
+                    return
+                broadcast_commlink(msg)
+        except Exception as e:
+            minqlx.log(e)
             return
-        if msg[0] == 'request_status':
-            status = self.get_status_msg()
-            self.irc.msg(self.identity, "{} {}:{}".format(status, self.server_ip, self.server_port))
-        else:
-            broadcast_commlink(msg)
 
     def handle_perform(self, irc):
         self.logger.info("Connected to CommLink!".format(self.server))
