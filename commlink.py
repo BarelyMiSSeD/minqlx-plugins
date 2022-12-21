@@ -161,7 +161,7 @@ class commlink(minqlx.Plugin):
                 status = self.get_status_msg()
                 self.irc.msg(self.identity, "{} {}:{}".format(status, self.server_ip, self.server_port))
             else:
-                if msg[0].endswith('connected.') or msg[0].endswith('disconnected.') and \
+                if 'connected.' in msg or 'disconnected.' in msg and \
                         not self.get_cvar("qlx_enableConnectDisconnectMessages", bool):
                     return
                 broadcast_commlink(msg)
