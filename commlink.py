@@ -122,13 +122,12 @@ class commlink(minqlx.Plugin):
             self.irc.msg(self.identity, self.translate_colors("{} connected.".format(player.name)))
 
     def handle_player_disconnect(self, player, reason):
-        if reason and reason[-1] not in ("?", "!", "."):
-            reason = reason + "."
-        
         if self.irc and self.get_cvar("qlx_enableConnectDisconnectMessages", bool):
             if str(player.steam_id)[0] == "9":
                 return
-            self.irc.msg(self.identity, self.translate_colors("{} {} disconnected.".format(player.name, reason)))
+            if reason and reason[-1] not in ("?", "!", "."):
+                reason = reason + "."
+            self.irc.msg(self.identity, self.translate_colors("{} {}".format(player.name, reason)))
         
     def handle_msg(self, irc, user, channel, msg):
         def broadcast_commlink(pm):
