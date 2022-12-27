@@ -17,15 +17,17 @@
 
 # Modified by Thomas Jones on 27/01/2016 - thomas@tomtecsolutions.com
 # commlink.py, a plugin for minqlx to enable inter-server communication functionality.
-# This plugin is released to everyone, for any purpose. It comes with no warranty, no guarantee it works, it's released AS IS.
+# This plugin is released to everyone, for any purpose.
+# It comes with no warranty, no guarantee it works, it's released AS IS.
 # You can modify everything, except for lines 1-4 and the !tomtec_versions code. Please make it better :D
 
-#Modified by OrbitaL on 9/19/2019 changed irc server
+# Modified by OrbitaL on 9/19/2019 changed irc server
 
 # Modified by BarelyMiSSeD on 10/6/2019: (only team games modifications)
 # added - !status (responds with the player status of the other servers)
 # added - !need <num> (tells other server that num of players is needed on the requesting server)
 # 12/6/2022: added checking for self.game in places it is used before executing further code
+# 12/27/2022: added allow/disallow connect/disconnect messages based on the qlx_enableConnectDisconnectMessages
 
 """
 
@@ -153,20 +155,15 @@ class commlink(minqlx.Plugin):
                     continue
                 if self.db.get_flag(p, "commlink:enabled", default=(self.get_cvar("qlx_enableCommlinkMessages", bool))):
                     p.tell("[CommLink] ^4{}^7:^3 {}".format(user[0], " ".join(pm)))
-        try:
-            if not msg:
-                return
-            if msg[0] == 'request_status':
-                status = self.get_status_msg()
-                self.irc.msg(self.identity, "{} {}:{}".format(status, self.server_ip, self.server_port))
-            else:
-                if 'connected.' in msg or 'disconnected.' in msg and \
-                        not self.get_cvar("qlx_enableConnectDisconnectMessages", bool):
-                    return
-                broadcast_commlink(msg)
-        except Exception as e:
-            minqlx.log(e)
+        if not msg:
             return
+        if msg[0] == 'request_status':
+            status = self.get_status_msg()
+            self.irc.msg(self.identity, "{} {}:{}".format(status, self.server_ip, self.server_port))
+        elif {'connected.', 'disconnected.'} & set(msg) and not self.get_cvar("qlx_enableConnectDisconnectMessages", bool):
+            return
+        else:
+            broadcast_commlink(msg)
 
     def handle_perform(self, irc):
         self.logger.info("Connected to CommLink!".format(self.server))
@@ -266,8 +263,10 @@ class IrcChannel(minqlx.AbstractChannel):
 #                        SIMPLE ASYNC IRC
 # ====================================================================
 
+
 re_msg = re.compile(r"^:([^ ]+) PRIVMSG ([^ ]+) :(.*)$")
 re_user = re.compile(r"^(.+)!(.+)@(.+)$")
+
 
 class SimpleAsyncIrc(threading.Thread):
     def __init__(self, address, nickname, msg_handler, perform_handler, raw_handler=None, stop_event=threading.Event()):
