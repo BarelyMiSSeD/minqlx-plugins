@@ -165,19 +165,50 @@ set qlx_funJoinSoundEveryMap "0"
 set qlx_funLast2Sound "1"
 // Enable fast sound lookup
 set qlx_funFastSoundLookup "1"
+
+################################################################################################################
+#    Adding Additional Sound Packs
+################################################################################################################
+***** To add new sound packs without editing this file "much" *****
+Sound Pack File Requirements:
+The sound file names will use a sound trigger based on the file name. The sound file name will replace
+ underscores (_) with spaces or insert spaces after words starting with a capital letter.
+ The path inside the sound_pack.pk3 is not used to generate the sound trigger, only the sound file name.
+ I.E. The sound 'sound/warp/bend_me_over.ogg' will create the sound trigger 'bend me over'.
+      The sound 'sound/warp/BendMeOver.ogg' will also create the sound trigger 'bend me over'.
+ *** Note: These are the only 2 formats that will be correctly interpreted. I.E. 'sound/warp/bendMeOver.ogg' will not
+     generate the full sound trigger correctly.
+ *** NOTE: The name of the sound pack file stored in the baseq3 directory of the server does not have to match the
+     name of the sound pack file in the steam workshop. As long as the contents of the file are exactly the same.
+     You can rename the file stored in the baseq3 to whatever you want the sound pack called, ending it with
+     the .pk3 file extension. Use underscores for spaces in the sound pack name. (i.e. My_Enjoyable_Sounds.pk3 will be
+     shown as the sound pack 'My Enjoyable Sounds'.
+
+1) put the <sound_pack.pk3> file into the baseq3 directory of the server.
+    The baseq3 sub-directory stored in the cvar fs_basepath.
+2) add the <sound_pack.pk3> file name to the ADDITIONAL_SOUNDPACKS below with the format
+    ADDITIONAL_SOUNDPACKS = ['sound_pack.pk3', 'sound_pack_2.pk3', 'sound_pack_3.pk3']
+3) add the steam workshop item number to the qlx_workshopReferences cvar in the server.cfg
+    set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 1733859113, <new workshop item number>"
+
+The sound pack will be added starting at the end of the list, as sound pack 6 if nothing else was edited in the file.
+Any sound pack added here will automatically be enabled.
 """
 
 import minqlx
 import random
 import time
 import re
+from os.path import isfile
+from zipfile import ZipFile
 
-VERSION = "6.1"
+VERSION = "7.1"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
 PLAYERS_SOUNDS = "minqlx:players:{}:flags:myFun:{}"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
+ADDITIONAL_SOUNDPACKS = []
 
 
 class myFun(minqlx.Plugin):
@@ -237,6 +268,9 @@ class myFun(minqlx.Plugin):
         self.add_command(("erase_sounds", "erasedb"), self.start_erase_db, 5)
         self.add_command(("fill_sounds", "filldb"), self.start_fill_db, 5)
 
+        # lambda function to insert spaces in a string (replaces _ or inserts between CamelCase). Returns lowercase.
+        self.convert = lambda x: x.replace('_', ' ') if x.islower() else ' '.join(re.findall('[A-Z][^A-Z]*', x)).lower()
+        # Class Variables
         self.populating = False
         # variable to show when a sound has been played
         self.played = False
@@ -275,8 +309,6 @@ class myFun(minqlx.Plugin):
             self._custom_triggers = {}
             for num in range(len(self.Enabled_SoundPacks)):
                 self._sound_dictionary[num] = {}
-        for s in self.Enabled_SoundPacks:
-            self.soundLists.append(None)
         self.sound_list_count = 0
         self.help_msg = []
         # populate the database and sound lists with the enabled sound packs
@@ -308,7 +340,7 @@ class myFun(minqlx.Plugin):
         binary = bin(packs)[2:]
         length = len(binary)
         count = 0
-
+        # Set all values to disabled, initially
         for x in range(len(self.Enabled_SoundPacks)):
             self.Enabled_SoundPacks[x] = 0
 
@@ -482,32 +514,34 @@ class myFun(minqlx.Plugin):
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
                 if self._enable_dictionary:
-                    for sound, item in self._sound_dictionary[sound_dict].items():
-                        match = item.split(";")
-                        # if sound trigger matches set self.trigger to the trigger,
-                        #  self.soundFile to the location of the sound
-                        try:
-                            if re.compile(r"{}".format(match[0])).match(msg_lower):
-                                if self.db.exists(DISABLED_SOUNDS.format(match[1])):
-                                    return False
-                                self.trigger = sound
-                                if match[1]:
-                                    self.soundFile = match[1]
-                                return True
-                            # if custom sound triggers have been added for the sound being examined
-                            #  it searches through the stored triggers for a match
-                            if match[1] in self._custom_triggers:
-                                for trigger in self._custom_triggers[match[1]]:
-                                    if trigger == msg_lower:
-                                        if self.db.exists(DISABLED_SOUNDS.format(match[1])):
-                                            return False
-                                        self.trigger = sound
-                                        if match[1]:
-                                            self.soundFile = match[1]
-                                        return True
-                        except Exception as e:
-                            minqlx.console_print("^3myFun find sound trigger dictionary Exception: {}".format(e))
-                            minqlx.console_print(str(match))
+                    # self._sound_dictionary[slot][trigger[0]][trigger] = db_value
+                    if msg_lower[0] in self._sound_dictionary[sound_dict]:
+                        for sound, item in self._sound_dictionary[sound_dict][msg_lower[0]].items():
+                            match = item.split(";")
+                            # if sound trigger matches set self.trigger to the trigger,
+                            #  self.soundFile to the location of the sound
+                            try:
+                                if re.compile(r"{}".format(match[0])).match(msg_lower):
+                                    if self.db.exists(DISABLED_SOUNDS.format(match[1])):
+                                        return False
+                                    self.trigger = sound
+                                    if match[1]:
+                                        self.soundFile = match[1]
+                                    return True
+                                # if custom sound triggers have been added for the sound being examined
+                                #  it searches through the stored triggers for a match
+                                if match[1] in self._custom_triggers:
+                                    for trigger in self._custom_triggers[match[1]]:
+                                        if trigger == msg_lower:
+                                            if self.db.exists(DISABLED_SOUNDS.format(match[1])):
+                                                return False
+                                            self.trigger = sound
+                                            if match[1]:
+                                                self.soundFile = match[1]
+                                            return True
+                            except Exception as e:
+                                minqlx.console_print("^3myFun find sound trigger dictionary Exception: {}".format(e))
+                                minqlx.console_print(str(match))
                 else:
                     keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
                     for key in keys:
@@ -766,9 +800,10 @@ class myFun(minqlx.Plugin):
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
                 if self._enable_dictionary:
-                    for sound, item in self._sound_dictionary[sound_dict].items():
-                        if item.split(";")[1] == path:
-                            return sound
+                    for sub, triggers in self._sound_dictionary[sound_dict].items():
+                        for sound, item in self._sound_dictionary[sound_dict][sub].items():
+                            if item.split(";")[1] == path:
+                                return sound
                 else:
                     keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
                     for key in keys:
@@ -1037,24 +1072,22 @@ class myFun(minqlx.Plugin):
             return 3
 
     # populates the sound list that is used to list the available sounds on the server
-    @minqlx.thread
+    # All calls to this function are called in sub-threads
     def populate_sound_lists(self):
         try:
             if not self.populating:
                 self.populating = True
-                self.soundLists = [None] * len(self.Enabled_SoundPacks)
+                self.soundLists = [[] if x else None for x in self.Enabled_SoundPacks]
                 self.sound_list_count = 0
                 self.help_msg = []
-                slot = 0
-                while slot < len(self.Enabled_SoundPacks):
+                for slot, value in enumerate(self.Enabled_SoundPacks):
                     if self.Enabled_SoundPacks[slot]:
-                        self.soundLists[slot] = []
                         self.sound_list_count += 1
                         self.help_msg.append(self.categories[slot])
                         keys = self.db.keys(SOUND_TRIGGERS.format(slot, "*"))
                         for key in keys:
-                            db_key = self.db.get(key)
-                            entry = db_key.split(';')
+                            db_value = self.db.get(key)
+                            entry = db_value.split(';')
                             if len(entry) < 2:
                                 continue
                             if self.db.exists(DISABLED_SOUNDS.format(entry[1])):
@@ -1062,11 +1095,14 @@ class myFun(minqlx.Plugin):
                             trigger = key.split(":")[4]
                             self.soundLists[slot].append(trigger)
                             if self._enable_dictionary:
-                                self._sound_dictionary[slot][trigger] = db_key
+                                if not trigger[0] in self._sound_dictionary[slot]:
+                                    self._sound_dictionary[slot][trigger[0]] = {}
+                                self._sound_dictionary[slot][trigger[0]][trigger] = db_value
                                 if self.db.exists(TRIGGERS_LOCATION.format(entry[1])):
                                     self._custom_triggers[entry[1]] = self.db.lrange(TRIGGERS_LOCATION.format(entry[1]), 0, -1)
                         self.soundLists[slot].sort()
-                    slot += 1
+        except Exception as e:
+            minqlx.console_print('Exception in MyFun populate_sound_lists: {}'.format(e))
         finally:
             self.populating = False
 
@@ -2248,6 +2284,32 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "youlose"), "youlose\\W?;sound/westcoastcrew/youlose.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "your pick"), "your ?pick\\W?;sound/westcoastcrew/yourpick.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "zebby"), "^zebby\\W?$;sound/westcoastcrew/zebby.ogg")
+
+            if ADDITIONAL_SOUNDPACKS:
+                base_path = self.get_cvar("fs_basepath")
+                next_num = len(self.Enabled_SoundPacks)
+                for item in ADDITIONAL_SOUNDPACKS:
+                    file = "{}/baseq3/{}".format(base_path, item)
+                    if isfile(file):
+                        sounds = ZipFile(file).namelist()
+                        pack_name = item.split('.')[0]
+                        self.Enabled_SoundPacks.append(1)
+                        self.soundPacks.append(pack_name.replace('_', ' '))
+                        self.categories.append('#{}'.format(pack_name))
+                        for sound in sounds:
+                            sf = sound.split('/')[-1]
+                            if '.' in sf and not sf.startswith('.'):
+                                name = self.convert(sf.split('.')[0])
+                                append = 1
+                                while self.db.keys(SOUND_TRIGGERS.format("*", name)) and\
+                                        not self.db.exists(SOUND_TRIGGERS.format(next_num, name)):
+                                    name = '{}{}'.format(name, append) if append == 1 else\
+                                        '{}{}'.format(name[:-1], append)
+                                    append += 1
+                                self.db.set(SOUND_TRIGGERS.format(next_num, name), "{}\\W?;{}".format(name, sound))
+                        if self._enable_dictionary:
+                            self._sound_dictionary[next_num] = {}
+                    next_num += 1
 
         self.populate_sound_lists()
         return
