@@ -120,6 +120,36 @@ Default<br>
 haha yeah haha      hahaha yeah      yeah hahaha      yeahhh<br>
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.<br>
 
+
+########################################################################################
+#    Adding Additional Sound Packs
+########################################################################################<br>
+***** To add new sound packs without editing this file "much" *****<br>
+Sound Pack File Requirements:<br>
+The sound file names will use a sound trigger based on the file name. The sound file name will replace<br>
+ underscores (_) with spaces or insert spaces after words starting with a capital letter.<br>
+ The path inside the sound_pack.pk3 is not used to generate the sound trigger, only the sound file name.<br>
+ I.E. The sound 'sound/warp/bend_me_over.ogg' will create the sound trigger 'bend me over'.<br>
+      The sound 'sound/warp/BendMeOver.ogg' will also create the sound trigger 'bend me over'.<br>
+ *** Note: These are the only 2 formats that will be correctly interpreted. I.E. 'sound/warp/bendMeOver.ogg' will not<br>
+     generate the full sound trigger correctly.<br>
+ *** NOTE: The name of the sound pack file stored in the baseq3 directory of the server does not have to match the<br>
+     name of the sound pack file in the steam workshop. As long as the contents of the file are exactly the same.<br>
+     You can rename the file stored in the baseq3 to whatever you want the sound pack called, ending it with<br>
+     the .pk3 file extension. Use underscores for spaces in the sound pack name. (i.e. My_Enjoyable_Sounds.pk3 will be<br>
+     shown as the sound pack 'My Enjoyable Sounds'.<br>
+<br>
+1) put the <sound_pack.pk3> file into the baseq3 directory of the server.<br>
+    The baseq3 sub-directory stored in the cvar fs_basepath.<br>
+2) add the <sound_pack.pk3> file name to the ADDITIONAL_SOUNDPACKS below with the format<br>
+    ADDITIONAL_SOUNDPACKS = ['sound_pack.pk3', 'sound_pack_2.pk3', 'sound_pack_3.pk3']<br>
+3) add the steam workshop item number to the qlx_workshopReferences cvar in the server.cfg<br>
+    set qlx_workshopReferences "585892371, 620087103, 572453229, 1250689005, 1733859113, <new workshop item number>"<br>
+<br>
+The sound pack will be added starting at the end of the list, as sound pack 6 if nothing else was edited in the file.<br>
+Any sound pack added here will automatically be enabled.<br>
+
+
 # Commands
 <br><br>
 Commands available with myFun.py listed with the set permission levels.
