@@ -202,13 +202,13 @@ import re
 from os.path import isfile
 from zipfile import ZipFile
 
-VERSION = "7.1"
+VERSION = "7.2"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
 PLAYERS_SOUNDS = "minqlx:players:{}:flags:myFun:{}"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
-ADDITIONAL_SOUNDPACKS = []
+ADDITIONAL_SOUNDPACKS = ['jokerskully.pk3']
 
 
 class myFun(minqlx.Plugin):
@@ -514,7 +514,6 @@ class myFun(minqlx.Plugin):
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
                 if self._enable_dictionary:
-                    # self._sound_dictionary[slot][trigger[0]][trigger] = db_value
                     if msg_lower[0] in self._sound_dictionary[sound_dict]:
                         for sound, item in self._sound_dictionary[sound_dict][msg_lower[0]].items():
                             match = item.split(";")
@@ -1095,9 +1094,10 @@ class myFun(minqlx.Plugin):
                             trigger = key.split(":")[4]
                             self.soundLists[slot].append(trigger)
                             if self._enable_dictionary:
-                                if not trigger[0] in self._sound_dictionary[slot]:
-                                    self._sound_dictionary[slot][trigger[0]] = {}
-                                self._sound_dictionary[slot][trigger[0]][trigger] = db_value
+                                _t = trigger[0].lower()
+                                if _t not in self._sound_dictionary[slot]:
+                                    self._sound_dictionary[slot][_t] = {}
+                                self._sound_dictionary[slot][_t][trigger] = db_value
                                 if self.db.exists(TRIGGERS_LOCATION.format(entry[1])):
                                     self._custom_triggers[entry[1]] = self.db.lrange(TRIGGERS_LOCATION.format(entry[1]), 0, -1)
                         self.soundLists[slot].sort()
@@ -2306,7 +2306,7 @@ class myFun(minqlx.Plugin):
                                     name = '{}{}'.format(name, append) if append == 1 else\
                                         '{}{}'.format(name[:-1], append)
                                     append += 1
-                                self.db.set(SOUND_TRIGGERS.format(next_num, name), "{}\\W?;{}".format(name, sound))
+                                self.db.set(SOUND_TRIGGERS.format(next_num, name), "^{}\\W?$;{}".format(name, sound))
                         if self._enable_dictionary:
                             self._sound_dictionary[next_num] = {}
                     next_num += 1
