@@ -202,13 +202,13 @@ import re
 from os.path import isfile
 from zipfile import ZipFile
 
-VERSION = "7.2"
+VERSION = "7.3"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
 PLAYERS_SOUNDS = "minqlx:players:{}:flags:myFun:{}"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
-ADDITIONAL_SOUNDPACKS = ['jokerskully.pk3']
+ADDITIONAL_SOUNDPACKS = []
 
 
 class myFun(minqlx.Plugin):
@@ -517,9 +517,9 @@ class myFun(minqlx.Plugin):
                     if msg_lower[0] in self._sound_dictionary[sound_dict]:
                         for sound, item in self._sound_dictionary[sound_dict][msg_lower[0]].items():
                             match = item.split(";")
-                            # if sound trigger matches set self.trigger to the trigger,
-                            #  self.soundFile to the location of the sound
                             try:
+                                # if sound trigger matches set self.trigger to the trigger,
+                                #  self.soundFile to the location of the sound
                                 if re.compile(r"{}".format(match[0])).match(msg_lower):
                                     if self.db.exists(DISABLED_SOUNDS.format(match[1])):
                                         return False
@@ -527,17 +527,6 @@ class myFun(minqlx.Plugin):
                                     if match[1]:
                                         self.soundFile = match[1]
                                     return True
-                                # if custom sound triggers have been added for the sound being examined
-                                #  it searches through the stored triggers for a match
-                                if match[1] in self._custom_triggers:
-                                    for trigger in self._custom_triggers[match[1]]:
-                                        if trigger == msg_lower:
-                                            if self.db.exists(DISABLED_SOUNDS.format(match[1])):
-                                                return False
-                                            self.trigger = sound
-                                            if match[1]:
-                                                self.soundFile = match[1]
-                                            return True
                             except Exception as e:
                                 minqlx.console_print("^3myFun find sound trigger dictionary Exception: {}".format(e))
                                 minqlx.console_print(str(match))
@@ -569,6 +558,18 @@ class myFun(minqlx.Plugin):
                         except Exception as e:
                             minqlx.console_print("^3myFun find sound trigger database Exception: {}".format(e))
                             minqlx.console_print(str(match))
+                # if custom sound triggers have been added for the sound being examined
+                #  it searches through the stored triggers for a match
+                try:
+                    for file, triggers in self._custom_triggers.items():
+                        if msg_lower in triggers:
+                            if self.db.exists(DISABLED_SOUNDS.format(file)):
+                                return False
+                            self.trigger = msg_lower
+                            self.soundFile = file
+                            return True
+                except Exception as e:
+                    minqlx.console_print("^3myFun find Custom sound trigger Exception: {}".format(e))
             sound_dict += 1
         return False
 
@@ -1094,10 +1095,14 @@ class myFun(minqlx.Plugin):
                             trigger = key.split(":")[4]
                             self.soundLists[slot].append(trigger)
                             if self._enable_dictionary:
-                                _t = trigger[0].lower()
-                                if _t not in self._sound_dictionary[slot]:
-                                    self._sound_dictionary[slot][_t] = {}
-                                self._sound_dictionary[slot][_t][trigger] = db_value
+                                matches = re.sub('[:?^()\\\\W]', '', entry[0]).split('|')
+                                for match in matches:
+                                    if not match:
+                                        continue
+                                    _m = match[0].lower()
+                                    if _m not in self._sound_dictionary[slot]:
+                                        self._sound_dictionary[slot][_m] = {}
+                                    self._sound_dictionary[slot][_m][match] = db_value
                                 if self.db.exists(TRIGGERS_LOCATION.format(entry[1])):
                                     self._custom_triggers[entry[1]] = self.db.lrange(TRIGGERS_LOCATION.format(entry[1]), 0, -1)
                         self.soundLists[slot].sort()
@@ -1346,8 +1351,8 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(0, "denied"), "^denied\\W?$;sound/vo/denied")
             self.db.set(SOUND_TRIGGERS.format(0, "headshot"), "^headshot\\W?$;sound/vo/headshot")
             self.db.set(SOUND_TRIGGERS.format(0, "hahaha"), "^hahaha;sound/player/santa/taunt.wav")
-            self.db.set(SOUND_TRIGGERS.format(0, "glhf"), "^(?:gl ?hf\\W?)|(?:hf\\W?)|(?:gl hf\\W?);sound/vo/crash_new/39_01.wav")
-            self.db.set(SOUND_TRIGGERS.format(0, "fall2"), "^fall2?\\W?$;sound/player/santa/falling1.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "glhf"), "^(?:gl ?hf\\W?)|(?:hf\\W?);sound/vo/crash_new/39_01.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "fall2"), "^fall2\\W?$;sound/player/santa/falling1.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "f3"), "^((?:(?:press )?f3)|ready|ready up)$\\W?;sound/vo/crash_new/36_04.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "holy shit"), "holy shit;sound/vo_female/holy_shit")
             self.db.set(SOUND_TRIGGERS.format(0, "welcome to quake live"), "^welcome to (?:ql|quake live)\\W?$;sound/vo_evil/welcome")
@@ -1402,7 +1407,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(1, "boom"), "^boom\\W?$;soundbank/boom.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "boom2"), "^boom2\\W?$;soundbank/boom2.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "buk"), "^(?:buk|ibbukn)\\W?$;soundbank/buk.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "bullshit"), "^(?:bullshit|bull shit|bs)\\W?$;soundbank/bullshit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "bullshit"), "^(?:bull ?shit|bs)\\W?$;soundbank/bullshit.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "butthole"), "^butthole\\W?$;soundbank/butthole.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "buttsex"), "^buttsex\\W?$;soundbank/buttsex.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "cheeks"), "^cheeks\\W?$;soundbank/cheeks.ogg")
@@ -1991,7 +1996,6 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "you can scream"), "^you can scream\\W?$;sound/warp/scream.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "shart"), "^shart\\W?$;sound/warp/shart.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "shartt"), "^shartt\\W?$;sound/warp/shartt.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "skullcrusher"), "^skull(crusher)?\\W?$;sound/warp/skull.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "smiley face"), "^(?:smiley face\\W?)|:\\)|:-\\)|:\\]|\\(:$;sound/warp/smileyface.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "oh snap"), "^(oh )?snap\\W?$;sound/warp/snap.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "sneezed"), "^sneezed\\W?$;sound/warp/sneezed.ogg")
