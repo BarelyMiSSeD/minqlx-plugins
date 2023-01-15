@@ -2011,7 +2011,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "you can scream"), "^you can scream\\W?$;sound/warp/scream.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "shart"), "^shart\\W?$;sound/warp/shart.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "shartt"), "^shartt\\W?$;sound/warp/shartt.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "smiley face"), "^smiley face\\W$;sound/warp/smileyface.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "smiley face"), "^smiley face\\W?$;sound/warp/smileyface.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "oh snap"), "^snap|oh snap\\W?$;sound/warp/snap.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "sneezed"), "^sneezed\\W?$;sound/warp/sneezed.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "solitude"), "^solitude\\W?$;sound/warp/solitude.ogg")
