@@ -169,7 +169,7 @@ set qlx_funFastSoundLookup "1"
 #############
 # NOTE
 #############
-Any sound triggers taht want to be called using characters ourside of A thru Z (case insensitive) need to be added as
+Any sound triggers that want to be called using characters outside of A thru Z (case insensitive) need to be added as
 a custom trigger. I.E.: getting 'smiley face' to play when a user types :) would be done with
 !addtrigger smiley face = :)
 
@@ -209,19 +209,30 @@ import re
 from os.path import isfile
 from zipfile import ZipFile
 
-VERSION = "7.4"
+VERSION = "7.5"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
 PLAYERS_SOUNDS = "minqlx:players:{}:flags:myFun:{}"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
+CATEGORIES = ["#Default", "#Prestige", "#Funny", "#Duke", "#Warp", "#West"]
+SOUND_PACKS = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
+               "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live", "West Coast Crew Sound"]
 ADDITIONAL_SOUNDPACKS = []
 
 
 class myFun(minqlx.Plugin):
-    def __init__(self):
-        # super().__init__()
+    Enabled_SoundPacks = []
+    soundPacks = []
+    categories = []
+    soundLists = []
+    _enable_dictionary = False
+    _sound_dictionary = {}
+    _custom_triggers = {}
+    sound_list_count = 0
+    help_msg = []
 
+    def __init__(self):
         # Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
         self.set_cvar_once("qlx_funUnrestrictAdmin", "0")
         # Delay between sounds being played
@@ -296,30 +307,8 @@ class myFun(minqlx.Plugin):
         self.admin_limiting = {}
         # List to store steam ids of muted players
         self.muted_players = []
-        # List to store the enable/disabled status of the sound packs (they should all be 0 here)
-        self.Enabled_SoundPacks = [0, 0, 0, 0, 0, 0]
-        # set the desired sound packs to enabled
-        self.enable_packs()
-        # List of sound pack names
-        self.soundPacks = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
-                           "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live",
-                           "West Coast Crew Sound"]
-        # List of sound pack categories (used to narrow search results in !listsounds)
-        self.categories = ["#Default", "#Prestige", "#Funny", "#Duke", "#Warp", "#West"]
-        # List for storing the lists of sounds
-        self.soundLists = []
-        # Using sound dictionary or database list return
-        self._enable_dictionary = self.get_cvar("qlx_funFastSoundLookup", bool)
-        if self._enable_dictionary:
-            # Sound dictionary, used if enabled
-            self._sound_dictionary = {}
-            self._custom_triggers = {}
-            for num in range(len(self.Enabled_SoundPacks)):
-                self._sound_dictionary[num] = {}
-        self.sound_list_count = 0
-        self.help_msg = []
-        # populate the database and sound lists with the enabled sound packs
-        self.populate_database()
+        # populate the database and sound lists with the sound packs
+        self.start_fill_db()
         # Welcome sound played list
         self.playedWelcome = []
         # command prefix
@@ -368,22 +357,42 @@ class myFun(minqlx.Plugin):
         self.soundLists = [None] * len(self.Enabled_SoundPacks)
         player.tell("^1Completed Database Sound Trigger Erase.")
 
-    def start_fill_db(self, player, msg=None, channel=None):
+    def start_fill_db(self, player=None, msg=None, channel=None):
         self.fill_db(player)
 
     @minqlx.thread
     def fill_db(self, player, msg=None, channel=None):
-        self.enable_packs()
-        self.populate_database()
-        sound_packs = []
-        count = 0
-        while count < len(self.Enabled_SoundPacks):
-            if self.Enabled_SoundPacks[count]:
-                sound_packs.append(self.soundPacks[count])
-            count += 1
-        player.tell("Enabled Sound Packs are: ^3{}".format(", ".join(sound_packs)))
-        self.populate_database()
-        player.tell("Completed Sound Pack reload.")
+        try:
+            if player:
+                player.tell("^1Filling myFun Sounds Database")
+            # List to store the enable/disabled status of the sound packs (they should all be 0 here)
+            self.Enabled_SoundPacks = [0, 0, 0, 0, 0, 0]
+            # set the desired sound packs to enabled
+            self.enable_packs()
+            self.soundPacks = SOUND_PACKS
+            self.categories = CATEGORIES
+            self.soundLists = []
+            # Using sound dictionary or database list return
+            self._enable_dictionary = self.get_cvar("qlx_funFastSoundLookup", bool)
+            if self._enable_dictionary:
+                # Sound dictionary, used if enabled
+                self._sound_dictionary = {}
+                self._custom_triggers = {}
+                for num in range(len(self.Enabled_SoundPacks)):
+                    self._sound_dictionary[num] = {}
+            self.populate_database()
+            if player:
+                sound_packs = []
+                count = 0
+                while count < len(self.Enabled_SoundPacks):
+                    if self.Enabled_SoundPacks[count]:
+                        sound_packs.append(self.soundPacks[count])
+                    count += 1
+                player.tell("Enabled Sound Packs are: ^3{}".format(", ".join(sound_packs)))
+                player.tell("Completed Sound Pack reload.")
+        except Exception as e:
+            minqlx.console_print("^3myFun fill_db Exception: {}".format(e))
+            minqlx.log_exception()
 
     def erase_triggers(self, player, length, all_triggers=True):
         if all_triggers:
@@ -1318,7 +1327,6 @@ class myFun(minqlx.Plugin):
 
     # These are the sounds available on the server put into the dictionaries used to search for a sound trigger match
     #  when processing normal chat messages
-    @minqlx.thread
     def populate_database(self):
         old_version = 0.0
         if self.db.exists("minqlx:myFun:version"):
@@ -1358,11 +1366,11 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(0, "denied"), "^denied\\W?$;sound/vo/denied")
             self.db.set(SOUND_TRIGGERS.format(0, "headshot"), "^headshot\\W?$;sound/vo/headshot")
             self.db.set(SOUND_TRIGGERS.format(0, "hahaha"), "^hahaha;sound/player/santa/taunt.wav")
-            self.db.set(SOUND_TRIGGERS.format(0, "glhf"), "^(?:gl ?hf\\W?)|(?:hf\\W?);sound/vo/crash_new/39_01.wav")
+            self.db.set(SOUND_TRIGGERS.format(0, "glhf"), "^gl ?hf|hf\\W?$;sound/vo/crash_new/39_01.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "fall2"), "^fall2\\W?$;sound/player/santa/falling1.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "f3"), "^f3|press f3|ready( up)$\\W?;sound/vo/crash_new/36_04.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "holy shit"), "holy shit;sound/vo_female/holy_shit")
-            self.db.set(SOUND_TRIGGERS.format(0, "welcome to quake live"), "^welcome to (?:ql|quake live)\\W?$;sound/vo_evil/welcome")
+            self.db.set(SOUND_TRIGGERS.format(0, "welcome to quake live"), "^welcome to ql|quake live\\W?$;sound/vo_evil/welcome")
             self.db.set(SOUND_TRIGGERS.format(0, "gasp"), "^gasp\\W?$;sound/player/anarki/gasp.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "go"), "^go\\W?$;sound/vo/go")
             self.db.set(SOUND_TRIGGERS.format(0, "beep boop"), "^beep boop\\W?$;sound/player/tankjr/taunt.wav")
@@ -1385,8 +1393,8 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(0, "argh"), "^a+rgh\\W?$;sound/player/doom/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "hah haha"), "^hah haha\\W?$;sound/player/hunter/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "woohoo"), "^woo+hoo+\\W?$;sound/player/janet/taunt.wav")
-            self.db.set(SOUND_TRIGGERS.format(0, "quake live"), "^(?:ql|quake live)\\W?$;sound/vo_female/quake_live")
-            self.db.set(SOUND_TRIGGERS.format(0, "chaching"), "(?:\\$|€|£|chaching);sound/misc/chaching")
+            self.db.set(SOUND_TRIGGERS.format(0, "quake live"), "^ql|quake live\\W?$;sound/vo_female/quake_live")
+            self.db.set(SOUND_TRIGGERS.format(0, "chaching"), "^$|€|£|chaching;sound/misc/chaching")
             self.db.set(SOUND_TRIGGERS.format(0, "uh ah"), "^uh ah$;sound/player/mynx/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "oohwee"), "^ooh+wee\\W?$;sound/player/anarki/taunt.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "erah"), "^erah\\W?$;sound/player/bitterman/taunt.wav")
@@ -1402,71 +1410,71 @@ class myFun(minqlx.Plugin):
 
         if self.Enabled_SoundPacks[1]:
             self.db.set(SOUND_TRIGGERS.format(1, "assholes"), "^assholes\\W?$;soundbank/assholes.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "assshafter"), "^(?:assshafter|asshafter|ass shafter)\\W?$;soundbank/assshafterloud.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "assshafter"), "^assshafter|asshafter|ass shafter\\W?$;soundbank/assshafterloud.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "babydoll"), "^babydoll\\W?$;soundbank/babydoll.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "barelymissed"), "^(?:barelymissed|barely)\\W?$;soundbank/barelymissed.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "barelymissed"), "^barelymissed|barely\\W?$;soundbank/barelymissed.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "belly"), "^belly\\W?$;soundbank/belly.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "bitch"), "^bitch\\W?$;soundbank/bitch.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "blud"), "^(?:dtblud|blud)\\W?$;soundbank/dtblud.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "blud"), "^dtblud|blud\\W?$;soundbank/dtblud.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "boats"), "^boats\\W?$;soundbank/boats.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "bobg"), "^(?:bobg|bob)\\W?$;soundbank/bobg.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "bobg"), "^bobg|bob\\W?$;soundbank/bobg.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "bogdog"), "^bogdog\\W?$;soundbank/bogdog.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "boom"), "^boom\\W?$;soundbank/boom.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "boom2"), "^boom2\\W?$;soundbank/boom2.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "buk"), "^(?:buk|ibbukn)\\W?$;soundbank/buk.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "bullshit"), "^(?:bull ?shit|bs)\\W?$;soundbank/bullshit.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "buk"), "^buk|ibbukn\\W?$;soundbank/buk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "bullshit"), "^bull ?shit|bs\\W?$;soundbank/bullshit.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "butthole"), "^butthole\\W?$;soundbank/butthole.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "buttsex"), "^buttsex\\W?$;soundbank/buttsex.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "cheeks"), "^cheeks\\W?$;soundbank/cheeks.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "cocksucker"), "^(?:cocksucker|cs)\\W?$;soundbank/cocksucker.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "cocksucker"), "^cocksucker|cs\\W?$;soundbank/cocksucker.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "conquer"), "^conquer\\W?$;soundbank/conquer.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "countdown"), "^countdown\\W?$;soundbank/countdown.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "cum"), "^cum\\W?$;soundbank/cum.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "cumming"), "^cumming\\W?$;soundbank/cumming.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "cunt"), "^cunt\\W?$;soundbank/cunt.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "dirkfunk"), "^(?:dirkfunk|dirk)\\W?$;soundbank/dirkfunk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "dirkfunk"), "^dirkfunk|dirk\\W?$;soundbank/dirkfunk.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "disappointment"), "^disappointment\\W?$;soundbank/disappointment.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "doomsday"), "^(?:doom(sday)?)\\W?$;soundbank/doom.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "doomsday"), "^doom(sday)?\\W?$;soundbank/doom.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "drumset"), "^drumset\\W?$;soundbank/drumset.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "eat"), "^eat\\W?$;soundbank/eat.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "eat me"), "^(?:eatme|eat me|byte me)\\W?$;soundbank/eatme.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "fag"), "^(?:fag|homo|homosexual)\\W?$;soundbank/fag.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "eat me"), "^eatme|eat me|byte me\\W?$;soundbank/eatme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "fag"), "^fag|homo(sexual)?\\W?$;soundbank/fag.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "fingerass"), "^fingerass\\W?$;soundbank/fingerass.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "flash"), "^(?:flashsoul|flash)\\W?$;soundbank/flash.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "flash"), "^flash(soul)?\\W?$;soundbank/flash.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "fuckface"), "^fuckface\\W?$;soundbank/fuckface.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "fuckyou"), "^fuckyou\\W?$;soundbank/fuckyou.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "get emm"), "^(?:getem+|get em+)\\W?$;soundbank/getemm.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "gonads"), "^(?:gonads|nads)\\W?$;soundbank/gonads.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "get emm"), "^get( ?em)?\\W?$;soundbank/getemm.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "gonads"), "^gonads|nads\\W?$;soundbank/gonads.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "gtfo"), "^gtfo\\W?$;soundbank/gtfo.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "hug it out"), "^hug it out\\W?$;soundbank/hugitout.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "idiot"), "^(?:idiot|andycreep|d3phx|gladiat0r)\\W?$;soundbank/idiot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "idiot"), "^idiot|andycreep|d3phx|gladiat0r\\W?$;soundbank/idiot.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "idiot2"), "^idiot2\\W?$;soundbank/idiot2.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "it?'s time"), "^it'?s time\\W?$;soundbank/itstime.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "jeopardy"), "^jeopardy\\W?$;soundbank/jeopardy.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "jerk off"), "^(?:jerk off|jerkoff)\\W?$;soundbank/jerkoff.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "jerk off"), "^jerk( ?off)?\\W?$;soundbank/jerkoff.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "killo"), "^killo\\W?$;soundbank/killo.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "knocked"), "^knocked\\W?$;soundbank/knocked.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "ld3"), "^(?:die|ld3)\\W?$;soundbank/ld3.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "liquidswords"), "^(?:liquidswords|liquid)\\W?$;soundbank/liquid.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "ld3"), "^die|ld3\\W?$;soundbank/ld3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "liquidswords"), "^liquid(swords)?\\W?$;soundbank/liquid.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "massacre"), "^massacre\\W?$;soundbank/massacre.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "mixer"), "^mixer\\W?$;soundbank/mixer.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "mjman"), "^(?:mjman|marijuanaman)\\W?$;soundbank/mjman.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "mjman"), "^mjman|marijuanaman\\W?$;soundbank/mjman.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "mmmm"), "^mmmm\\W?$;soundbank/mmmm.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "monty"), "^monty\\W?$;soundbank/monty.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "n8"), "^(?:n8|_n8)\\W?$;soundbank/n8.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "nikon"), "^(?:nikon|niko|nikonguru)\\W?$;soundbank/nikon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "n8"), "^n8\\W?$;soundbank/n8.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "nikon"), "nikon?(guru)?\\W?$;soundbank/nikon.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "nina"), "^nina\\W?$;soundbank/nina.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "nthreem"), "^nthreem\\W?$;sound/vo_female/impressive1.wav")
-            self.db.set(SOUND_TRIGGERS.format(1, "olhip"), "^(?:olhip|hip)\\W?$;soundbank/hip.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "organic"), "^(?:organic|org)\\W?$;soundbank/organic.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "olhip"), "^olhip|hip\\W?$;soundbank/hip.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "organic"), "^org(anic)?\\W?$;soundbank/organic.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "paintball"), "^paintball\\W?$;soundbank/paintball.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "pigfucker"), "^(?:pigfucker|pig fucker|pf)\\W?$;soundbank/pigfer.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "pigfucker"), "^pig ?fucker|pig fucker\\W?$;soundbank/pigfer.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "popeye"), "^popeye\\W?$;soundbank/popeye.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "rosie"), "^rosie\\W?$;soundbank/rosie.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "seaweed"), "^seaweed\\W?$;soundbank/seaweed.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "shit"), "^shit\\W?$;soundbank/shit.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "sit"), "(^sit\\W?$| sit | sit$);soundbank/sit.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "soulianis"), "^(?:soulianis|soul)\\W?$;soundbank/soulianis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "soulianis"), "^soul(ianis)?\\W?$;soundbank/soulianis.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "spam"), "^spam\\W?$;soundbank/spam3.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "stalin"), "^stalin\\W?$;soundbank/ussr.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "stfu"), "^stfu\\W?$;soundbank/stfu.ogg")
@@ -1474,13 +1482,13 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(1, "suckit"), "^suckit\\W?$;soundbank/suckit.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "suck my dick"), "^suck my dick\\W?$;soundbank/suckmydick.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "teapot"), "^teapot\\W?$;soundbank/teapot.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "thank god"), "^(?:thankgod|thank god)\\W?$;soundbank/thankgod.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "thank god"), "^than ?kgod\\W?$;soundbank/thankgod.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "traxion"), "^traxion\\W?$;soundbank/traxion.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "trixy"), "^trixy\\W?$;soundbank/trixy.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "twoon"), "^(?:twoon|2pows)\\W?$;soundbank/twoon.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "ty"), "^(?:ty|thanks|thank you)\\W?$;soundbank/thankyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "twoon"), "^twoon|2pows\\W?$;soundbank/twoon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "ty"), "^ty|thanks|thank you\\W?$;soundbank/thankyou.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "venny"), "^venny\\W?$;soundbank/venny.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "viewaskewer"), "^(?:viewaskewer|view)\\W?$;soundbank/view.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "viewaskewer"), "^view(askewer)?\\W?$;soundbank/view.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "what's that"), "^what'?s that\\W?$;soundbank/whatsthat.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "who are you"), "^who are you\\W?$;soundbank/whoareyou.ogg")
 
@@ -1501,7 +1509,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "ave"), "^ave\\W?$;sound/funnysounds/ave.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "baby baby"), "^baby baby\\W?$;sound/funnysounds/babybaby.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "baby evil"), "^baby evil\\W?$;sound/funnysounds/babyevillaugh.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "baby laughing"), "^(?:babylaughing|baby laughing)\\W?$;sound/funnysounds/babylaughing.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "baby laughing"), "^baby(laughing)?\\W?$;sound/funnysounds/babylaughing.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "bad boys"), "^bad boys\\W?$;sound/funnysounds/badboys.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Banana Boat"), "^banana boat\\W?$;sound/funnysounds/BananaBoatSong.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "benny hill"), "^benny hill\\W?$;sound/funnysounds/bennyhill.ogg")
@@ -1512,13 +1520,13 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "booo"), "^booo?\\W?$;sound/funnysounds/booo.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "boring"), "^boring\\W?$;sound/funnysounds/boring.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "boze"), "^boze\\W?$;sound/funnysounds/boze.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "bright side of life"), "^(?:bright ?side ?of ?life)\\W?$;sound/funnysounds/brightsideoflife.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "bright side of life"), "^bright ?side ?of ?life\\W?$;sound/funnysounds/brightsideoflife.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "buckdich"), "^buckdich\\W?$;sound/funnysounds/buckdich.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "bullshitter"), "^bullshitter\\W?$;sound/funnysounds/bullshitter.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "burns burns"), "^burns burns\\W?$;sound/funnysounds/burnsburns.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "camel toe"), "^camel toe\\W?$;sound/funnysounds/cameltoe.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "can't touch this"), "^can'?t touch this\\W?$;sound/funnysounds/canttouchthis.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "cccp"), "^(?:cccp|ussr)\\W?$;sound/funnysounds/cccp.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "cccp"), "^cccp|ussr\\W?$;sound/funnysounds/cccp.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "champions"), "^champions\\W?$;sound/funnysounds/champions.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "chicken"), "^chicken\\W?$;sound/funnysounds/chicken.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "chocolate rain"), "^chocolate rain\\W?$;sound/funnysounds/chocolaterain.ogg")
@@ -1530,7 +1538,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "crazy"), "^crazy\\W?$;sound/funnysounds/crazy.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "damnit"), "^damnit\\W?$;sound/funnysounds/damnit.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Danger Zone"), "^danger zone\\W?$;sound/funnysounds/DangerZone.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "dead soon"), "^(?:deadsoon|dead soon)\\W?$;sound/funnysounds/deadsoon.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "dead soon"), "^dead ?soon\\W?$;sound/funnysounds/deadsoon.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "defeated"), "^defeated\\W?$;sound/funnysounds/defeated.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "devil"), "^devil\\W?$;sound/funnysounds/devil.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "doesn't love you"), "^doesn'?t love you\\W?$;sound/funnysounds/doesntloveyou.ogg")
@@ -1545,7 +1553,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "elementary"), "^elementary\\W?$;sound/funnysounds/elementary.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "engel"), "^engel\\W?$;sound/funnysounds/engel.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "erstwenn"), "^erstwenn\\W?$;sound/funnysounds/erstwenn.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "exit light"), "^(?:exit ?light)\\W?$;sound/funnysounds/exitlight.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "exit light"), "^exit ?light\\W?$;sound/funnysounds/exitlight.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "faint"), "^faint\\W?$;sound/funnysounds/faint.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "fatality"), "^fatality\\W?$;sound/funnysounds/fatality.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Feel Good"), "^feel good\\W?$;sound/funnysounds/FeelGood.ogg")
@@ -1576,7 +1584,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "hoppereiter"), "^hoppereiter\\W?$;sound/funnysounds/hoppereiter.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "how are you"), "^how are you\\W?$;sound/funnysounds/howareyou.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "hush"), "^hush\\W?$;sound/funnysounds/hush.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "i bet"), "^(?:i ?bet)\\W?$;sound/funnysounds/ibet.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "i bet"), "^i ?bet\\W?$;sound/funnysounds/ibet.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "i can't believe"), "^i can'?t believe\\W?$;sound/funnysounds/icantbelieve.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "ichtuedieweh"), "^ichtuedieweh\\W?$;sound/funnysounds/ichtuedieweh.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "i do parkour"), "^i do parkour\\W?$;sound/funnysounds/idoparkour.ogg")
@@ -1595,7 +1603,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "jackpot"), "^jackpot\\W?$;sound/funnysounds/jackpot.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "jesus"), "^jesus\\W?$;sound/funnysounds/jesus.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Jesus Oh"), "^jesus Oh\\W?$;sound/funnysounds/JesusOh.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "john cena"), "^(?:john ?cena)\\W?$;sound/funnysounds/johncena.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "john cena"), "^john ?cena\\W?$;sound/funnysounds/johncena.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "jump motherfucker"), "^jump motherfucker\\W?$;sound/funnysounds/jumpmotherfucker.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "just do it"), "^just do it\\W?$;sound/funnysounds/justdoit.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "kamehameha"), "^kamehameha\\W?$;sound/funnysounds/kamehameha.ogg")
@@ -1603,7 +1611,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "keep your shirt on"), "^keep your shirt on\\W?$;sound/funnysounds/keepyourshirton.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Knocked Down"), "^knocked down\\W?$;sound/funnysounds/KnockedDown.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "kommtdiesonne"), "^kommtdiesonne\\W?$;sound/funnysounds/kommtdiesonne.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "kung fu"), "^(?:kung ?fu)\\W?$;sound/funnysounds/kungfu.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "kung fu"), "^kung ?fu\\W?$;sound/funnysounds/kungfu.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "lately"), "^lately\\W?$;sound/funnysounds/lately.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Legitness"), "^legitness\\W?$;sound/funnysounds/Legitness.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "let's get ready"), "^let'?s get ready\\W?$;sound/funnysounds/letsgetready.ogg")
@@ -1612,7 +1620,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "lion king"), "^lion king\\W?$;sound/funnysounds/lionking.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "live to win"), "^live to win\\W?$;sound/funnysounds/livetowin.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "losing my religion"), "^losing my religion\\W?$;sound/funnysounds/losingmyreligion.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "love me"), "^(?:love ?me)\\W?$;sound/funnysounds/loveme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "love me"), "^love ?me\\W?$;sound/funnysounds/loveme.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "low"), "^low\\W?$;sound/funnysounds/low.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "luck"), "^luck\\W?$;sound/funnysounds/luck.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "lust"), "^lust\\W?$;sound/funnysounds/lust.ogg")
@@ -1706,7 +1714,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "undderhaifisch"), "^undderhaifisch\\W?$;sound/funnysounds/undderhaifisch.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "up town girl"), "^up town girl\\W?$;sound/funnysounds/uptowngirl.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "valkyries"), "^valkyries\\W?$;sound/funnysounds/valkyries.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "wahwahwah"), "(?:wahwahwah|dcmattic|mattic\\W?$;sound/funnysounds/wahwahwah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "wahwahwah"), "^wahwahwah|dcmattic|mattic\\W?$;sound/funnysounds/wahwahwah.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "want you"), "^want you\\W?$;sound/funnysounds/wantyou.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "wazzup"), "^wazzup\\W?$;sound/funnysounds/wazzup.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "wehmirohweh"), "^wehmirohweh\\W?$;sound/funnysounds/wehmirohweh.ogg")
@@ -1875,7 +1883,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "dirty"), "^dirty\\W?$;sound/warp/dirty.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "do as you're told"), "^do as you'?re told\\W?$;sound/warp/doasyouretold.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "what have we done"), "^what have we done\\W?$;sound/warp/done.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "done for the day"), "^(?:done( for the)?( day)?)\\W?$;sound/warp/done_for_the_day.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "done for the day"), "^done( for the)?( day)?\\W?$;sound/warp/done_for_the_day.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "done it"), "^done it\\W?$;sound/warp/doneit.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "do now"), "^do now\\W?$;sound/warp/donow.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "don't like vaginas"), "^don'?t like vaginas\\W?$;sound/warp/dontlikevaginas.ogg")
@@ -1914,7 +1922,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "got your back"), "^got your back\\W?$;sound/warp/garrus_gotyourback.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "keep moving"), "^keep moving\\W?$;sound/warp/garrus_keepmoving.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "nice work"), "^nice work\\W?$;sound/warp/garrus_nicework.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "get away cat"), "^cat|get away cat)\\W?$;sound/warp/getawaycat.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "get away cat"), "^cat|get away cat\\W?$;sound/warp/getawaycat.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "get off"), "^get off\\W?$;sound/warp/getoff.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "wasting my time"), "^wasting my time\\W?$;sound/warp/glados_wasting.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "just go crazy"), "^just go crazy\\W?$;sound/warp/go_crazy.ogg")
@@ -1939,14 +1947,14 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "i will eat"), "^i will eat( your)?\\W?$;sound/warp/iwilleatyour.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "jail"), "^jail\\W?$;sound/warp/jail.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "jump pad"), "^jump pad\\W?$;sound/warp/jump_pad.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "just the tip"), "^(?:just the tip|tippy(touch)?)\\W?$;sound/warp/just_the_tip.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "just the tip"), "^just the tip|tippy(touch)?\\W?$;sound/warp/just_the_tip.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "kevin bacon"), "^kevin bacon\\W?$;sound/warp/kevinbacon.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "kill"), "^kill\\W?$;sound/warp/kill.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "kizuna"), "^kizuna\\W?$;sound/warp/kizuna.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "need to kill"), "^need to kill\\W?$;sound/warp/krogan_kill.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "ladybug"), "^ladybug\\W?$;sound/warp/ladybug.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "legend"), "^(?:legend|ere(?:bux)?)\\W?$;sound/warp/legend.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "lego maniac"), "^(?:lego maniac|zach|stukey)\\W?$;sound/warp/lego_maniac.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "legend"), "^legend|ere( ?bux)?\\W?$;sound/warp/legend.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "lego maniac"), "^lego maniac|zach|stukey\\W?$;sound/warp/lego_maniac.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "human relationships"), "^human relationships?\\W?$;sound/warp/liara_humanrelationships.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "incredible"), "^incredible\\W?$;sound/warp/liara_incredible.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "never happened"), "^never happened\\W?$;sound/warp/liara_neverhappened.ogg")
@@ -1961,7 +1969,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "like an idiot"), "^like an idiot\\W?$;sound/warp/makes_you_look_like_idiot.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "this beat"), "^this beat\\W?$;sound/warp/marg_tongue.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "killed with math"), "^(killed )?(with )?math\\W?$;sound/warp/math.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "me me me"), "^me me(?: me)?\\W?$;sound/warp/mememe.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "me me me"), "^me me( ?me)?\\W?$;sound/warp/mememe.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "metaphor"), "^metaphor\\W?$;sound/warp/metaphor.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "misdirection"), "^misdirection\\W?$;sound/warp/misdirection.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "nobody move"), "^nobody move\\W?$;sound/warp/move.ogg")
@@ -1970,13 +1978,13 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "my friends"), "^my friends\\W?$;sound/warp/my_friends.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "my gun's bigger"), "^my gun'?s bigger\\W?$;sound/warp/mygunsbigger.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "nades"), "^nades\\W?$;sound/warp/nades.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "never look back"), "^(?:never look back|muddy(creek)?)\\W?$;sound/warp/neverlookback.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "never look back"), "^never look back|muddy(creek)?\\W?$;sound/warp/neverlookback.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "nonono"), "^no( )?no( )?no\\W?$;sound/warp/nonono.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "nutsack"), "^nutsack\\W?$;sound/warp/nutsack.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "my god"), "^my god\\W?$;sound/warp/oh_my_god.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "oh fudge"), "^fudge|oh fudge\\W?$;sound/warp/ohfudge.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "on me"), "^on me\\W?$;sound/warp/onme.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "on my mom"), "^(?:on my mom)\\W?|\\( ͡° ͜ʖ ͡°\\)$;sound/warp/onmymom.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "on my mom"), "^on my mom|\\( ͡° ͜ʖ ͡°\\W?$;sound/warp/onmymom.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "ow what the"), "^what the|ow what the\\W?;sound/warp/owwhatthe.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "pain in the ass"), "^pain in the ass\\W?$;sound/warp/pain.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "pan out"), "^pan out\\W?$;sound/warp/panout.ogg")
@@ -2035,7 +2043,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "ugly stick"), "^ugly stick\\W?$;sound/warp/ugly.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "unfair"), "^unfair\\W?$;sound/warp/unfair.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "unicorn"), "^unicorn\\W?$;sound/warp/unicorn.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "v3"), "^(?:v3|vestek)\\W?$;sound/warp/v3.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "v3"), "^v3|vestek\\W?$;sound/warp/v3.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "valid"), "^valid\\W?$;sound/warp/valid.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "very nice"), "^very nice\\W?$;sound/warp/very_nice.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "vewy angwy"), "^vewy angwy\\W?$;sound/warp/vewy_angwy.ogg")
@@ -2062,12 +2070,12 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(4, "orders"), "^orders\\W?$;sound/warp/wrex_orders.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "right behind you"), "^right behind you\\W?$;sound/warp/wrex_rightbehindyou.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "what can i do"), "^what can i do\\W?$;sound/warp/wrex_whatcanido.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "your mom"), "^(?:your mom|pug(ster)?)\\W?$;sound/warp/yourmom.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "your mom"), "^your mom|pug(ster)?\\W?$;sound/warp/yourmom.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "yarg"), "^yarg\\W?$;sound/warp/yarg.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "zooma"), "^(?:zooma?|xuma)\\W?$;sound/warp/zooma.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "zooma"), "^zooma?|xuma\\W?$;sound/warp/zooma.ogg")
 
         if self.Enabled_SoundPacks[5]:
-            self.db.set(SOUND_TRIGGERS.format(5, "2ez"), "(?:2ez|too easy)\\W?;sound/westcoastcrew/2ez.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "2ez"), "2ez|too easy\\W?;sound/westcoastcrew/2ez.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ability"), "ability\\W?;sound/westcoastcrew/ability.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ahsi"), "^ahsi\\W?$;sound/westcoastcrew/ahsi.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "all dead"), "^all ?dead\\W?$;sound/westcoastcrew/alldead.ogg")
@@ -2085,16 +2093,16 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "biff"), "biff\\W?;sound/westcoastcrew/biff.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "outro"), "outro\\W?;sound/westcoastcrew/biggerlove.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bigpippin"), "^bigpippin\\W?$;sound/westcoastcrew/bigpippin.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "big whoop"), "(?:big wh?oop)\\W?$;sound/westcoastcrew/bigwhoop.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "big whoop"), "big wh?oop\\W?$;sound/westcoastcrew/bigwhoop.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bite my shiny metal ass"), "^bite my shiny metal ass\\W?;sound/westcoastcrew/bitemyshinymetalass.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bofumballs"), "^bofumb(alls)?\\W?$;sound/westcoastcrew/bofumballs.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "boomshakalaka"), "boomshakalaka\\W?;sound/westcoastcrew/boomshakalaka.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "borracho"), "^borracho\\W?$;sound/westcoastcrew/borracho.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "bumblebee tuna"), "(?:your balls are showing|bumblebee tuna)\\W?;sound/westcoastcrew/bumblebeetuna.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bumblebee tuna"), "your balls are showing|bumblebee tuna\\W?;sound/westcoastcrew/bumblebeetuna.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bum bum"), "^bum( )?bum\\W?$;sound/westcoastcrew/bumbum.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bweenabwaana"), "^bweena(bwaana)?\\W?$;sound/westcoastcrew/bweenabwaana.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "c3"), "^c3\\W?$;sound/westcoastcrew/c3.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "campingtroll"), "(?:campingtroll|baby got back)\\W?;sound/westcoastcrew/campingtroll.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "campingtroll"), "campingtroll|baby got back\\W?;sound/westcoastcrew/campingtroll.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "cann"), "^cann\\W?$;sound/westcoastcrew/cann.ogg")
             # repeat of FunnySounds
             #self.db.set(SOUND_TRIGGERS.format(5, "can't touch this"), "^can'?t touch this\\W?$;sound/westcoastcrew/CantTouchThis.ogg")
@@ -2112,7 +2120,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "cry me a riverr"), "^cry me a riverr\\W?$;sound/westcoastcrew/crymeariver2.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "cthree"), "^cthree\\W?$;sound/westcoastcrew/cuttingedge.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "damn im good"), "^damn i'?m good\\W?;sound/westcoastcrew/damnimgood.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "dead last"), "(?:yeah,? how'?d he finish again|dead ?last)\\W?;sound/westcoastcrew/deadlast.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dead last"), "yeah,? how'?d he finish again|dead ?last\\W?;sound/westcoastcrew/deadlast.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "did i do that"), "^did i do that\\W?;sound/westcoastcrew/dididothat.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dddid i do that"), "^dddid i do that\\W?;sound/westcoastcrew/dididothat2.ogg")
             # repeat of Prestige Sounds
@@ -2122,22 +2130,22 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "die motherfucker"), "^die motherfucker\\W?;sound/westcoastcrew/diemotherfucker.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "it's a disastah"), "disastah|it'?s a disastah\\W?;sound/westcoastcrew/disastah.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dominating"), "dominating\\W?;sound/westcoastcrew/dominating.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "your'e doomed"), "(?:your'?e doome?'?d);sound/westcoastcrew/doomed.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "your'e doomed"), "your'?e doome?'?d;sound/westcoastcrew/doomed.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dr1nya"), "^dr1nya\\W?$;sound/westcoastcrew/dr1nya.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "drunk"), "(?:^drunk|always smokin' blunts|gettin' drunk)\\W?;sound/westcoastcrew/drunk.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "dundun"), "^(?:dun ?dun)\\W?$;sound/westcoastcrew/dundun.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "dundundun"), "^(?:dun dun dun|dundundun)\\W?$;sound/westcoastcrew/dundundun.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "dundundundun"), "^(?:dun dun dun dun|dundundundun)\\W?$;sound/westcoastcrew/dundundundun.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "easy as 123"), "(?:easy as|ABC)\\W?;sound/westcoastcrew/easyas.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "drunk"), "^drunk|always smokin'? blunts|gettin'? drunk\\W?;sound/westcoastcrew/drunk.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dundun"), "^dun ?dun\\W?$;sound/westcoastcrew/dundun.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dundundun"), "^dun dun dun|dundundun\\W?$;sound/westcoastcrew/dundundun.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dundundundun"), "^dun dun dun dun|dundundundun\\W?$;sound/westcoastcrew/dundundundun.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "easy as 123"), "easy as|ABC\\W?;sound/westcoastcrew/easyas.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "easy come easy go"), "easy come easy go\\W?;sound/westcoastcrew/easycomeeasygo.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ehtogg"), "^ehtogg\\W?$;sound/westcoastcrew/ehtogg.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "elo"), "^elo\\W?;sound/westcoastcrew/elo.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "enemy pick"), "^enemy( )?pick\\W?$;sound/westcoastcrew/enemypick.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "ez"), "(?:^ez|^easy$|so easy|that was easy|that was ez);sound/westcoastcrew/ez.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ez"), "^ez|easy$|so easy|that was easy|that was ez;sound/westcoastcrew/ez.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "f33"), "f33\\W?;sound/westcoastcrew/f3.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "facial"), "facial\\W?;sound/westcoastcrew/facial.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "feroz"), "feroz\\W?;sound/westcoastcrew/feroz.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "filthy zealot"), "(?:keep the change|filthy zealot)\\W?;sound/westcoastcrew/filthyzealot.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "filthy zealot"), "keep the change|filthy zealot\\W?;sound/westcoastcrew/filthyzealot.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "flush"), "flush\\W?;sound/westcoastcrew/flush.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "fox"), "^fox\\W?$;sound/westcoastcrew/fox.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "fuckin bitch"), "^fuckin bitch;sound/westcoastcrew/fuckinbitch.ogg")
@@ -2157,7 +2165,7 @@ class myFun(minqlx.Plugin):
             # self.db.set(SOUND_TRIGGERS.format(5, "haha"), "^haha\\W?$;sound/westcoastcrew/haha.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "hahaha2"), "hahaha2\\W?$;sound/westcoastcrew/hahaha.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "hahahaha"), "^hahahaha\\W?$;sound/westcoastcrew/hahahaha.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "happy hour"), "(:?happy hour|it?'s happy hour)\\W?;sound/westcoastcrew/happyhour.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "happy hour"), "^happy hour|it'?s happy hour\\W?$;sound/westcoastcrew/happyhour.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "he's heating up"), "he'?s heating up\\W?;sound/westcoastcrew/heatingup.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "hehe"), "^hehe\\W?$;sound/westcoastcrew/hehe.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "hehehe"), "^hehehe\\W?;sound/westcoastcrew/hehehe.ogg")
@@ -2173,7 +2181,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "in the baggg"), "in the baggg\\W?;sound/westcoastcrew/inthebag4.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "in the face"), "in the face\\W?;sound/westcoastcrew/intheface.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "in the zone"), "^in the zone|i'?m in the zone\\W?$;sound/westcoastcrew/inthezone.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "doom2"), "(?:doom2$|tell me what you came here for)\\W?;sound/westcoastcrew/intoyou.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "doom2"), "doom2|tell me what you came here for\\W?;sound/westcoastcrew/intoyou.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "introtoo"), "^introtoo\\W?$;sound/westcoastcrew/intro2.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "isabadmutha"), "^isabadmutha\\W?$;sound/westcoastcrew/isabadmutha.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "jdub"), "^jdub\\W?$;sound/westcoastcrew/jdub.ogg")
@@ -2182,19 +2190,19 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "kinraze"), "^kinraze\\W?$;sound/westcoastcrew/kinraze.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "lakad"), "^lakad\\W?$;sound/westcoastcrew/lakad.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "lg"), "lg\\W?;sound/westcoastcrew/lg.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "lol loser"), "(?:(lol )?loser)\\W?;sound/westcoastcrew/lolloser.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "lol loser"), "(lol )?loser\\W?;sound/westcoastcrew/lolloser.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "look what you did"), "^look what you did\\W?;sound/westcoastcrew/lookwhatyoudid.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "look what you've done"), "look what you'?ve done\\W?;sound/westcoastcrew/lookwhatyouvedone.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "los"), "^los$;sound/westcoastcrew/los.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "lovin' it"), "lovin'? it\\W?;sound/westcoastcrew/lovinit.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "makaveli"), "(?:makaveli)\\W?$;sound/westcoastcrew/makaveli.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "makaveli"), "^makaveli\\W?$;sound/westcoastcrew/makaveli.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "martin"), "martin\\W?;sound/westcoastcrew/martin.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "pizza pizza"), "(?:pizza pizza|meetzah meetzah|heetzah peetzah)\\W?;sound/westcoastcrew/meetzah.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "mirai"), "mirai\\W?;sound/westcoastcrew/mirai.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "did you miss me"), "did you miss me\\W?;sound/westcoastcrew/missme.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "mobil"), "mobil\\W?;sound/westcoastcrew/mobil.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "i'm a motherfuckin monster"), "i'?m a motherfuckin monst(er)?\\W?;sound/westcoastcrew/monster.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "monster kill"), "monster kill\\W?;sound/westcoastcrew/monsterkill.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "pizza pizza"), "^pizza pizza|meetzah meetzah|heetzah peetzah\\W?;sound/westcoastcrew/meetzah.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "mirai"), "^mirai\\W?;sound/westcoastcrew/mirai.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "did you miss me"), "^did you miss me\\W?;sound/westcoastcrew/missme.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "mobil"), "^mobil\\W?;sound/westcoastcrew/mobil.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "i'm a motherfuckin monster"), "^i'?m a motherfuckin monst(er)?\\W?;sound/westcoastcrew/monster.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "monster kill"), "^monster kill\\W?;sound/westcoastcrew/monsterkill.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "muthafucka"), "^muthafucka\\W?$;sound/westcoastcrew/muthafucka.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "nanana"), "^nanana\\W?$;sound/westcoastcrew/nanana.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "next level"), "^next( )?level\\W?$;sound/westcoastcrew/nextlevel.ogg")
@@ -2205,13 +2213,13 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "not tonight"), "^not( )?tonight\\W?$;sound/westcoastcrew/nottonight.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "no way"), "^no( )?way\\W?$;sound/westcoastcrew/noway.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "oblivion"), "oblivion\\W?;sound/westcoastcrew/obliv.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "obliv"), "^(?:obliv(ious)?)\\W?$;sound/westcoastcrew/obliv2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "obliv"), "^obliv(ious)?\\W?$;sound/westcoastcrew/obliv2.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "oh boy"), "^oh boy\\W?$;sound/westcoastcrew/ohboy.ogg")
             # repeat of FunnySounds
             # self.db.set(SOUND_TRIGGERS.format(5, "oh no"), "^oh no\\W?$;sound/westcoastcrew/OhNo.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "he's on fire"), "he'?s on fire\\W?;sound/westcoastcrew/onfire.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ooom"), "ooom\\W?;sound/westcoastcrew/oomwhatyousay.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "opinion"), "(?:opinion|well, you know, that'?s)\\W?;sound/westcoastcrew/opinion.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "opinion"), "^opinion|well, you know, that'?s\\W?;sound/westcoastcrew/opinion.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "oshikia"), "^oshikia\\W?$;sound/westcoastcrew/oshikia.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "oy"), "^oy\\W?$;sound/westcoastcrew/oy.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "papabalyo"), "papabalyo\\W?;sound/westcoastcrew/papabaylo.ogg")
@@ -2227,14 +2235,14 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "rage quit"), "rage quit\\W?;sound/westcoastcrew/ragequit.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "let's get ready to rumble"), "let'?s get ready to rumble\\W?;sound/westcoastcrew/readytorumble.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "really"), "^really\\W?;sound/westcoastcrew/really.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "reflexes"), "(?:reflexes|it'?s all in the reflexes);sound/westcoastcrew/reflexes.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "rekt"), "rekt\\W?;sound/westcoastcrew/rekt.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "reflexes"), "^reflexes|it'?s all in the reflexes\\W?;sound/westcoastcrew/reflexes.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "rekt"), "^rekt\\W?;sound/westcoastcrew/rekt.ogg")
             # repeat of FunnySounds
             # self.db.set(SOUND_TRIGGERS.format(5, "retard"), "retard;sound/westcoastcrew/Retard.ogg")
             #self.db.set(SOUND_TRIGGERS.format(5, "rockyouguitar"), "^rockyouguitar\\W?$;sound/westcoastcrew/RockYouGuitar.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "rothkoo"), "^rothkoo\\W?$;sound/westcoastcrew/rothko.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "rothko"), "^rothko\\W?$;sound/westcoastcrew/rothko_theme.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "rugged"), "(?:rugged\\W?$|like a rock);sound/westcoastcrew/rugged.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "rugged"), "^rugged\\W?$|like a rock);sound/westcoastcrew/rugged.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "santa town"), "santa( )?town\\W?;sound/westcoastcrew/santatown.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "saved"), "saved\\W?;sound/westcoastcrew/saved.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "scrub"), "scrub\\W?;sound/westcoastcrew/scrub.ogg")
@@ -2248,7 +2256,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "slime"), "slime\\W?;sound/westcoastcrew/slime.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "snort"), "^snort\\W?$;sound/westcoastcrew/snort.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "snpete"), "^snpete\\W?$;sound/westcoastcrew/SNpete.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "snpete2"), "(?:snpete2|chick chicky boom)\\W?;sound/westcoastcrew/SNpete2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "snpete2"), "snpete2|chick chicky boom\\W?;sound/westcoastcrew/SNpete2.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "so is your face"), "so is your face\\W?;sound/westcoastcrew/soisyourface.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "solis"), "solis\\W?$;sound/westcoastcrew/solis.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "spank you"), "spank you\\W?;sound/westcoastcrew/spankyou.ogg")
@@ -2268,11 +2276,11 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "troll toll"), "troll ?toll\\W?;sound/westcoastcrew/trolltoll.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "turple"), "^turple\\W?$;sound/westcoastcrew/turpled.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "tustamena"), "tustamena\\W?;sound/westcoastcrew/tustamena.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "ty2"), "(?:thanks2|ty2)\\W?;sound/westcoastcrew/ty.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ty2"), "thanks2|ty2\\W?;sound/westcoastcrew/ty.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "unstoppable"), "unstoppable\\W?;sound/westcoastcrew/unstoppable.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ventt"), "ventt\\W?;sound/westcoastcrew/v3ntt.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "vacuum"), "vacuum\\W?;sound/westcoastcrew/vacuum.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "vks"), "^(?:vks|bow)$;sound/westcoastcrew/vks.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "vks"), "^vks|bow\\W?$;sound/westcoastcrew/vks.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "w3rd"), "w3rd\\W?;sound/westcoastcrew/w3rd.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "wanerbuliao"), "^wanerbuliao\\W?$;sound/westcoastcrew/wanerbuliao.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "waow"), "waow\\W?;sound/westcoastcrew/waow.ogg")
@@ -2285,7 +2293,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "wuyoga"), "wuyoga\\W?;sound/westcoastcrew/wuyoga.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "xxx"), "^xxx\\W?$;sound/westcoastcrew/xxx.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ya basic"), "ya ?basic\\W?;sound/westcoastcrew/yabasic.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "jdub"), "(?:jdub|y'?all ready for this)\\W?$;sound/westcoastcrew/yallreadyforthis.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "jdub"), "^jdub|y'?all ready for this\\W?$;sound/westcoastcrew/yallreadyforthis.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "yawn"), "^yawn\\W?$;sound/westcoastcrew/yawn.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "yawnn"), "^yawnn+\\W?$;sound/westcoastcrew/yawnn.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "yeah baby"), "yeah baby\\W?;sound/westcoastcrew/yeahbaby.ogg")
