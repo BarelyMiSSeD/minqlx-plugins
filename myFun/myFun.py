@@ -218,7 +218,7 @@ TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
 CATEGORIES = ["#Default", "#Prestige", "#Funny", "#Duke", "#Warp", "#West"]
 SOUND_PACKS = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
                "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live", "West Coast Crew Sound"]
-ADDITIONAL_SOUNDPACKS = ['Dooms.pk3', 'DOGs.pk3', 'Mario.pk3', 'Q1Q2.pk3', 'Bobs.pk3', 'Randos.pk3', 'Kitchen.pk3']
+ADDITIONAL_SOUNDPACKS = []
 
 
 class myFun(minqlx.Plugin):
