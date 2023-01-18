@@ -138,8 +138,11 @@ haha yeah haha hahaha yeah yeah hahaha yeahhh
 4 SOUNDS: Type these words/phrases in normal chat to play a sound on the server.
 
 // Copy after this line into your server config
-// Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no admin player time restriction)
+// Let players with at least perm level 'qlx_funAdminlevel' play sounds unrestricted (change applies at load time)
+// 0-Restricted like all players; 1-Unrestricted for player time limits only; 2-Unrestricted from any time limit
 set qlx_funUnrestrictAdmin "0"
+// Set the permission level for a myFun admin (change applies at load time)
+set qlx_funAdminlevel "5"
 // Delay between sounds being played
 set qlx_funSoundDelay "5"
 // **** Used for limiting players spamming sounds. ****
@@ -209,7 +212,7 @@ import re
 from os.path import isfile
 from zipfile import ZipFile
 
-VERSION = "7.6"
+VERSION = "7.7"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -233,8 +236,10 @@ class myFun(minqlx.Plugin):
     help_msg = []
 
     def __init__(self):
-        # Let players with perm level 5 play sounds after the "qlx_funSoundDelay" timeout (no player time restriction)
+        # Let players with perm level qlx_funAdminlevel play sounds
         self.set_cvar_once("qlx_funUnrestrictAdmin", "0")
+        # sets the admin level for playing unrestricted sounds (level 5 recommended)
+        self.set_cvar_once("qlx_funAdminlevel", "5")
         # Delay between sounds being played
         self.set_cvar_once("qlx_funSoundDelay", "5")
         # **** Used for limiting players spamming sounds. ****
@@ -269,7 +274,7 @@ class myFun(minqlx.Plugin):
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
         self.add_command("cookies", self.cmd_cookies)
-        self.add_command(("listsounds", "getsounds", "listsound"), self.list_sounds)
+        self.add_command(("listsounds", "ls"), self.list_sounds)
         self.add_command(("myfun", "fun"), self.cmd_help)
         self.add_command(("off", "soundoff"), self.sound_off, client_cmd_perm=0)
         self.add_command(("on", "soundon"), self.sound_on, client_cmd_perm=0)
@@ -285,6 +290,8 @@ class myFun(minqlx.Plugin):
         self.add_command("sounds", self.cmd_enable_sounds, usage="<0/1>")
         self.add_command(("erase_sounds", "erasedb"), self.start_erase_db, 5)
         self.add_command(("fill_sounds", "filldb"), self.start_fill_db, 5)
+        self.add_command("restrictadmin", self.get_set_restrict_admin, 5)
+        self.add_command("adminlevel", self.get_set_admin_level, 5)
 
         # lambda function to insert spaces in a string (replaces _ or inserts between CamelCase). Returns lowercase.
         self.convert = lambda x: x.replace('_', ' ') if x.islower() else ' '.join(re.findall('[A-Z][^A-Z]*', x)).lower()
@@ -315,8 +322,50 @@ class myFun(minqlx.Plugin):
         self.playedWelcome = []
         # command prefix
         self._command_prefix = self.get_cvar("qlx_commandPrefix")
+        # admin settings
+        self.admin_allowed = self.get_cvar("qlx_funUnrestrictAdmin", int)
+        self.admin_level = self.get_cvar("qlx_funAdminlevel", int)
         # Execute function to remove loaded !sound commands in other scripts
         self.remove_conflicting_sound_commands()
+
+    def get_set_admin_level(self, player, msg, channel):
+        if len(msg) > 1:
+            try:
+                level = int(msg[1])
+                if level < 0 or level > 5:
+                    raise ValueError
+                self.admin_level = level
+                player.tell("^2myFun admin level set to ^3{}".format(self.admin_level))
+            except Exception as e:
+                player.tell("Level must be an integer. Valid levels are 0-5. Exception: {} {}"
+                            .format(type(e).__name__, e))
+        else:
+            player.tell("^2myFun admin level is ^3{}\n^2{}adminlevel <perms_level> ^3to set admin level."
+                        .format(self.admin_level, self._command_prefix))
+
+    def get_set_restrict_admin(self, player, msg, channel):
+        if len(msg) > 1:
+            try:
+                level = int(msg[1])
+                if level < 0 or level > 5:
+                    raise ValueError
+                elif level == 0:
+                    self.admin_allowed = 0
+                    player.tell("^1myFun admin sound play is restricted.")
+                elif level == 1:
+                    self.admin_allowed = 1
+                    player.tell("^2myFun admin sound play is unrestricted to player time limits.")
+                else:
+                    self.admin_allowed = 2
+                    player.tell("^2myFun admin sound play is fully un-restricted.")
+            except Exception as e:
+                player.tell("Admin restriction valid values are 0/1/2. Exception: {} {}"
+                            .format(type(e).__name__, e))
+        else:
+            r = ['', 'partially un-', 'fully un-']
+            player.tell("^2myFun admin is ^3{}restricted\n"
+                        "^2{}restrictadmin <0/1/2> ^3to restrict/partially un-restrict/fully un-restrict."
+                        .format(r[self.admin_allowed], self._command_prefix))
 
     @minqlx.delay(3)
     def remove_conflicting_sound_commands(self):
@@ -338,7 +387,7 @@ class myFun(minqlx.Plugin):
     @minqlx.thread
     def erase_db(self, player, msg=None, channel=None):
         length = len(self.Enabled_SoundPacks)
-        self.erase_triggers(player, length)
+        done = self.erase_triggers(player, length)
         self.soundPacks = []
         self.categories = []
         self.soundLists = []
@@ -346,13 +395,22 @@ class myFun(minqlx.Plugin):
         self._total_sounds = 0
         player.tell("^1Completed Database Sound Trigger Erase.")
 
-    def erase_triggers(self, player, length, all_triggers=True):
+    def erase_triggers(self, player, index, all_triggers=True):
+        def del_db(num):
+            y = self.db.keys(SOUND_TRIGGERS.format(num, "*"))
+            for key in y:
+                del self.db[key]
+            try:
+                player.tell("^1Database Table {} delete commands issued".format(self.categories[num]))
+            except:
+                pass
+
         if all_triggers:
-            for x in range(length):
-                y = self.db.keys(SOUND_TRIGGERS.format(x, "*"))
-                for key in y:
-                    del self.db[key]
-                player.tell("^1Database Table {} delete commands issued".format(self.categories[x]))
+            for x in range(index):
+                del_db(x)
+        else:
+            del_db(index)
+        return True
 
     def start_fill_db(self, player=None, msg=None, channel=None):
         self.fill_db(player)
@@ -482,9 +540,11 @@ class myFun(minqlx.Plugin):
                 return minqlx.RET_NONE
             # check sound delay time
             delay_time = self.check_time(player)
+            # see if admin is trying to play sound
+            admin_sound = self.db.get_permission(player.steam_id) >= self.admin_level
             if delay_time:
                 # if admins have no delay time restriction then PASS
-                if self.get_cvar("qlx_funUnrestrictAdmin", bool) and self.db.get_permission(player.steam_id) == 5:
+                if self.admin_allowed and admin_sound:
                     pass
                 # otherwise, impose the delay time wait and stop sound trigger processing
                 else:
@@ -492,7 +552,7 @@ class myFun(minqlx.Plugin):
                                 .format(delay_time))
                     return minqlx.RET_NONE
             # check to see if a sound has been played
-            if not self.last_sound:
+            if not self.last_sound or self.admin_allowed > 1 and admin_sound:
                 pass
             # Make sure the last sound played was not within the sound delay limit
             elif time.time() - self.last_sound < self.get_cvar("qlx_funSoundDelay", int):
@@ -1442,7 +1502,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(0, "fall2"), "fall2;sound/player/santa/falling1.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "f3"), "f3|press f3|ready( up)?;sound/vo/crash_new/36_04.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "holy shit"), "holy shit;sound/vo_female/holy_shit")
-            self.db.set(SOUND_TRIGGERS.format(0, "welcome to quake live"), "welcome to ql|quake live;sound/vo_evil/welcome")
+            self.db.set(SOUND_TRIGGERS.format(0, "welcome to quake live"), "welcome to q(uake )?l(ive)?;sound/vo_evil/welcome")
             self.db.set(SOUND_TRIGGERS.format(0, "gasp"), "gasp;sound/player/anarki/gasp.wav")
             self.db.set(SOUND_TRIGGERS.format(0, "go"), "go;sound/vo/go")
             self.db.set(SOUND_TRIGGERS.format(0, "beep boop"), "beep boop;sound/player/tankjr/taunt.wav")
@@ -1515,13 +1575,13 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(1, "flash"), "flash(soul)?;soundbank/flash.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "fuckface"), "fuckface;soundbank/fuckface.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "fuckyou"), "fuckyou;soundbank/fuckyou.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "get emm"), "get( ?em)?;soundbank/getemm.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "get em"), "get ?em;soundbank/getemm.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "gonads"), "gonads|nads;soundbank/gonads.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "gtfo"), "gtfo;soundbank/gtfo.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "hug it out"), "hug it out;soundbank/hugitout.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "idiot"), "idiot|andycreep|d3phx|gladiat0r;soundbank/idiot.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "idiot2"), "idiot2;soundbank/idiot2.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "it?'s time"), "it'?s time;soundbank/itstime.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "it's time"), "it'?s time;soundbank/itstime.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "jeopardy"), "jeopardy;soundbank/jeopardy.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "jerk off"), "jerk( ?off)?;soundbank/jerkoff.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "killo"), "killo;soundbank/killo.ogg")
@@ -1554,7 +1614,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(1, "suckit"), "suckit;soundbank/suckit.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "suck my dick"), "suck my dick;soundbank/suckmydick.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "teapot"), "teapot;soundbank/teapot.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "thank god"), "than ?kgod;soundbank/thankgod.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "thank god"), "thank ?god;soundbank/thankgod.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "traxion"), "traxion;soundbank/traxion.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "trixy"), "trixy;soundbank/trixy.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "twoon"), "twoon|2pows;soundbank/twoon.ogg")
@@ -1581,7 +1641,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "ave"), "ave;sound/funnysounds/ave.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "baby baby"), "baby baby;sound/funnysounds/babybaby.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "baby evil"), "baby evil;sound/funnysounds/babyevillaugh.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "baby laughing"), "baby(laughing)?;sound/funnysounds/babylaughing.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "baby laughing"), "baby( laughing)?;sound/funnysounds/babylaughing.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "bad boys"), "bad boys;sound/funnysounds/badboys.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Banana Boat"), "banana boat;sound/funnysounds/BananaBoatSong.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "benny hill"), "benny hill;sound/funnysounds/bennyhill.ogg")
@@ -1674,7 +1734,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "it's not"), "it'?s not;sound/funnysounds/itsnot.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "jackpot"), "jackpot;sound/funnysounds/jackpot.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "jesus"), "jesus;sound/funnysounds/jesus.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "Jesus Oh"), "jesus Oh;sound/funnysounds/JesusOh.ogg")
+            self.db.set(SOUND_TRIGGERS.format(2, "Jesus Oh"), "jesus oh;sound/funnysounds/JesusOh.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "john cena"), "john ?cena;sound/funnysounds/johncena.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "jump motherfucker"), "jump motherfucker;sound/funnysounds/jumpmotherfucker.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "just do it"), "just do it;sound/funnysounds/justdoit.ogg")
@@ -1794,7 +1854,6 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(2, "when angels"), "when angels;sound/funnysounds/whenangels.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "where are you"), "where are you;sound/funnysounds/whereareyou.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "whistle"), "whistle;sound/funnysounds/whistle.ogg")
-            self.db.set(SOUND_TRIGGERS.format(2, "why mad"), "why mad;sound/funnysounds/whymad.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "Will Be Singing"), "will be singing;sound/funnysounds/WillBeSinging.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "wimbaway"), "wimbaway;sound/funnysounds/wimbaway.ogg")
             self.db.set(SOUND_TRIGGERS.format(2, "windows"), "windows;sound/funnysounds/windows.ogg")
@@ -1814,7 +1873,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(3, "abort"), "abort;sound/duke/abort01.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "ahhh"), "ahhh;sound/duke/ahh04.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "much better"), "much better;sound/duke/ahmuch03.wav")
-            self.db.set(SOUND_TRIGGERS.format(3, "aisle4"), "aisle 4;sound/duke/aisle402.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "aisle 4"), "aisle ?4;sound/duke/aisle402.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "a mess"), "a mess;sound/duke/amess06.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "annoying"), "annoying;sound/duke/annoy03.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "bitchin"), "bitchin;sound/duke/bitchn04.wav")
@@ -1848,7 +1907,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(3, "hail king"), "hail king;sound/duke/hail01.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "shit happens"), "shit happens;sound/duke/happen01.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "holy cow"), "holy cow;sound/duke/holycw01.wav")
-            self.db.set(SOUND_TRIGGERS.format(3, "holy shit"), "holy shit;sound/duke/holysh02.wav")
+            self.db.set(SOUND_TRIGGERS.format(3, "duke holy shit"), "duke holy ?shit;sound/duke/holysh02.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "im good"), "im good;sound/duke/imgood12.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "independence"), "independence;sound/duke/indpnc01.wav")
             self.db.set(SOUND_TRIGGERS.format(3, "in hell"), "in ?hell;sound/duke/inhell01.wav")
@@ -1895,7 +1954,7 @@ class myFun(minqlx.Plugin):
             self.category_loaded(3, 'database', player)
         if self.Enabled_SoundPacks[4]:
             self.db.set(SOUND_TRIGGERS.format(4, "aiming"), "aiming;sound/warp/aiming.ogg")
-            self.db.set(SOUND_TRIGGERS.format(4, "always open cat"), "always open;sound/warp/always_open.ogg")
+            self.db.set(SOUND_TRIGGERS.format(4, "always open"), "always open;sound/warp/always_open.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "thanks for the advice"), "thanks for the advice;sound/warp/ash_advice.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "angry cat"), "angry cat;sound/warp/angry_cat.ogg")
             self.db.set(SOUND_TRIGGERS.format(4, "appreciate"), "appreciate;sound/warp/ash_appreciate.ogg")
@@ -2159,12 +2218,12 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "ay caramba"), "ay caramba;sound/westcoastcrew/aycaramba.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "baby back"), "baby ?back;sound/westcoastcrew/babyback.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "badabababa"), "badababa(ba)?;sound/westcoastcrew/badabababa.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "baiting"), "baitin;sound/westcoastcrew/baiting.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "ballin"), "ballin;sound/westcoastcrew/ballin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "baiting"), "baitin'?g?;sound/westcoastcrew/baiting.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "ballin"), "ballin'?g?;sound/westcoastcrew/ballin.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bender"), "bender;sound/westcoastcrew/bender.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "biff"), "biff;sound/westcoastcrew/biff.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "outro"), "outro;sound/westcoastcrew/biggerlove.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "bigpippin"), "bigpippin;sound/westcoastcrew/bigpippin.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "bigpippin"), "bigpippin'?g?;sound/westcoastcrew/bigpippin.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "big whoop"), "big wh?oop;sound/westcoastcrew/bigwhoop.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bite my shiny metal ass"), "bite my shiny metal ass;sound/westcoastcrew/bitemyshinymetalass.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "bofumballs"), "bofumb(alls)?;sound/westcoastcrew/bofumballs.ogg")
@@ -2194,7 +2253,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "damn im good"), "damn i'?m good;sound/westcoastcrew/damnimgood.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dead last"), "yeah,? how'?d he finish again|dead ?last;sound/westcoastcrew/deadlast.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "did i do that"), "did i do that;sound/westcoastcrew/dididothat.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "dddid i do that"), "dddid i do that;sound/westcoastcrew/dididothat2.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "dddid i do that"), "ddd?id i do that;sound/westcoastcrew/dididothat2.ogg")
             # repeat of Prestige Sounds
             # self.db.set(SOUND_TRIGGERS.format(5, "die"), "die;sound/westcoastcrew/die.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "die already"), "die already;sound/westcoastcrew/diealready.ogg")
@@ -2202,7 +2261,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "die motherfucker"), "die motherfucker;sound/westcoastcrew/diemotherfucker.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "it's a disastah"), "disastah|it'?s a disastah;sound/westcoastcrew/disastah.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dominating"), "dominating;sound/westcoastcrew/dominating.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "your'e doomed"), "your'?e doome?'?d;sound/westcoastcrew/doomed.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "you're doomed"), "you'?re doome?d;sound/westcoastcrew/doomed.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dr1nya"), "dr1nya;sound/westcoastcrew/dr1nya.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "drunk"), "drunk|always smokin'? blunts|gettin'? drunk;sound/westcoastcrew/drunk.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dundun"), "dun ?dun;sound/westcoastcrew/dundun.ogg")
@@ -2246,7 +2305,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "i'm lovin it"), "i'?m loving? ?it;sound/westcoastcrew/imlovinit.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "im on fire"), "i'?m on fire;sound/westcoastcrew/imonfire.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "im stephan"), "i'?m stephan;sound/westcoastcrew/imstephan.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "inspector norse"), "inspector;sound/westcoastcrew/inspectornorse.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "inspector gadget"), "inspector( gadget)?;sound/westcoastcrew/inspectornorse.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "it's in the bag"), "it'?s in the bag;sound/westcoastcrew/inthebag1.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "in the bag"), "in the bag;sound/westcoastcrew/inthebag2.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "in the bagg"), "in the bagg;sound/westcoastcrew/inthebag3.ogg")
