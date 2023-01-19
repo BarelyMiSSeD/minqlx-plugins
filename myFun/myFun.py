@@ -179,6 +179,7 @@ a custom trigger. I.E.: getting 'smiley face' to play when a user types :) would
 ################################################################################################################
 #    Adding Additional Sound Packs
 ################################################################################################################
+*** If making changes to the ADDITIONAL_SOUNDPACKS perform !erasedb first, then reload/restart  *****
 ***** To add new sound packs without editing this file "much" *****
 Sound Pack File Requirements:
 The sound file names will use a sound trigger based on the file name. The sound file name will replace
@@ -209,10 +210,10 @@ import minqlx
 import random
 import time
 import re
-from os.path import isfile
+from os import path
 from zipfile import ZipFile
 
-VERSION = "7.7"
+VERSION = "7.8"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -221,6 +222,7 @@ TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "ictf", "tdm")
 CATEGORIES = ["#Default", "#Prestige", "#Funny", "#Duke", "#Warp", "#West"]
 SOUND_PACKS = ["Default Quake Live Sounds", "Prestige Worldwide Soundhonks", "Funny Sounds Pack for Minqlx",
                "Duke Nukem Voice Sound Pack for minqlx", "Warp Sounds for Quake Live", "West Coast Crew Sound"]
+""" NOTE: If this is changed, perform a !erasedb before unloading/reloading myFun """
 ADDITIONAL_SOUNDPACKS = []
 
 
@@ -1575,7 +1577,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(1, "flash"), "flash(soul)?;soundbank/flash.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "fuckface"), "fuckface;soundbank/fuckface.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "fuckyou"), "fuckyou;soundbank/fuckyou.ogg")
-            self.db.set(SOUND_TRIGGERS.format(1, "get em"), "get ?em;soundbank/getemm.ogg")
+            self.db.set(SOUND_TRIGGERS.format(1, "get emm"), "get ?emm?;soundbank/getemm.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "gonads"), "gonads|nads;soundbank/gonads.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "gtfo"), "gtfo;soundbank/gtfo.ogg")
             self.db.set(SOUND_TRIGGERS.format(1, "hug it out"), "hug it out;soundbank/hugitout.ogg")
@@ -2267,7 +2269,7 @@ class myFun(minqlx.Plugin):
             self.db.set(SOUND_TRIGGERS.format(5, "dundun"), "dun ?dun;sound/westcoastcrew/dundun.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dundundun"), "dun dun dun|dundundun;sound/westcoastcrew/dundundun.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "dundundundun"), "dun dun dun dun|dundundundun;sound/westcoastcrew/dundundundun.ogg")
-            self.db.set(SOUND_TRIGGERS.format(5, "easy as 123"), "easy as( (123|ABC|abc))?;sound/westcoastcrew/easyas.ogg")
+            self.db.set(SOUND_TRIGGERS.format(5, "easy as"), "easy as;sound/westcoastcrew/easyas.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "easy come easy go"), "easy come easy go;sound/westcoastcrew/easycomeeasygo.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "ehtogg"), "ehtogg;sound/westcoastcrew/ehtogg.ogg")
             self.db.set(SOUND_TRIGGERS.format(5, "elo"), "elo;sound/westcoastcrew/elo.ogg")
@@ -2441,23 +2443,31 @@ class myFun(minqlx.Plugin):
                 next_num = len(self.Enabled_SoundPacks)
                 for item in ADDITIONAL_SOUNDPACKS:
                     file = "{}/baseq3/{}".format(base_path, item)
-                    if isfile(file):
+                    if path.isfile(file):
                         sounds = ZipFile(file).namelist()
                         pack_name = item.split('.')[0]
                         self.Enabled_SoundPacks.append(1)
                         self.soundPacks.append(pack_name.replace('_', ' '))
                         self.categories.append('#{}'.format(pack_name))
                         for sound in sounds:
-                            sf = sound.split('/')[-1]
-                            if '.' in sf and not sf.startswith('.'):
-                                name = self.convert(sf.split('.')[0])
-                                append = 1
-                                while self.db.keys(SOUND_TRIGGERS.format("*", name)) and\
-                                        not self.db.exists(SOUND_TRIGGERS.format(next_num, name)):
-                                    name = '{}{}'.format(name, append) if append == 1 else\
-                                        '{}{}'.format(name[:-1], append)
-                                    append += 1
-                                self.db.set(SOUND_TRIGGERS.format(next_num, name), "{};{}".format(name, sound))
+                            try:
+                                sf = path.split(sound)
+                                if sf[1]:
+                                    name = self.convert(sf[1].split('.')[0])
+                                    append = 1
+                                    exists = True
+                                    while exists:
+                                        exists = False
+                                        for x in range(0, next_num):
+                                            if self.db.exists(SOUND_TRIGGERS.format(x, name)):
+                                                exists = True
+                                        if exists:
+                                            name = '{}{}'.format(name, append) if append == 1 else \
+                                                '{}{}'.format(name[:-1], append)
+                                            append += 1
+                                    self.db.set(SOUND_TRIGGERS.format(next_num, name), "{};{}".format(name, sound))
+                            except:
+                                continue
                         if self._enable_dictionary:
                             self._sound_dictionary[next_num] = {}
                         if player:
