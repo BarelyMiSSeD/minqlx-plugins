@@ -10,13 +10,14 @@
 
 # This is a queueing plugin for the minqlx admin bot.
 # This plugin can be used alone or with the serverBDM.py plugin.
+# Player placement into teams can be done using skill ratings (BDM 0r ELO) or used as a simple queue.
 #
 # This plugin is intended to help keep the game as enjoyable as possible,
 #  without the hassles of people making teams uneven, or someone joining later than others,
 #  but happening to hit the join button first and cutting in line when a play spot opens.
 #
 # The plugin will also attempt to keep team games even, when adding 2 players at once,
-#  by putting players into the most appropriate team, based on team scores or player BDMs.
+#  by putting players into the most appropriate team, based on team scores or player BDMs/ELOs.
 #
 # This plugin will spectate people when teams are uneven. It will, by default settings,
 #  first look at player times then player scores to determine who, on the team with more players,
@@ -28,8 +29,8 @@
 # This feature will not kick people with permission levels at or above the qlx_queueAdmin level,
 #  or people who are in the queue.
 #
-# Use the command '!fix' to fix a player that is shown as sarge and not seen as an enemy or a team mate.
-# This will set each player's model the the model recorded when they joined the server.
+# Use the command '!fix' to fix a player that is shown as sarge and not seen as an enemy or a teammate.
+# This will set each player's model to the model recorded when they joined the server.
 #
 # See the following section for the meaning of the specqueue server cvars. The section can be copied as-is
 # into a server config file and edited as desired.
@@ -43,11 +44,13 @@
 """
 //set the minqlx permission level needed to admin this script
 set qlx_queueAdmin "3"
-//enable to use BDM in placement into teams when 2 players are put in together
+//enable to use BDM/ELO in placement into teams when 2 players are put in together
 //disable to use as generic queue system (0=off, 1=on)
-set qlx_queueUseBDMPlacement "1"
-//The script will try to place players in by BDM ranking, if this is set on (0=off 1=on) it will
-// put the higher BDM player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting
+set qlx_queueUseSkillPlacement "1"
+//if pacing by skill rating (see qlx_queueUseSkillPlacement), use BDM or ELO (0=ELO, 1=BDM)
+set qlx_queueUseRating "1"
+//The script will try to place players in by BDM/ELO ranking, if this is set on (0=off 1=on) it will
+// put the higher BDM/ELO player in the losing team if the score is greater than the qlx_queueTeamScoresDiff setting
 set qlx_queuePlaceByTeamScores "1"
 //Set the score difference used if qlx_queuePlaceByTeamScores is on
 set qlx_queueTeamScoresDiff "3"
@@ -110,8 +113,9 @@ import time
 from threading import Lock
 from random import randrange
 import re
+import requests
 
-VERSION = "2.12.8"
+VERSION = "2.13.0"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ("afk", "food", "away", "phone")
@@ -120,10 +124,13 @@ SUPPORTED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har", "ffa"
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "dom", "ft", "tdm", "ad", "1f", "har")
 NONTEAM_BASED_GAMETYPES = ("ffa", "race", "rr")
 NO_COUNTDOWN_TEAM_GAMES = ("ft", "1f", "ad", "dom", "ctf")
-BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
+RANKING_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm")
 NON_ROUND_BASED_GAMETYPES = ("ffa", "race", "tdm", "ctf", "har", "dom", "rr")
 BDM_KEY = "minqlx:players:{}:bdm:{}:{}"
+ELO_KEY = "minqlx:players:{0}:ratings:{1}"  # 0 == steam_id, 1 == short game type.
 POSITION_LABELS = ("[]", "()", "{}", "<>", "--", "==", "||", "!!", "''", "..", "**", "〔〕", "《》", "〚〛", "  ")
+ELO_URL = "qlstats.net"
+DEFAULT_ELO = 1122
 
 ENABLE_LOG = True  # set to True/False to enable/disable logging
 
@@ -354,7 +361,8 @@ class specqueue(minqlx.Plugin):
 
         # queue cvars
         self.set_cvar_once("qlx_queueAdmin", "3")
-        self.set_cvar_once("qlx_queueUseBDMPlacement", "1")
+        self.set_cvar_once("qlx_queueUseSkillPlacement", "1")
+        self.set_cvar_once("qlx_queueUseRating", "1")
         self.set_cvar_once("qlx_queuePlaceByTeamScores", "1")
         self.set_cvar_once("qlx_queueTeamScoresDiff", "3")
         self.set_cvar_once("qlx_queueQueueMsg", "1")
@@ -436,6 +444,7 @@ class specqueue(minqlx.Plugin):
         self._queue_tags = False
         self._specPlayer = []
         self._afk_tag = {}
+        self.retrieving_elo = False
 
         # Initialize Commands
         self.add_spectators()
@@ -536,6 +545,7 @@ class specqueue(minqlx.Plugin):
 
     def handle_team_switch_attempt(self, player, old_team, new_team):
         if self.q_game_info[0] in SUPPORTED_GAMETYPES and new_team != "spectator" and old_team == "spectator":
+            self.request_elo_rating(player.steam_id)
             teams = self.teams()
             at_max_players = False
             join_locked = False
@@ -1199,43 +1209,43 @@ class specqueue(minqlx.Plugin):
                 red_score = int(self.game.red_score)
                 blue_score = int(self.game.blue_score)
                 score_diff = abs(red_score - blue_score) >= self.get_cvar("qlx_queueTeamScoresDiff", int)
-                if self.q_game_info[0] in BDM_GAMETYPES and self.get_cvar("qlx_queueUseBDMPlacement", bool):
-                    red_bdm = self.team_average(teams["red"])
-                    blue_bdm = self.team_average(teams["blue"])
-                    p1_bdm = self.get_rating(players[0])
-                    p2_bdm = self.get_rating(players[2])
+                if self.q_game_info[0] in RANKING_GAMETYPES and self.get_cvar("qlx_queueUseSkillPlacement", bool):
+                    red_rating, blue_rating, p1_rating, p2_rating = self.get_ratings(players[0], players[2], teams)
+                    self.msg('^2Placing players by ^3{} ^2Balance Used ^7Red: ^1{} ^7Blue: ^4{} '
+                             .format('BDM' if self.get_cvar("qlx_queueUseRating", bool) else 'ELO',
+                                     red_rating, blue_rating))
                     # set team related variables initial values
                     # If the team's score difference is over "qlx_queuesTeamScoresAmount" and
-                    #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher bdm
-                    #  player going to the lower scoring team regardless of average team BDMs
+                    #  "qlx_queuesPlaceByTeamScore" is enabled players will be placed with the higher BDM/ELO
+                    #  player going to the lower scoring team regardless of average team BDMs/ELOs
                     place_by_team_scores = False
                     if self.get_cvar("qlx_queuePlaceByTeamScores", bool) and score_diff:
                         place_by_team_scores = True
-                        if p1_bdm > p2_bdm:
+                        if p1_rating > p2_rating:
                             placement = ["blue", "red"] if red_score > blue_score else ["red", "blue"]
                         else:
                             placement = ["red", "blue"] if red_score > blue_score else ["blue", "red"]
                     # Executes if the 'place by team score' doesn't execute and sets player
-                    #   with higher BDM on the team with the lower average BDM.
+                    #   with higher BDM/ELO on the team with the lower average BDM/ELO.
                     else:
-                        if red_bdm > blue_bdm:
-                            placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
-                        elif blue_bdm > red_bdm:
-                            placement = ["red", "blue"] if p1_bdm > p2_bdm else ["blue", "red"]
+                        if red_rating > blue_rating:
+                            placement = ["blue", "red"] if p1_rating > p2_rating else ["red", "blue"]
+                        elif blue_rating > red_rating:
+                            placement = ["red", "blue"] if p1_rating > p2_rating else ["blue", "red"]
                         else:
                             if red_score > blue_score:
-                                placement = ["blue", "red"] if p1_bdm > p2_bdm else ["red", "blue"]
+                                placement = ["blue", "red"] if p1_rating > p2_rating else ["red", "blue"]
                             else:
-                                placement = ["red", "blue"] if p1_bdm > p2_bdm else ["blue", "red"]
+                                placement = ["red", "blue"] if p1_rating > p2_rating else ["blue", "red"]
                     if place_by_team_scores:
-                        self.msg("^3Due to team score difference, placing players based on team score,"
-                                 " not BDM balance.")
+                        self.msg("^3Due to team score difference, placing players based on team score, not {} balance."
+                                 .format('BDM' if self.get_cvar("qlx_queueUseRating", bool) else 'ELO'))
                     self.team_placement(players[1], placement[0])
-                    self.msg("{} ^7has joined the {}{} ^7team."
-                             .format(players[1], "^1" if placement[0] == "red" else "^4", placement[0]))
+                    self.msg("{0} ^7:{1}{3} ^7has joined the {1}{2} ^7team."
+                             .format(players[1], "^1" if placement[0] == "red" else "^4", placement[0], p1_rating))
                     self.team_placement(players[3], placement[1])
-                    self.msg("{} ^7has joined the {}{} ^7team."
-                             .format(players[3], "^1" if placement[1] == "red" else "^4", placement[1]))
+                    self.msg("{0} ^7:{1}{3} ^7has joined the {1}{2} ^7team."
+                             .format(players[3], "^1" if placement[1] == "red" else "^4", placement[1], p2_rating))
                 else:
                     self.team_placement(players[1], "blue")
                     self.msg("{} ^7has joined the ^4blue ^7team.".format(players[1]))
@@ -1291,12 +1301,44 @@ class specqueue(minqlx.Plugin):
             if ENABLE_LOG:
                 self.queue_log.info("specqueue fix_free Exception: {}".format([e]))
 
-    def get_rating(self, sid):
+    def get_ratings(self, p1, p2, teams):
+        bdm = self.get_cvar("qlx_queueUseRating", bool)
+        red_rating = self.team_average(teams["red"], bdm)
+        blue_rating = self.team_average(teams["blue"], bdm)
+        p1_rating = self.get_rating(p1, bdm)
+        p2_rating = self.get_rating(p2, bdm)
+        return red_rating, blue_rating, p1_rating, p2_rating
+
+    def team_average(self, team, bdm=True):
         try:
-            if self.get_cvar("g_factory").lower() == "ictf":
-                game_type = "ictf"
-            else:
-                game_type = self.q_game_info[0]
+            """Calculates the average rating of a team."""
+            avg = 0
+            if team:
+                for p in team:
+                    r = self.get_rating(p.steam_id, bdm)
+                    avg += r
+                avg /= len(team)
+            return int(round(avg))
+        except Exception as e:
+            if ENABLE_LOG:
+                self.queue_log.info("specqueue team average Exception: {}".format([e]))
+
+    def get_rating(self, sid, bdm=True):
+        if bdm:
+            return self.get_bdm_rating(sid)
+        else:
+            return self.get_elo_rating(sid)
+
+    def get_gametype(self):
+        if self.get_cvar("g_factory").lower() == "ictf":
+            game_type = "ictf"
+        else:
+            game_type = self.q_game_info[0]
+        return game_type
+
+    def get_bdm_rating(self, sid):
+        try:
+            game_type = self.get_gametype()
             if self.db.exists(BDM_KEY.format(sid, game_type, "rating")):
                 try:
                     rating = self.db.get(BDM_KEY.format(sid, game_type, "rating"))
@@ -1312,20 +1354,64 @@ class specqueue(minqlx.Plugin):
             return rating
         except Exception as e:
             if ENABLE_LOG:
-                self.queue_log.info("specqueue get rating Exception: {}".format([e]))
+                self.queue_log.info("specqueue get BDM rating Exception: {}".format([e]))
 
-    def team_average(self, team):
+    def get_elo_rating(self, sid):
+        qlstats_request = False
         try:
-            """Calculates the average rating of a team."""
-            avg = 0
-            if team:
-                for p in team:
-                    avg += self.get_rating(p.steam_id)
-                avg /= len(team)
-            return int(round(avg))
+            game_type = self.get_gametype()
+            rating = 0
+            if self.db.exists(ELO_KEY.format(sid, self.get_gametype())):
+                try:
+                    rating = int(float(self.db.get(ELO_KEY.format(sid, game_type))))
+                    if rating == DEFAULT_ELO:
+                        self.retrieving_elo = True
+                        rating = self.request_elo_rating(sid)
+                        qlstats_request = True
+                except (ValueError, TypeError):
+                    rating = 0
+            if rating == 0:
+                self.retrieving_elo = True
+                rating = self.request_elo_rating(sid)
+                qlstats_request = True
+            if qlstats_request:
+                try:
+                    rating = int(float(self.db.get(ELO_KEY.format(sid, game_type))))
+                except:
+                    rating = DEFAULT_ELO
+            return rating
         except Exception as e:
             if ENABLE_LOG:
-                self.queue_log.info("specqueue team average Exception: {}".format([e]))
+                self.queue_log.info("specqueue get ELO rating Exception: {}".format([e]))
+
+    @minqlx.thread
+    def request_elo_rating(self, sid):
+        if not self.retrieving_elo:
+            self.retrieving_elo = True
+        if type(sid) == list:
+            sid = '+'.join(sid)
+        response = False
+        url = "http://{}/elo/{}".format(ELO_URL, sid)
+        attempts = 0
+        elo_dict = {}
+        while attempts < 3:
+            attempts += 1
+            info = requests.get(url)
+            if info.status_code != requests.codes.ok:
+                continue
+            info_js = info.json()
+            if "players" in info_js:
+                response = True
+                break
+        if response:
+            elo_dict[sid] = {}
+            for record in info_js["players"]:
+                for gt in SUPPORTED_GAMETYPES:
+                    if gt in record:
+                        self.db.set(ELO_KEY.format(record['steamid'], gt), record[gt]["elo"])
+                    else:
+                        self.db.set(ELO_KEY.format(record['steamid'], gt), DEFAULT_ELO)
+        self.retrieving_elo = False
 
     @minqlx.next_frame
     def team_placement(self, player, team, add_queue=False):
@@ -1450,7 +1536,8 @@ class specqueue(minqlx.Plugin):
                             self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
                                      .format("^7, ".join(players), where))
                         if spec_player:
-                            self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate^7.".format(spec_player))
+                            self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to ^3spectate^7."
+                                     .format(spec_player))
                 if delay:
                     if len(players) > 0:
                         self.msg("^3Uneven Teams Detected^7: {} ^7will be moved to {}^7."
@@ -1534,7 +1621,8 @@ class specqueue(minqlx.Plugin):
                     if len(move_players) > 0:
                         for player in move_players:
                             self.team_placement(player, where)
-                        self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7.".format("^7, ".join(players), where))
+                        self.msg("^3Uneven Teams Detected^7: {} ^7was moved to {}^7."
+                                 .format("^7, ".join(players), where))
                     if spec_player:
                         self.uneven_teams_move_to_spec[spec_player.steam_id] = True
                         self.team_placement(spec_player, "spectator", True)
@@ -1744,7 +1832,8 @@ class specqueue(minqlx.Plugin):
             else:
                 message.append("^3Player Models is empty")
             message.append("^1Red Locked^7: {}^7, ^4Blue Locked^7: {}^7, ^2Free Locked^7: {}"
-                           .format("^5True" if self.red_locked else "^6False", "^5True" if self.blue_locked else "^6False",
+                           .format("^5True" if self.red_locked else "^6False",
+                                   "^5True" if self.blue_locked else "^6False",
                                    "^5True" if self.free_locked else "^6False"))
             message.append("^3End Screen status^7: {}".format("^5True" if self.end_screen else "^6False"))
             message.append("^3Displaying status^7- ^2Queue {}^7, ^4Spec {}"
@@ -1753,7 +1842,13 @@ class specqueue(minqlx.Plugin):
             message.append("^3In Countdown^7: {}".format("^5True" if self.in_countdown else "^6False"))
             message.append("^3Game Info^7: {}".format(self.q_game_info))
             message.append("^3Ignore Status^7: {} ^3Latch^7: {}"
-                           .format("^5True" if self._ignore else "^6False", "^5True" if self._latch_ignore else "^6False"))
+                           .format("^5True" if self._ignore else "^6False",
+                                   "^5True" if self._latch_ignore else "^6False"))
+            if self.get_cvar("qlx_queueUseSkillPlacement", bool):
+                message.append("^3Players are being placed using {} rankings."
+                               .format("BDM" if self.get_cvar("qlx_queueUseRating", bool) else "ELO"))
+            else:
+                message.append("^3Players are not being placed using rankings.")
             if channel != "console":
                 player.tell("\n".join(message))
             minqlx.console_print(message[0])
@@ -1762,7 +1857,8 @@ class specqueue(minqlx.Plugin):
             minqlx.console_print(message[3])
             minqlx.console_print(message[4])
             minqlx.console_print(" ".join(message[5:8]))
-            minqlx.console_print(" ".join(message[8:]))
+            minqlx.console_print(" ".join(message[8:11]))
+            minqlx.console_print(message[11])
             return minqlx.RET_STOP_ALL
         except Exception as e:
             if ENABLE_LOG:
