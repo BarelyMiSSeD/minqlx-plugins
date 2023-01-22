@@ -115,7 +115,7 @@ from random import randrange
 import re
 import requests
 
-VERSION = "2.13.0"
+VERSION = "2.13.1"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ("afk", "food", "away", "phone")
@@ -1782,23 +1782,30 @@ class specqueue(minqlx.Plugin):
         try:
             found_player = None
             found_count = 0
-            # Remove color codes from the supplied string
-            player_name = re.sub(r"\^[0-9]", "", name).lower()
-            # search through the list of connected players for a name match
-            for player in self.players():
-                if player_name in re.sub(r"\^[0-9]", "", player.name).lower():
-                    # if match is found return player, player id
-                    found_player = player
-                    found_count += 1
-            # if only one match was found return player, player id
-            if found_count == 1:
-                return found_player, int(str([found_player]).split(":")[0].split("(")[1])
-            # if more than one match is found return 0, -1
-            elif found_count > 1:
-                return 0, -1
-            # if no match is found return -1, -1
+            if name.isdigit():
+                _id = int(name)
+                for player in self.players():
+                    if player.id == _id or player.steam_id == _id:
+                        found_player = player
+                        return found_player, int(str([found_player]).split(":")[0].split("(")[1])
             else:
-                return -1, -1
+                # Remove color codes from the supplied string
+                player_name = re.sub(r"\^[0-9]", "", name).lower()
+                # search through the list of connected players for a name match
+                for player in self.players():
+                    if player_name in re.sub(r"\^[0-9]", "", player.name).lower():
+                        # if match is found return player, player id
+                        found_player = player
+                        found_count += 1
+                # if only one match was found return player, player id
+                if found_count == 1:
+                    return found_player, int(str([found_player]).split(":")[0].split("(")[1])
+                # if more than one match is found return 0, -1
+                elif found_count > 1:
+                    return 0, -1
+                # if no match is found return -1, -1
+                else:
+                    return -1, -1
         except Exception as e:
             if ENABLE_LOG:
                 self.queue_log.info("specqueue find_player Exception: {}".format([e]))
@@ -2100,7 +2107,12 @@ class specqueue(minqlx.Plugin):
         return VERSION
 
     def cmd_go_afk(self, player=None, msg=None, channel=None):
-        self.exec_go_afk(player, msg[0][1:])
+        if len(msg) > 1:
+            if self.db.get_permission(player.steam_id) >= self.get_cvar("qlx_queueAdmin", int):
+                match = self.find_player(msg[1])
+                self.exec_go_afk(match[0], msg[0][1:])
+        else:
+            self.exec_go_afk(player, msg[0][1:])
 
     @minqlx.thread
     def exec_go_afk(self, player, afk_tag):
