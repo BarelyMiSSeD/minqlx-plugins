@@ -133,6 +133,7 @@ set qlx_bdmMinimumTeamSize "3"
 set qlx_bdmNumGamesForCalculation "25"
 
 """
+import traceback
 
 import minqlx
 import time
@@ -143,7 +144,7 @@ import re
 from multiprocessing import Process, Array, Value
 from ctypes import c_longlong
 
-VERSION = "2.04.0"
+VERSION = "2.04.3"
 # TO_BE_ADDED = ("duel", "dom", "ad", "1f", "har")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm", "wipeout")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "tdm", "ictf", "wipeout")
@@ -153,6 +154,7 @@ NO_COUNTDOWN_GAMESTYPES = ("1f", "ad", "dom", "ctf", "tdm", "har")
 BDM_KEY = "minqlx:players:{}:bdm:{}:{}"
 TEMP_KEY = "minqlx:players:tempbdm:{}"
 ELO_URL = "qlstats.net"
+ELO_KEY = "minqlx:players:{0}:ratings:{1}"
 
 ENABLE_LOG = True  # set to True/False to enable/disable logging
 
@@ -260,6 +262,7 @@ class serverBDM(minqlx.Plugin):
         self.add_command(("bdms", "bdsm"), self.bdms_cmd)
         self.add_command("bteams", self.bteams_cmd)
         self.add_command(("teams", "teens"), self.teams_cmd)
+        self.add_command("eteams", self.eteams_cmd)
         self.add_command("bbalance", self.cmd_bdmbalance, int(minqlx.get_cvar("qlx_bdmAdmin")))
         self.add_command("balance", self.balance_cmd, int(minqlx.get_cvar("qlx_bdmAdmin")))
         self.add_command(("agree", "a"), self.cmd_bdmagree)
@@ -298,6 +301,7 @@ class serverBDM(minqlx.Plugin):
         self._balance_time = 0
         self._short_ft_countdown = self._bdm_gtype == "ft" and int(minqlx.get_cvar("g_freezeRoundDelay")) <= 1000
         self._end_game_players = {}
+        self.balance_number = 0
 
         # Initializing commands
         if self.game is not None and self.game.state == "in_progress":
@@ -335,7 +339,7 @@ class serverBDM(minqlx.Plugin):
 
     def process_stats(self, stats):
         try:
-            if (self._locked[0] or self._locked[1]) and time.time() - self._balance_time > 5:
+            if (self._locked[0] or self._locked[1]) and self._balance_time and time.time() - self._balance_time > 5:
                 minqlx.console_command("unlock red")
                 self._locked[0] = False
                 minqlx.console_command("unlock blue")
@@ -462,7 +466,7 @@ class serverBDM(minqlx.Plugin):
             if self._bdm_gtype in TEAM_BASED_GAMETYPES:
                 minqlx.console_print("^1RED^7: ^7{} ^6::: ^4BLUE^7: {}"
                                      .format(minqlx.get_configstring(6), minqlx.get_configstring(7)))
-            if (self._locked[0] or self._locked[1]) and time.time() - self._balance_time > 5:
+            if (self._locked[0] or self._locked[1]) and self._balance_time and time.time() - self._balance_time > 5:
                 minqlx.console_command("unlock red")
                 self._locked[0] = False
                 minqlx.console_command("unlock blue")
@@ -524,7 +528,6 @@ class serverBDM(minqlx.Plugin):
                 self._locked[0] = False
                 minqlx.console_command("unlock blue")
                 self._locked[1] = False
-            self._balance_time = 0
         else:
             self._end_game_players = {}
             teams = self.teams()
@@ -872,7 +875,6 @@ class serverBDM(minqlx.Plugin):
 
     def bteams_cmd(self, player, msg, channel):
         self.exec_bteams_cmd()
-        return
 
     @minqlx.thread
     def exec_bteams_cmd(self):
@@ -924,6 +926,67 @@ class serverBDM(minqlx.Plugin):
         except Exception as e:
             if ENABLE_LOG:
                 self.bdm_log.info("serverBDM bteams_cmd Exception: {}".format([e]))
+        return
+
+    def eteams_cmd(self, player, msg, channel):
+        self.exec_eteams_cmd()
+        return
+
+    @minqlx.thread
+    def exec_eteams_cmd(self):
+        try:
+            if self._bdm_gtype in TEAM_BASED_GAMETYPES:
+                teams = self.teams()
+                red_clients = len(teams["red"])
+                blue_clients = len(teams["blue"])
+                if red_clients == 0 and blue_clients == 0:
+                    self.msg("^3The teams are empty of players.")
+                    return
+                elif red_clients != blue_clients:
+                    self.msg("^1The teams do not have the same number of players !!!")
+                    return
+
+                ratings = self.get_elos(teams)
+                difference = int(abs(ratings[0] - ratings[1]))
+                message = "^1ELO ^7Team Balance: ^1{} ^7vs. ^4{} ^7- Difference: {}{}"\
+                    .format(round(ratings[0]), round(ratings[1]), '^1' if ratings[0] > ratings[1] else '^4', difference)
+                self.msg(message)
+        except Exception as e:
+            if ENABLE_LOG:
+                self.bdm_log.info("serverBDM eteams_cmd Exception: {}".format([e]))
+
+    def get_elos(self, teams):
+        try:
+            factory = minqlx.get_cvar("g_factory").lower()
+            if factory == "ictf":
+                game_type = "ictf"
+            elif factory == "wipeout":
+                game_type = "wipeout"
+            else:
+                game_type = self._bdm_gtype
+            red_clients = len(teams["red"])
+            blue_clients = len(teams["blue"])
+            red_elo = 0
+            blue_elo = 0
+            for client in teams["red"]:
+                try:
+                    rating = int(float(self.db.get(ELO_KEY.format(client.steam_id, game_type))))
+                except:
+                    rating = 1122
+                red_elo += rating
+            red_elo /= red_clients
+            for client in teams["blue"]:
+                try:
+                    rating = int(float(self.db.get(ELO_KEY.format(client.steam_id, game_type))))
+                except:
+                    rating = 1122
+                blue_elo += rating
+            blue_elo /= blue_clients
+            return [red_elo, blue_elo]
+        except Exception as e:
+            minqlx.console_print("serverBDM get_elos Exception: {} {}".format([e], traceback.format_exc()))
+            if ENABLE_LOG:
+                self.bdm_log.info("serverBDM get_elos Exception: {}".format([e]))
 
     def same_suggested_players(self, p1_id, p2_id):
         match = False
@@ -1063,23 +1126,16 @@ class serverBDM(minqlx.Plugin):
 
     # executes the balance command and the auto balance that happens during the round countdown.
     def cmd_bdmbalance(self, player=None, msg=None, channel=None):
-        if self._locked[0] or self._locked[1] or time.time() - self._balance_time < 5:
+        if self._locked[0] or self._locked[1]:
             return
-        if self._balance_time and time.time() - self._balance_time > 5:
-            self._balance_time = 0
+        if self._balance_time:
+            return
+        self._balance_time = time.time()
         self.exec_bdmbalance(pause=0.2 if player else 3)
 
     # Organizes players into teams from the highest to lowest BDM, then performs a balance.
     @minqlx.thread
     def exec_bdmbalance(self, pause):
-        if self._balance_time:
-            return
-        for player in self.players():
-            try:
-                player.update()
-            except:
-                continue
-        self._balance_time = time.time()
         time.sleep(pause)
         self.clear_suggestion()
         if self._bdm_gtype not in BDM_GAMETYPES:
@@ -1093,6 +1149,7 @@ class serverBDM(minqlx.Plugin):
         teams = self.teams().copy()
         if len(teams["red"] + teams["blue"]) < 4:
             self.msg("^3There are not enough players on the teams to perform a balance.")
+            self._balance_time = 0
             return
         try:
             # Locks the teams if qlx_bdmLockTeamsForBalance is enabled
@@ -1132,8 +1189,15 @@ class serverBDM(minqlx.Plugin):
                             teams["red"].remove(exclude)
                         elif exclude in teams["blue"]:
                             teams["blue"].remove(exclude)
+                        else:
+                            self.msg("^1Balance Failed: Teams are uneven and there was an"
+                                     " error finding a player to exclude.")
+                    else:
+                        self.msg("^1Balance Failed: Teams are uneven and there was an"
+                                 " error finding a player to exclude.")
                 else:
-                    self.msg("^3The teams can't be made even. Balancing can't occur.")
+                    self.msg("^3The teams can't be made even without spectating someone. Balancing can't occur.")
+                    self._balance_time = 0
                     return
             # If we have an even number of players but the teams are not even, make them even
             red_number = len(teams["red"])
@@ -1227,10 +1291,11 @@ class serverBDM(minqlx.Plugin):
 
     # Executes the auto balance at the start of the game countdown. This requires the teams to be locked.
     def cd_bdmbalance(self, player=None, msg=None, channel=None):
-        if self._locked[0] or self._locked[1] or time.time() - self._balance_time < 5:
+        if self._locked[0] or self._locked[1]:
             return
-        if self._balance_time and time.time() - self._balance_time > 5:
-            self._balance_time = 0
+        if self._balance_time:
+            return
+        self._balance_time = time.time()
         self.exec_cd_bdmbalance()
 
     # Performs the balance differently than above. This requires the teams to be locked and player switches to happen.
@@ -1238,14 +1303,11 @@ class serverBDM(minqlx.Plugin):
     #     stop the countdown to the game due to the team changes.
     @minqlx.thread
     def exec_cd_bdmbalance(self):
-        if self._balance_time:
-            return
         for player in self.players():
             try:
                 player.update()
             except:
                 continue
-        self._balance_time = time.time()
         time.sleep(0.2)
         self.clear_suggestion()
         if self._bdm_gtype not in BDM_GAMETYPES:
@@ -1258,6 +1320,7 @@ class serverBDM(minqlx.Plugin):
         teams = self.teams()
         if len(teams["red"] + teams["blue"]) < 4:
             self.msg("^3There are not enough players on the teams to perform a balance.")
+            self._balance_time = 0
             return
         try:
             if ENABLE_LOG:
