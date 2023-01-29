@@ -13,8 +13,7 @@
 # - Players would "/callvote do" to utilize the vote
 
 # *** IMPORTANT *** This plugin is meant as an add-on to the balance plugin that comes with minqlx
-# Do not have the server config load the balance plugin, loading doVote will load balance since
-#  this plugin runs as a sub-class of balance. Remove balance from qlx_plugins and add doVote.
+# Make sure the balance plugin is loaded prior to loading doVote.
 
 # created by BarelyMiSSeD on 8-1-2019
 
@@ -29,16 +28,21 @@ set qlx_balanceDoVoteEnd "0"
 """
 
 import minqlx
-from .balance import balance
 import random
 import time
 
-VERSION = "1.4"
+VERSION = "2.0"
+SUPPORTED_GAMETYPES = ("ad", "ca", "ctf", "dom", "ft", "tdm")
 
 
-class doVote(balance):
+class doVote(minqlx.Plugin):
     def __init__(self):
-        super().__init__()
+        try:
+            self.balance = self.plugins["balance"]
+        except KeyError:
+            raise KeyError("balance.py was not found as a loaded minqlx script.\n"
+                           "Check the load order so doVote loads after balance.\n"
+                           "Exiting script load.")
         self.set_cvar_once("qlx_balanceDoVotePerc", "26")
         self.set_cvar_once("qlx_balanceDoVoteEnd", "0")
         self.add_hook("vote_called", self.handle_vote_called, priority=minqlx.PRI_HIGH)
@@ -52,10 +56,10 @@ class doVote(balance):
 
     def handle_vote_called(self, caller, vote, args):
         if vote.lower() == "do":
-            if not self.suggested_pair:
+            if not self.balance.suggested_pair:
                 caller.tell("^3There are no suggested players to switch.")
                 return minqlx.RET_STOP_ALL
-            if not all(self.suggested_agree):
+            if not all(self.balance.suggested_agree):
                 self.vote_count = [0, 0, 0]
                 self.vote_start_time = time.time()
                 self.force_switch_vote(caller, vote)
@@ -108,7 +112,7 @@ class doVote(balance):
             def f():
                 players = self.teams()
                 players = dict([(p.steam_id, gt) for p in players["red"] + players["blue"]])
-                self.add_request(players, self.callback_balance, minqlx.CHAT_CHANNEL)
+                self.balance.add_request(players, self.balance.callback_balance, minqlx.CHAT_CHANNEL)
 
             f()
 
@@ -142,11 +146,11 @@ class doVote(balance):
             minqlx.console_print("^1doVote check_force_switch_vote Exception: {}".format(e))
 
     def cmd_force_agree(self, player=None, msg=None, channel=None):
-        if self.suggested_pair:
-            self.suggested_agree[0] = True
-            self.suggested_agree[1] = True
-            if self.game.state in ["in_progress", "countdown"] and not self.in_countdown:
+        if self.balance.suggested_pair:
+            self.balance.suggested_agree[0] = True
+            self.balance.suggested_agree[1] = True
+            if self.game.state in ["in_progress", "countdown"] and not self.balance.in_countdown:
                 self.msg("The switch will be executed at the start of next round.")
                 return
             # Otherwise, switch right away.
-            self.execute_suggestion()
+            self.balance.execute_suggestion()
