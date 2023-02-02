@@ -156,7 +156,7 @@ Commands available with myFun.py listed with the set permission levels.
 
 <b>•	Permission level 0</b>
 
-<b>!listsounds</b> (alternatively !getsounds)
+<b>!listsounds</b> (alternatively !ls)
 
 Retrieves the sounds available to lay on the server.<br>
 The command can be issued with optional search parameters:<br>
@@ -199,7 +199,7 @@ Usage: !cookies
 
 <b>•	Permission level 3</b>
 
-<b>!playsound</b>
+<b>!playsound</b> (alternatively !ps or !sound)
 
 Plays a sound on the server for all the players with sounds enabled.<br>
 This does not use the sound anti-spam function.
