@@ -1,11 +1,21 @@
-# This plugin is a modification of minqlx's fun.py
+# This is an extension plugin  for minqlx.
+# Copyright (C) 2018 BarelyMiSSeD (github)
+
+# You can redistribute it and/or modify it under the terms of the
+# GNU General Public License as published by the Free Software Foundation,
+# either version 3 of the License, or (at your option) any later version.
+
+# You should have received a copy of the GNU General Public License
+# along with minqlx. If not, see <http://www.gnu.org/licenses/>.
+
+# This plugin is a replacement for minqlx's fun.py
 # https://github.com/MinoMino/minqlx
 
 # Created by BarelyMiSSeD
 # https://github.com/BarelyMiSSeD
 
-# You are free to modify this plugin
-# This plugin comes with no warranty or guarantee
+# You are free to modify this plugin.
+# This plugin comes with no warranty or guarantee.
 
 """
 *** This is my replacement for the minqlx fun.py so if you use this file make sure not to load fun.py ***
@@ -213,7 +223,7 @@ import re
 from os import path
 from zipfile import ZipFile
 
-VERSION = "7.8"
+VERSION = "7.9"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -267,7 +277,7 @@ class myFun(minqlx.Plugin):
         self.set_cvar_once("qlx_funLast2Sound", "3")
         # Enable to use a dictionary to store sounds, faster responses to trigger text (0=disable, 1=enable)
         #  Enabling will cause the server to use more memory, only enable if memory is available.
-        #  Must be enabled on server startup or it will not work.
+        #  Must be enabled on server startup, or it will not work.
         self.set_cvar_once("qlx_funFastSoundLookup", "1")
 
         self.add_hook("chat", self.handle_chat)
@@ -276,19 +286,19 @@ class myFun(minqlx.Plugin):
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
         self.add_command("cookies", self.cmd_cookies)
-        self.add_command(("listsounds", "ls"), self.list_sounds)
+        self.add_command(("ls", "listsounds"), self.list_sounds)
         self.add_command(("myfun", "fun"), self.cmd_help)
         self.add_command(("off", "soundoff"), self.sound_off, client_cmd_perm=0)
         self.add_command(("on", "soundon"), self.sound_on, client_cmd_perm=0)
-        self.add_command(("offlist", "soundofflist"), self.cmd_sound_off_list, client_cmd_perm=0)
-        self.add_command(("playsound", "sound"), self.cmd_sound, 3)
-        self.add_command("playtrigger", self.cmd_play_trigger, 3)
-        self.add_command("disablesound", self.cmd_disable_sound, client_cmd_perm=5, usage="<sound trigger>")
-        self.add_command("enablesound", self.cmd_enable_sound, client_cmd_perm=5, usage="<sound trigger>")
-        self.add_command(("listdisabledsounds", "listdisabled"), self.cmd_list_disabled, client_cmd_perm=5)
-        self.add_command("addtrigger", self.add_trigger, 5)
-        self.add_command("deltrigger", self.del_trigger, 5)
-        self.add_command("listtriggers", self.request_triggers, 3)
+        self.add_command(("ol", "offlist", "soundofflist"), self.cmd_sound_off_list, client_cmd_perm=0)
+        self.add_command(("ps", "play", "sound"), self.cmd_sound, 3)
+        self.add_command(("pt", "playtrigger"), self.cmd_play_trigger, 3)
+        self.add_command(("ds", "disablesound"), self.cmd_disable_sound, client_cmd_perm=5, usage="<sound trigger>")
+        self.add_command(("es", "enablesound"), self.cmd_enable_sound, client_cmd_perm=5, usage="<sound trigger>")
+        self.add_command(("ld", "listdisabled"), self.cmd_list_disabled, client_cmd_perm=5)
+        self.add_command(("at", "addtrigger"), self.add_trigger, 5)
+        self.add_command(("dt", "deltrigger"), self.del_trigger, 5)
+        self.add_command(("lt", "listtriggers"), self.request_triggers, 3)
         self.add_command("sounds", self.cmd_enable_sounds, usage="<0/1>")
         self.add_command(("erase_sounds", "erasedb"), self.start_erase_db, 5)
         self.add_command(("fill_sounds", "filldb"), self.start_fill_db, 5)
@@ -878,20 +888,20 @@ class myFun(minqlx.Plugin):
         return False
 
     # return the sound trigger for the sound at the supplied path
-    def sound_trigger(self, path):
+    def sound_trigger(self, _path, disabled_lookup=False):
         sound_dict = 0
         while sound_dict < len(self.Enabled_SoundPacks):
             if self.Enabled_SoundPacks[sound_dict]:
-                if self._enable_dictionary:
-                    for sub, triggers in self._sound_dictionary[sound_dict].items():
-                        for sound, item in self._sound_dictionary[sound_dict][sub].items():
-                            if item.split(";")[1] == path:
-                                return sound
-                else:
+                if not self._enable_dictionary or disabled_lookup:
                     keys = self.db.keys(SOUND_TRIGGERS.format(sound_dict, "*"))
                     for key in keys:
-                        if self.db.get(key).split(";")[1] == path:
+                        if self.db.get(key).split(";")[1] == _path:
                             return key.split(":")[4]
+                else:
+                    for sub, triggers in self._sound_dictionary[sound_dict].items():
+                        for sound, item in self._sound_dictionary[sound_dict][sub].items():
+                            if item.split(";")[1] == _path:
+                                return sound
             sound_dict += 1
 
         return None
@@ -935,11 +945,11 @@ class myFun(minqlx.Plugin):
         return minqlx.RET_STOP_ALL
 
     def cmd_enable_sound(self, player, msg, channel):
-        self.enable_sound(player, msg, channel)
+        self.enable_sound(player, msg)
 
     @minqlx.thread
     # enable the specified sound on the server
-    def enable_sound(self, player, msg, channel):
+    def enable_sound(self, player, msg):
         if len(msg) < 2:
             return minqlx.RET_USAGE
         trigger = " ".join(msg[1:]).lower()
@@ -949,32 +959,36 @@ class myFun(minqlx.Plugin):
                 if self.db.exists(DISABLED_SOUNDS.format(sound_path)):
                     del self.db[DISABLED_SOUNDS.format(sound_path)]
                     self.populate_sound_lists()
-                    player.tell("^3The sound {} is now enabled".format(trigger))
+                    player.tell("^3The sound ^1{} ^3is now enabled".format(trigger))
                 else:
-                    player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
+                    player.tell("^3The sound ^1{} ^3is not disabled. ^1{}listdisabled ^3to see the disabled sounds."
                                 .format(trigger, self._command_prefix))
             except Exception as e:
-                player.tell("^3The sound ^4{0} ^3is not disabled. ^1{1}listdisabled ^3to see the disabled sounds."
-                            .format(trigger, self._command_prefix))
-                minqlx.console_print("^1Enable sound exception:: {}".format(e))
+                player.tell("^1Enable sound exception when finding trigger {}. See minqlx log for details"
+                            .format(trigger))
+                minqlx.console_print("^1myFun enable_sound exception for trigger {}: {}".format(trigger, e))
+        else:
+            player.tell("^3The sound trigger ^4{} ^3was not found. Ensure the trigger supplied is correct."
+                        " ^1{}listdisabled ^3to see the disabled sounds."
+                        .format(trigger, self._command_prefix))
         return minqlx.RET_STOP_ALL
 
     def cmd_list_disabled(self, player, msg, channel):
-        self.list_disabled(player, msg, channel)
+        player.tell("^2Retrieving Disabled Sounds from the database.")
+        self.list_disabled(player)
 
     @minqlx.thread
     # list the sounds disabled on the server for the requesting player
-    def list_disabled(self, player, msg, channel):
+    def list_disabled(self, player):
         sound_list = []
         count = 0
         for key in self.db.keys("minqlx:myFun:disabled:*"):
             sound_path = key.split(":")[-1]
-            trigger = self.sound_trigger(sound_path)
+            trigger = self.sound_trigger(sound_path, True)
             sound_list.append(trigger)
             count += 1
-            if (count % 3) == 0:
-                sound_list.append("\n")
-        player.tell("^3There are ^4{0} ^3sound(s) disabled on the server:\n^1{1}".format(count, "^7, ^1".join(sound_list)))
+        player.tell("^3There {} ^4{} ^3sound{} disabled on the server:\n^1{}"
+                    .format('is' if count == 1 else 'are', count, '' if count == 1 else 's', "\n^1".join(sound_list)))
         return minqlx.RET_STOP_ALL
 
     # function to change the way the disabled sounds are stored in the database
@@ -1229,7 +1243,7 @@ class myFun(minqlx.Plugin):
         else:
             channel.reply("I'm out of cookies right now, {}. Sorry!".format(player))
 
-    ''' Here in case the essentials plugin in not loaded '''
+    ''' Here in case the essentials plugin is not loaded '''
     def cmd_enable_sounds(self, player, msg, channel):
         if "essentials" not in self._loaded_plugins:
             flag = self.db.get_flag(player, "essentials:sounds_enabled", default=True)
