@@ -206,7 +206,7 @@ This does not use the sound anti-spam function.
 
 Usage: !playsound \<sound_path/file\>
 
-<b>!listtriggers</b>
+<b>!listtriggers</b> (alternatively !lt)
 
 Lists the custom sound trigers that have been added for the sound.
 
@@ -221,7 +221,7 @@ so the execution of the filldb command should not be immediately after the erase
 Usage: !erasedb<br>
 Usage: !filldb
 
-<b>!disablesound</b>
+<b>!disablesound</b> (alternatively !ds)
 
 Disables a specific sound on the server.<br>
 !disablesound \<sound trigger\><br>
@@ -230,7 +230,7 @@ Use !listsounds to find the sound trigger desired.<br>
 
 Usage: !disablesound \<sound trigger\><br>
 
-<b>!enablesound</b>
+<b>!enablesound</b> (alternatively !es)
 
 Re-enables a specific sound on the server.<br>
 !enablesound \<sound trigger\><br>
@@ -239,19 +239,19 @@ Use !listsounds to find the sound trigger desired.<br>
 
 Usage: !enablesound \<sound trigger\><br>
 
-<b>!listdisabled</b> (alternatively !listdisabledsounds)
+<b>!listdisabled</b> (alternatively !ld)
 
 Shows the sounds to the player that are disabled on the server.<br>
 
 Usage: !listdisabled
 
-<b>!addtrigger</b>
+<b>!addtrigger</b> (alternatively !at)
 
 Adds the desired trigger to the custom sound triggers. The default trigger and cutom trigger must be seperated by an = sign.<br>
 
 Usage: !addtrigger \<default trigger\> = \<add trigger\>
 
-<b>!deltrigger</b>
+<b>!deltrigger</b> (alternatively !dt)
 
 Removes the desired trigger from the custom sound triggers. The default trigger and cutom trigger must be seperated by an = sign.
 
