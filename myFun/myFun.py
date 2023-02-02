@@ -291,7 +291,7 @@ class myFun(minqlx.Plugin):
         self.add_command(("off", "soundoff"), self.sound_off, client_cmd_perm=0)
         self.add_command(("on", "soundon"), self.sound_on, client_cmd_perm=0)
         self.add_command(("ol", "offlist", "soundofflist"), self.cmd_sound_off_list, client_cmd_perm=0)
-        self.add_command(("ps", "play", "sound"), self.cmd_sound, 3)
+        self.add_command(("ps", "playsound", "sound"), self.cmd_sound, 3)
         self.add_command(("pt", "playtrigger"), self.cmd_play_trigger, 3)
         self.add_command(("ds", "disablesound"), self.cmd_disable_sound, client_cmd_perm=5, usage="<sound trigger>")
         self.add_command(("es", "enablesound"), self.cmd_enable_sound, client_cmd_perm=5, usage="<sound trigger>")
