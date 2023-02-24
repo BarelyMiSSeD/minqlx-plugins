@@ -63,7 +63,7 @@ class votelimiter(minqlx.Plugin):
         # Loads the allowed votes list
         self.load_allowed_votes()
         # Holds Steam ID of player who called a vote
-        self.steam_id = "0"
+        self.steam_id = 0
         # Holds player names that have been vote banned through callvote
         self.vote_banned = []
 
@@ -150,7 +150,8 @@ class votelimiter(minqlx.Plugin):
         self.voteLimiterVote[sid]["{}_time".format(vote)] = int(time.time())
 
     def handle_vote_ended(self, votes, vote, args, passed):
-        self.voteLimiterVote[self.steam_id]["{}_time".format(vote.lower())] = int(time.time())
+        if self.steam_id and self.steam_id in self.voteLimiterVote:
+            self.voteLimiterVote[self.steam_id]["{}_time".format(vote.lower())] = int(time.time())
 
     def handle_end_game(self, data):
         self.reset_vote_data()
@@ -360,6 +361,7 @@ class votelimiter(minqlx.Plugin):
     def reset_vote_data(self, player=None, msg=None, channel=None):
         self.voteLimiterCount.clear()
         self.voteLimiterVote.clear()
+        self.steam_id = 0
         if player:
             player.tell("^3The vote count for all players has been cleared.")
         return
