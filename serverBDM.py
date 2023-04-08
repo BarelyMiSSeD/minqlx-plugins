@@ -144,7 +144,7 @@ import re
 from multiprocessing import Process, Array, Value
 from ctypes import c_longlong
 
-VERSION = "2.04.3"
+VERSION = "2.05.1"
 # TO_BE_ADDED = ("duel", "dom", "ad", "1f", "har")
 BDM_GAMETYPES = ("ft", "ca", "ctf", "ffa", "ictf", "tdm", "wipeout")
 TEAM_BASED_GAMETYPES = ("ca", "ctf", "ft", "tdm", "ictf", "wipeout")
@@ -268,7 +268,6 @@ class serverBDM(minqlx.Plugin):
         self.add_command(("agree", "a"), self.cmd_bdmagree)
         self.add_command("do", self.cmd_bdmdo, int(minqlx.get_cvar("qlx_bdmAdmin")))
         self.add_command("setbdm", self.cmd_set_bdm, int(minqlx.get_cvar("qlx_bdmAdmin")))
-        self.add_command("prebalance", self.cd_bdmbalance, int(minqlx.get_cvar("qlx_bdmAdmin")))
         self.add_command("damage", self.cmd_damage_status)
         self.add_command("dmg", self.cmd_dmg_status)
         self.add_command("gamestatus", self.cmd_game_status, int(minqlx.get_cvar("qlx_bdmAdmin")))
@@ -331,7 +330,8 @@ class serverBDM(minqlx.Plugin):
                               .format(minqlx.get_cvar("qlx_commandPrefix")))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_chat Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_chat Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_stats(self, stats):
         self.process_stats(stats)
@@ -353,7 +353,8 @@ class serverBDM(minqlx.Plugin):
                 self.record_ft_events(stats)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_stats Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_stats Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_player_connect(self, player):
         self.process_player_connect(player)
@@ -380,7 +381,8 @@ class serverBDM(minqlx.Plugin):
                 self.set_initial_bdm(player, game_type)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_player_connect Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_player_connect Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_player_loaded(self, player):
         self.process_player_loaded(player)
@@ -399,7 +401,8 @@ class serverBDM(minqlx.Plugin):
                             self.display_join_message(player)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_player_loaded Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_player_loaded Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_player_disconnect(self, player, reason):
         self.process_player_disconnect([player, player.stats], player.team)
@@ -419,7 +422,8 @@ class serverBDM(minqlx.Plugin):
             pass
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_player_disconnect Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_player_disconnect Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_team_switch(self, player, old_team, new_team):
         self.process_team_switch(player, old_team, new_team)
@@ -432,7 +436,8 @@ class serverBDM(minqlx.Plugin):
                 self._suggested_switch = -1
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_team_switch Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_team_switch Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_round_countdown(self, number):
         self._start_countdown = time.time()
@@ -474,7 +479,8 @@ class serverBDM(minqlx.Plugin):
                 self._balance_time = 0
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_round_end Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_round_end Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_game_countdown(self):
         self.process_game_countdown()
@@ -486,10 +492,11 @@ class serverBDM(minqlx.Plugin):
                     ((self._bdm_gtype in TEAM_BASED_GAMETYPES and self._bdm_gtype in NO_COUNTDOWN_GAMESTYPES) or
                      self._short_ft_countdown):
                 self.msg("^3Performing ^4Pre-Game ^1BDM ^7Auto-Balancing")
-                self.cd_bdmbalance()
+                self.cmd_bdmbalance()
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_game_countdown Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_game_countdown Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_game_start(self, data):
         if not self.game_start:
@@ -517,7 +524,8 @@ class serverBDM(minqlx.Plugin):
                 self.cmd_bdmbalance()
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_game_start Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_game_start Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_game_end(self, data):
         if data["ABORTED"]:
@@ -564,7 +572,8 @@ class serverBDM(minqlx.Plugin):
             self.process_game_data(num, steam_id, old, new, game_type, game_time)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM process_game_end Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM process_game_end Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_vote_called(self, caller, vote, args):
         minqlx.console_print("{} ^7called vote: ^6{} {}".format(caller, vote, args))
@@ -608,7 +617,8 @@ class serverBDM(minqlx.Plugin):
                 self.vote_count[1] += 1
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_vote_count Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_vote_count Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_vote_ended(self, votes, vote, args, passed):
         self.process_vote_ended(vote, passed)
@@ -628,7 +638,8 @@ class serverBDM(minqlx.Plugin):
                     exec_balance()
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_vote_ended Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_vote_ended Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def handle_map(self, mapname, factory):
         self.process_map()
@@ -652,7 +663,8 @@ class serverBDM(minqlx.Plugin):
             self._short_ft_countdown = self._bdm_gtype == "ft" and int(minqlx.get_cvar("g_freezeRoundDelay")) <= 1000
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM handle_map Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM handle_map Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     # ==============================================
     #               Minqlx Bot Commands
@@ -702,7 +714,8 @@ class serverBDM(minqlx.Plugin):
             player.tell("^7The rating will be adjusted from this point as games are recorded.")
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM cmd_set_bdm Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM cmd_set_bdm Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def bdm_cmd(self, player, msg, channel):
         try:
@@ -742,7 +755,8 @@ class serverBDM(minqlx.Plugin):
                                   .format(game_type.upper(), player, self.default_bdm(player)))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM bdm_cmd Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM bdm_cmd Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def bdm_history(self, player, msg, channel):
         try:
@@ -795,7 +809,8 @@ class serverBDM(minqlx.Plugin):
                                   .format(self._bdm_gtype.upper(), player, self.default_bdm(player)))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM bdm_history Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM bdm_history Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def bdms_cmd(self, player, msg, channel):
         self.get_bdms(player, msg, channel)
@@ -863,7 +878,8 @@ class serverBDM(minqlx.Plugin):
                 self.msg("^7The current ^2{} ^7game type does not have player bdm ratings.".format(self._bdm_gtype))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM get_bdms Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM get_bdms Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def teams_cmd(self, player, msg, channel):
         if bool(int(minqlx.get_cvar("qlx_bdmRespondToTeamsCommand"))):
@@ -925,7 +941,8 @@ class serverBDM(minqlx.Plugin):
                 self.clear_suggestion()
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM bteams_cmd Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM bteams_cmd Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
         return
 
     def eteams_cmd(self, player, msg, channel):
@@ -953,7 +970,8 @@ class serverBDM(minqlx.Plugin):
                 self.msg(message)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM eteams_cmd Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM eteams_cmd Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def get_elos(self, teams):
         try:
@@ -986,7 +1004,8 @@ class serverBDM(minqlx.Plugin):
         except Exception as e:
             minqlx.console_print("serverBDM get_elos Exception: {} {}".format([e], traceback.format_exc()))
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM get_elos Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM get_elos Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def same_suggested_players(self, p1_id, p2_id):
         match = False
@@ -1028,7 +1047,8 @@ class serverBDM(minqlx.Plugin):
                                  "teams" if bool(int(minqlx.get_cvar("qlx_bdmRespondToTeamsCommand"))) else "bteams"))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM cmd_mark_agree Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM cmd_mark_agree Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def cmd_bdmagree(self, player, msg, channel):
         try:
@@ -1085,7 +1105,8 @@ class serverBDM(minqlx.Plugin):
                                  .format(player1 if not self._players_agree[0] else player2))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM cmd_bdmagree Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM cmd_bdmagree Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def cmd_bdmversion(self, player, msg, channel):
         channel.reply("^7This server is running serverBDM.py ^2{0} version {1} by BarelyMiSSeD\n"
@@ -1109,7 +1130,8 @@ class serverBDM(minqlx.Plugin):
                             .format(minqlx.get_cvar("qlx_commandPrefix")))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM cmd_bdmdo Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM cmd_bdmdo Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     # Executes the player movement on the next game frame (player id, target team)
     @minqlx.next_frame
@@ -1118,7 +1140,26 @@ class serverBDM(minqlx.Plugin):
             minqlx.console_command("put {} {}".format(player_id, team))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM place_player Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM place_player Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
+
+    def form_balanced_teams(self, r_and_b_players, game_type):
+        sorted_players = [(x, self.get_bdm_field(x, game_type, "rating")) for x in r_and_b_players]
+        sorted_players.sort(key=lambda x: x[1])
+        team1 = []
+        team2 = []
+        total_diff = 0
+        for p1, p2 in zip(sorted_players[::2], sorted_players[1::2]):
+            current_diff = p2[1] - p1[1]
+            if total_diff * current_diff >= 0:
+                team2.append(p1)
+                team1.append(p2)
+                total_diff -= current_diff
+            else:
+                team2.append(p2)
+                team1.append(p1)
+                total_diff += current_diff
+        return team1, team2
 
     def balance_cmd(self, player, msg, channel):
         if bool(int(minqlx.get_cvar("qlx_bdmRespondToBalanceCommand"))):
@@ -1211,44 +1252,18 @@ class serverBDM(minqlx.Plugin):
                     teams["red"].append(teams["blue"].pop())
                     blue_number -= 1
                     red_number += 1
-            # Put all players into a sorted dictionary (sorted by player bdm)
-            player_bdms = []
-            player_info = {}
-            for p in (teams["red"] + teams["blue"]):
-                player_bdms.append([self.get_bdm_field(p, game_type, "rating"), p.steam_id])
-                player_info[p.steam_id] = p
-            sorted_bdms = sorted(player_bdms, reverse=True)
-            # Put players into red and blue teams starting with the highest bdm players and alternate red and blue team
-            player_count = 0
-            teams = {"red": [], "blue": []}
-            placement = ["red", "blue"]
-            random.shuffle(placement)
-            for k, v in sorted_bdms:
-                p = player_info[v]
-                if player_count % 2 == 0:
-                    teams[placement[0]].append(p)
-                else:
-                    teams[placement[1]].append(p)
-                player_count += 1
-            # Start shuffling by looping through our suggestion function until
-            # there are no more switches that can be done to improve teams.
-            switch = self.suggest_switch(teams)
-            while switch[0] and switch[1]:
-                if switch[0] in teams["red"]:
-                    teams["blue"].append(switch[0])
-                    teams["red"].remove(switch[0])
-                    teams["red"].append(switch[1])
-                    teams["blue"].remove(switch[1])
-                else:
-                    teams["red"].append(switch[0])
-                    teams["blue"].remove(switch[0])
-                    teams["blue"].append(switch[1])
-                    teams["red"].remove(switch[1])
-                switch_temp = self.suggest_switch(teams)
-                if switch[0] in switch_temp and switch[1] in switch_temp:
-                    switch = [None, None]
-                else:
-                    switch = switch_temp
+
+            red_team, blue_team = self.form_balanced_teams(teams['red'] + teams['blue'], game_type)
+            for x in range(len(red_team)):
+                if red_team[x][0] in teams["blue"]:
+                    self.place_player(red_team[x][0].id, "blue")
+                    teams["blue"].remove(red_team[x][0])
+                    teams["red"].append(red_team[x][0])
+                if blue_team[x][0] in teams["red"]:
+                    self.place_player(blue_team[x][0].id, "blue")
+                    teams["red"].remove(blue_team[x][0])
+                    teams["blue"].append(blue_team[x][0])
+
             avg_red = self.team_average(teams["red"])
             avg_blue = self.team_average(teams["blue"])
             message = ["^7Team Balance: ^1{} ^7vs. ^4{}".format(round(avg_red), round(avg_blue))]
@@ -1276,7 +1291,8 @@ class serverBDM(minqlx.Plugin):
                 self.msg("^6{} ^4was not included in the balance.".format(exclude))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM exec_bdmbalance Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM exec_bdmbalance Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
         if self._locked[0] or self._locked[1]:
             time.sleep(0.3)
@@ -1286,158 +1302,6 @@ class serverBDM(minqlx.Plugin):
             self._locked[0] = False
             minqlx.console_command("unlock blue")
             self._locked[1] = False
-        time.sleep(0.5)
-        self._balance_time = 0
-
-    # Executes the auto balance at the start of the game countdown. This requires the teams to be locked.
-    def cd_bdmbalance(self, player=None, msg=None, channel=None):
-        if self._locked[0] or self._locked[1]:
-            return
-        if self._balance_time:
-            return
-        self._balance_time = time.time()
-        self.exec_cd_bdmbalance()
-
-    # Performs the balance differently than above. This requires the teams to be locked and player switches to happen.
-    #   The more thorough balancing done above is not possible before the game begins because it may make the server
-    #     stop the countdown to the game due to the team changes.
-    @minqlx.thread
-    def exec_cd_bdmbalance(self):
-        for player in self.players():
-            try:
-                player.update()
-            except:
-                continue
-        time.sleep(0.2)
-        self.clear_suggestion()
-        if self._bdm_gtype not in BDM_GAMETYPES:
-            if self._bdm_gtype in TEAM_BASED_GAMETYPES:
-                self.msg("^3This is not a team based game type with bdm ratings.")
-            else:
-                self.msg("^3This is not a game type supported by this balance function.")
-            self._balance_time = 0
-            return
-        teams = self.teams()
-        if len(teams["red"] + teams["blue"]) < 4:
-            self.msg("^3There are not enough players on the teams to perform a balance.")
-            self._balance_time = 0
-            return
-        try:
-            if ENABLE_LOG:
-                self.bdm_log.info("Locking teams to perform pre-game auto BDM balance.")
-            minqlx.console_command("lock red")
-            self._locked[0] = True
-            minqlx.console_command("lock blue")
-            self._locked[1] = True
-            # Timer to unlock teams if this process gets uncontrollably interrupted for any reason
-            Timer(4, self.unlock_teams).start()
-            exclude = None
-            factory = minqlx.get_cvar("g_factory").lower()
-            if factory == "ictf":
-                game_type = "ictf"
-            elif factory == "wipeout":
-                game_type = "wipeout"
-            else:
-                game_type = self._bdm_gtype
-            teams = self.teams().copy()
-            if len(teams["red"] + teams["blue"]) % 2 != 0:
-                if bool(int(minqlx.get_cvar("qlx_bdmBalanceUnevenTeams"))):
-                    try:
-                        exclude = self.plugins["specqueue"].return_spec_player((teams["red"] + teams["blue"]))[0]
-                    except KeyError:
-                        lowest = int(minqlx.get_cvar("qlx_bdmMaxRating"))
-                        for player in (teams["red"] + teams["blue"]):
-                            bdm = self.get_bdm_field(player, game_type, "rating")
-                            if bdm < lowest:
-                                lowest = bdm
-                                exclude = player
-                    except Exception as e:
-                        if ENABLE_LOG:
-                            self.bdm_log.info("serverBDM exec_cd_bdmbalance exclude player {} Exception: {}"
-                                              .format(exclude, e))
-                    if exclude:
-                        if exclude in teams["red"]:
-                            teams["red"].remove(exclude)
-                        elif exclude in teams["blue"]:
-                            teams["blue"].remove(exclude)
-                else:
-                    self.msg("^3The teams are not even. Balancing can't occur.")
-                    minqlx.console_command("unlock red")
-                    self._locked[0] = False
-                    minqlx.console_command("unlock blue")
-                    self._locked[1] = False
-                    self._balance_time = 0
-                    return
-            # If we have an even number of players but the teams are not even, make them even
-            red_number = len(teams["red"])
-            blue_number = len(teams["blue"])
-            while red_number != blue_number:
-                if red_number > blue_number:
-                    move_player = teams["red"].pop()
-                    self.place_player(move_player.id, "blue")
-                    teams["blue"].append(move_player)
-                    red_number -= 1
-                    blue_number += 1
-                else:
-                    move_player = teams["blue"].pop()
-                    self.place_player(move_player.id, "red")
-                    teams["red"].append(move_player)
-                    blue_number -= 1
-                    red_number += 1
-            # Start shuffling by looping through our suggestion function until
-            # there are no more switches that can be done to improve teams.
-            player_switch = self.suggest_switch(teams)
-            while player_switch[0] and player_switch[1]:
-                if player_switch[0] in teams["red"]:
-                    self.place_player(player_switch[0].id, "blue")
-                    self.place_player(player_switch[1].id, "red")
-                    teams["blue"].append(player_switch[0])
-                    teams["red"].remove(player_switch[0])
-                    teams["red"].append(player_switch[1])
-                    teams["blue"].remove(player_switch[1])
-                else:
-                    self.place_player(player_switch[0].id, "red")
-                    self.place_player(player_switch[1].id, "blue")
-                    teams["red"].append(player_switch[0])
-                    teams["blue"].remove(player_switch[0])
-                    teams["blue"].append(player_switch[1])
-                    teams["red"].remove(player_switch[1])
-                switch_temp = self.suggest_switch(teams)
-                if player_switch[0] in switch_temp and player_switch[1] in switch_temp:
-                    player_switch = [None, None]
-                else:
-                    player_switch = switch_temp
-            time.sleep(1)
-
-            avg_red = self.team_average(teams["red"])
-            avg_blue = self.team_average(teams["blue"])
-            message = ["^7Team Balance: ^1{} ^7vs. ^4{}".format(round(avg_red), round(avg_blue))]
-            difference = round(avg_red - avg_blue)
-            if difference > 0:
-                message.append(" ^7- Difference: ^1{}".format(difference))
-            elif difference < 0:
-                message.append(" ^7- Difference: ^4{}".format(abs(difference)))
-            else:
-                message.append(" ^7- ^2EVEN")
-            self.msg("".join(message))
-
-            if exclude:
-                if avg_blue > avg_red:
-                    if exclude in self.teams()["blue"]:
-                        self.place_player(exclude.id, "red")
-                else:
-                    if exclude in self.teams()["red"]:
-                        self.place_player(exclude.id, "blue")
-                self.msg("^6{} ^4was not included in the balance.".format(exclude))
-        except Exception as e:
-            if ENABLE_LOG:
-                self.bdm_log.info("serverBDM Game Countdown Balance Exception: {}".format([e]))
-        if ENABLE_LOG:
-            self.bdm_log.info("Unlocking teams after pre-game auto balance execution.")
-        minqlx.console_command("unlock red")
-        self._locked[0] = False
-        minqlx.console_command("unlock blue")
-        self._locked[1] = False
         time.sleep(0.5)
         self._balance_time = 0
 
@@ -1478,7 +1342,8 @@ class serverBDM(minqlx.Plugin):
                                      player.stats.damage_taken))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM exec_damage_status Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM exec_damage_status Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def cmd_dmg_status(self, player=None, msg=None, channel=None):
         try:
@@ -1522,7 +1387,8 @@ class serverBDM(minqlx.Plugin):
                                  player.stats.damage_taken))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM cmd_dmg_status Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM cmd_dmg_status Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def cmd_game_status(self, player=None, msg=None, channel=None):
         self.exec_game_status()
@@ -1583,7 +1449,8 @@ class serverBDM(minqlx.Plugin):
                                                  "^7(^2Queue Pos: {}^7)".format(slot) if slot else ""))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM exec_game_status Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM exec_game_status Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     # ==============================================
     #               Script Commands
@@ -1595,7 +1462,7 @@ class serverBDM(minqlx.Plugin):
         teams = bool(int(minqlx.get_cvar("qlx_bdmRespondToTeamsCommand")))
         balance = bool(int(minqlx.get_cvar("qlx_bdmRespondToBalanceCommand")))
         elo = int(minqlx.get_cvar("qlx_bdmModifyEloCmds"))
-        loaded_scripts = self.plugins
+        loaded_scripts = self.plugins.copy()
         loaded_scripts.pop(self.__class__.__name__)
         if elo in [1, 2] and "balance" in loaded_scripts:
             minqlx.unload_plugin("balance")
@@ -1609,16 +1476,18 @@ class serverBDM(minqlx.Plugin):
                     if (teams and {"teams", "a", "do"}.intersection(cmd.name)) or \
                             (balance and {"balance"}.intersection(cmd.name)) or \
                             (elo == 1 and {"elo", "elos"}.intersection(cmd.name)):
-                        handler.remove_command(cmd.name, cmd.handler)
                         minqlx.console_print("^1serverBDM: Removing command ^7{} ^1used in ^7{} ^1plugin"
                                              .format(cmd.name, script))
                         if ENABLE_LOG:
                             self.bdm_log.info("serverBDM: Removing command {} used in {} plugin"
                                               .format(cmd.name, script))
+                        handler.remove_command(cmd.name, cmd.handler)
             except Exception as e:
+                if str(e) == "Attempted to remove a command that was never added.":
+                    continue
                 if ENABLE_LOG:
-                    self.bdm_log.info("serverBDM remove_conflicting_commands Exception: {}".format([e]))
-                continue
+                    self.bdm_log.info("serverBDM remove_conflicting_commands Exception: {}\n{}"
+                                      .format(type(e).__name__, traceback.format_exc()))
 
     # Displays the join message for the supplied player
     def display_join_message(self, player):
@@ -1638,7 +1507,8 @@ class serverBDM(minqlx.Plugin):
         except Exception as e:
             games_completed = 0
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM Games Completed retrieval error: {}".format([e]))
+                self.bdm_log.info("serverBDM Games Completed retrieval error: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
         try:
             games_left = int(self.get_db_field(player, "minqlx:players:{}:games_left"))
         except TypeError:
@@ -1648,7 +1518,8 @@ class serverBDM(minqlx.Plugin):
         except Exception as e:
             games_left = 0
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM Games Left retrieval error: {}".format([e]))
+                self.bdm_log.info("serverBDM Games Left retrieval error: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
         games_played = games_completed + games_left
         try:
             if games_completed > 0:
@@ -1664,19 +1535,22 @@ class serverBDM(minqlx.Plugin):
         except Exception as e:
             bdm_rating = int(minqlx.get_cvar("qlx_bdmDefaultBDM"))
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM BDM Rating retrieval error: {}".format([e]))
+                self.bdm_log.info("serverBDM BDM Rating retrieval error: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
         try:
             bdm_completed = self.get_bdm_field(player, game_type, "games_completed")
         except Exception as e:
             bdm_completed = 0
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM BDM Completed retrieval error: {}".format([e]))
+                self.bdm_log.info("serverBDM BDM Completed retrieval error: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
         try:
             bdm_left = self.get_bdm_field(player, game_type, "games_left")
         except Exception as e:
             bdm_left = 0
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM BDM Left retrieval error: {}".format([e]))
+                self.bdm_log.info("serverBDM BDM Left retrieval error: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
         bdm_total = bdm_completed + bdm_left
         try:
             if bdm_completed != 0:
@@ -1686,7 +1560,8 @@ class serverBDM(minqlx.Plugin):
         except Exception as e:
             bdm_quit_percentage = 0
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM Quit calculation error: {}".format([e]))
+                self.bdm_log.info("serverBDM Quit calculation error: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
         join_msg = minqlx.get_cvar("qlx_bdmJoinMessage").replace("%", "％")
         try:
             self.msg(join_msg.format(player, bdm_rating, bdm_completed, bdm_left, bdm_total,
@@ -1694,7 +1569,8 @@ class serverBDM(minqlx.Plugin):
                                      quit_percentage))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM Print Join Message error: {}".format([e]))
+                self.bdm_log.info("serverBDM Print Join Message error: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     # executes team unlock commands ... to ensure teams are unlocked after balance execution
     def unlock_teams(self):
@@ -1706,7 +1582,8 @@ class serverBDM(minqlx.Plugin):
                 minqlx.console_command("unlock free")
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM unlock_teams Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM unlock_teams Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     # Search for a player name match using the supplied string
     def find_player(self, name):
@@ -1732,7 +1609,8 @@ class serverBDM(minqlx.Plugin):
                 return -1, -1
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM find_player Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM find_player Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     @minqlx.thread
     def check_force_switch_vote(self, caller, vote):
@@ -1756,14 +1634,16 @@ class serverBDM(minqlx.Plugin):
             return
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM check_force_switch_vote Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM check_force_switch_vote Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def check_entry_exists(self, player, game_type, field):
         try:
             return self.db.exists(BDM_KEY.format(player.steam_id, game_type, field))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM check_entry_exists Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM check_entry_exists Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def get_bdm_field(self, player, game_type, field):
         try:
@@ -1782,7 +1662,8 @@ class serverBDM(minqlx.Plugin):
             return data
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM get_bdm_field Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM get_bdm_field Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def get_db_field(self, player, field):
         try:
@@ -1798,7 +1679,8 @@ class serverBDM(minqlx.Plugin):
             return data
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM get_db_field Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM get_db_field Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def set_bdm_field(self, player, game_type, field, data, overwrite=True):
         try:
@@ -1808,7 +1690,8 @@ class serverBDM(minqlx.Plugin):
                 self.db.setnx(BDM_KEY.format(player.steam_id, game_type, field), str(data))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM set_bdm_field Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM set_bdm_field Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def record_ctf_events(self, sid, medal):
         try:
@@ -1825,7 +1708,8 @@ class serverBDM(minqlx.Plugin):
                 self._record_events[sid]["ASSISTS"] += 1
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM record_ctf_events Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM record_ctf_events Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def record_ft_events(self, stats):
         try:
@@ -1850,7 +1734,8 @@ class serverBDM(minqlx.Plugin):
                     self._record_events[sid]["THAWS"] += 1
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM record_ft_events Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM record_ft_events Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def player_disconnect_record(self, player):
         try:
@@ -1912,7 +1797,8 @@ class serverBDM(minqlx.Plugin):
                 self._spectating_players.pop(sid, None)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM player_disconnect_record Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM player_disconnect_record Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     @minqlx.next_frame
     def team_switch_record(self, player, new_team, old_team):
@@ -1985,7 +1871,8 @@ class serverBDM(minqlx.Plugin):
                     self._played_time[sid]["team"] = new_team
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM team_switch_record Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM team_switch_record Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def init_played_time(self, sid):
         try:
@@ -1999,7 +1886,8 @@ class serverBDM(minqlx.Plugin):
             self._played_time[sid]["time"] = 0
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM init_played_time Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM init_played_time Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def reset_data(self):
         try:
@@ -2014,7 +1902,8 @@ class serverBDM(minqlx.Plugin):
             self.rounds_played = 0
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM reset data Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM reset data Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def default_bdm(self, player):
         try:
@@ -2025,7 +1914,8 @@ class serverBDM(minqlx.Plugin):
             return player_bdm
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM default_bdm Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM default_bdm Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def suggest_switch(self, teams):
         try:
@@ -2085,11 +1975,13 @@ class serverBDM(minqlx.Plugin):
                         player2 = self.player(players[1])
                 except Exception as e:
                     if ENABLE_LOG:
-                        self.bdm_log.info("serverBDM suggest_switch Exception: {}".format([e]))
+                        self.bdm_log.info("serverBDM suggest_switch Exception: {}\n{}"
+                                          .format(type(e).__name__, traceback.format_exc()))
             return [player1, player2, difference, new_difference, red_bdm, blue_bdm]
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM suggest_switch Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM suggest_switch Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def team_average(self, team):
         try:
@@ -2110,7 +2002,8 @@ class serverBDM(minqlx.Plugin):
             return round(avg)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM team_average Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM team_average Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def clear_suggestion(self):
         try:
@@ -2119,7 +2012,8 @@ class serverBDM(minqlx.Plugin):
             self._suggested_switch = 0
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM clear_suggestion Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM clear_suggestion Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     @minqlx.thread
     def execute_switch(self, delay=False):
@@ -2140,7 +2034,8 @@ class serverBDM(minqlx.Plugin):
                     player2.update()
                 except Exception as e:
                     if ENABLE_LOG:
-                        self.bdm_log.info("serverBDM execute_switch player update Exception: {}".format([e]))
+                        self.bdm_log.info("serverBDM execute_switch player update Exception: {}\n{}"
+                                          .format(type(e).__name__, traceback.format_exc()))
                     return
                 teams = self.teams()
                 if player1 in teams["red"] and player2 in teams["blue"]:
@@ -2149,7 +2044,8 @@ class serverBDM(minqlx.Plugin):
             self._agreeing_players = None
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM execute_switch Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM execute_switch Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     @minqlx.thread
     def round_stats_record(self):
@@ -2172,7 +2068,8 @@ class serverBDM(minqlx.Plugin):
             return True
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM round_stats_record Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM round_stats_record Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
             return False
 
     @minqlx.thread
@@ -2211,7 +2108,8 @@ class serverBDM(minqlx.Plugin):
                         self._played_time[sid]["team"] = "free"
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM players_in_teams Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM players_in_teams Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     # noinspection PyMethodMayBeStatic
     def check_dict_value_greater(self, dic, sid, key, check_against):
@@ -2308,7 +2206,8 @@ class serverBDM(minqlx.Plugin):
             self.calc_new_bdm(game_type, num, steam_id, o, n)
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM process_game Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM process_game Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def calc_ffa_dmga(self, needed_time, match_time):
         try:
@@ -2335,7 +2234,8 @@ class serverBDM(minqlx.Plugin):
             return True
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM calc_ffa_dmga Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM calc_ffa_dmga Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def calc_ca_dmga(self, needed_time, match_time):
         try:
@@ -2394,7 +2294,8 @@ class serverBDM(minqlx.Plugin):
             return True
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM calc_ca_dmga Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM calc_ca_dmga Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def calc_wipeout_dmga(self, needed_time, match_time):
         try:
@@ -2453,7 +2354,8 @@ class serverBDM(minqlx.Plugin):
             return True
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM calc_wipeout_dmga Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM calc_wipeout_dmga Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def calc_ft_dmga(self, needed_time, match_time):
         try:
@@ -2548,7 +2450,8 @@ class serverBDM(minqlx.Plugin):
             return True
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM calc_ft_dmga Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM calc_ft_dmga Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def calc_ctf_dmga(self, needed_time, match_time, game_type):
         try:
@@ -2662,7 +2565,8 @@ class serverBDM(minqlx.Plugin):
             return True
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM calc_ctf_dmga Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM calc_ctf_dmga Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def calc_tdm_dmga(self, needed_time, match_time):
         try:
@@ -2720,7 +2624,8 @@ class serverBDM(minqlx.Plugin):
             return True
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM calc_tdm_dmga Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM calc_tdm_dmga Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def calc_new_bdm(self, game_type, num, steam_id, old, new):
         try:
@@ -2778,7 +2683,8 @@ class serverBDM(minqlx.Plugin):
                     self.db.set(BDM_KEY.format(player, game_type, "rating1"), self._save_previous_bdm[player])
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM calc_new_bdm Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM calc_new_bdm Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def sid_bdm(self, player, game_type):
         try:
@@ -2789,7 +2695,8 @@ class serverBDM(minqlx.Plugin):
             return value
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM sid_bdm Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM sid_bdm Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     def print_changes(self, n, steam_id, old, new):
         try:
@@ -2815,7 +2722,8 @@ class serverBDM(minqlx.Plugin):
                                      .format(int(minqlx.get_cvar("qlx_bdmMinimumTeamSize"))))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM print_changes Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM print_changes Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
 
     @minqlx.thread
     def set_initial_bdm(self, player, game_type):
@@ -2863,4 +2771,5 @@ class serverBDM(minqlx.Plugin):
                 self.db.set(BDM_KEY.format(sid, game_type, "rating"), str(bdm))
         except Exception as e:
             if ENABLE_LOG:
-                self.bdm_log.info("serverBDM set_initial_bdm Exception: {}".format([e]))
+                self.bdm_log.info("serverBDM set_initial_bdm Exception: {}\n{}"
+                                  .format(type(e).__name__, traceback.format_exc()))
