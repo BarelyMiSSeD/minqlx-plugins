@@ -120,7 +120,7 @@ from random import randrange
 import re
 import requests
 
-VERSION = "2.13.5"
+VERSION = "2.13.6"
 
 # Add allowed spectator tags to this list. Tags can only be 5 characters long.
 SPEC_TAGS = ("afk", "food", "away", "phone")
@@ -524,10 +524,27 @@ class specqueue(minqlx.Plugin):
                     pass
             if ENABLE_LOG:
                 self.queue_log.info("specqueue process player disconnect: {}".format(player))
-            self.remove_from_spec(player)
-            self.remove_from_queue(player)
-            self.remove_from_join(player)
-            self.remove_from_afk(player, False)
+            try:
+                self.remove_from_spec(player)
+            except Exception as e:
+                if ENABLE_LOG:
+                    self.queue_log.info("specqueue remove from spec on disconnect: {} Exception: {}".format(player, e))
+            try:
+                self.remove_from_queue(player)
+            except Exception as e:
+                if ENABLE_LOG:
+                    self.queue_log.info("specqueue remove from queue on disconnect: {} Exception: {}".format(player, e))
+            try:
+                self.remove_from_join(player)
+            except Exception as e:
+                if ENABLE_LOG:
+                    self.queue_log.info("specqueue remove from join on disconnect: {} Exception: {}".format(player, e))
+            try:
+                self.remove_from_afk(player, False)
+            except Exception as e:
+                if ENABLE_LOG:
+                    self.queue_log.info("specqueue remove from afk on disconnect: {} Exception: {}".format(player, e))
+
             self.check_for_opening(0.5)
             if self.q_game_info[0] in NO_COUNTDOWN_TEAM_GAMES and not self.end_screen and\
                     not (self.red_locked or self.blue_locked or self.free_locked):
@@ -688,9 +705,6 @@ class specqueue(minqlx.Plugin):
                     self.remove_from_queue(player)
                     self.remove_from_join(player)
                     player.center_print("^6You are set to spectate only")
-
-            if ENABLE_LOG:
-                self.queue_log.info("specqueue handle client command: {} command={}".format(player, command))
             spec_player()
         except Exception as e:
             if ENABLE_LOG:
@@ -1058,17 +1072,13 @@ class specqueue(minqlx.Plugin):
                                     .format(type(e).__name__, traceback.format_exc()))
 
     def remove_from_queue(self, player):
-        if not player:
-            return
         try:
-            if self._queue.in_queue(player=player):
-                if ENABLE_LOG:
-                    self.queue_log.info("specqueue remove from queue: {}".format(player))
+            if player and self._queue.in_queue(player=player):
                 self._queue.remove_from_queue(player.steam_id, player)
         except Exception as e:
             if ENABLE_LOG:
-                self.queue_log.info("specqueue remove from queue Exception: {}\n{}"
-                                    .format(type(e).__name__, traceback.format_exc()))
+                raise KeyError("remove from queue Exception: {}\n{}"
+                               .format(type(e).__name__, traceback.format_exc()))
 
     def check_queue(self, delay=0.1):
         try:
@@ -1102,36 +1112,32 @@ class specqueue(minqlx.Plugin):
                     count += 1
             self.displaying_queue = False
         except Exception as e:
-            if ENABLE_LOG:
-                self.queue_log.info("specqueue queue message Exception: {}\n{}"
-                                    .format(type(e).__name__, traceback.format_exc()))
+            self.queue_log.info("specqueue queue message Exception: {}\n{}"
+                                .format(type(e).__name__, traceback.format_exc()))
 
     def add_spectators(self):
         try:
             for player in self.teams()["spectator"]:
                 self.add_to_spec(player)
         except Exception as e:
-            if ENABLE_LOG:
-                self.queue_log.info("specqueue add spectators Exception: {}\n{}"
-                                    .format(type(e).__name__, traceback.format_exc()))
+            raise KeyError("add spectators Exception: { ; {}"
+                           .format(type(e).__name__, traceback.format_exc()))
 
     def add_to_spec(self, player):
         try:
             self._spec.add_to_times(player.steam_id)
             player.center_print("^6Spectate Mode\n^7Type ^4!s ^7to show spectators.")
         except Exception as e:
-            if ENABLE_LOG:
-                self.queue_log.info("specqueue add to spec Exception: {}\n{}"
-                                    .format(type(e).__name__, traceback.format_exc()))
+            raise KeyError("add to spec Exception: {} ; {}"
+                           .format(type(e).__name__, traceback.format_exc()))
 
     def remove_from_spec(self, player):
         try:
             if player:
                 self._spec.remove_from_times(player.steam_id)
         except Exception as e:
-            if ENABLE_LOG:
-                self.queue_log.info("specqueue remove from spec Exception: {}\n{}"
-                                    .format(type(e).__name__, traceback.format_exc()))
+            raise KeyError("remove from spec Exception: {} ; {}"
+                           .format(type(e).__name__, traceback.format_exc()))
 
     def check_spec(self, delay=0.0):
         try:
@@ -1140,9 +1146,8 @@ class specqueue(minqlx.Plugin):
                 self.displaying_spec = True
                 self.spec_message(delay)
         except Exception as e:
-            if ENABLE_LOG:
-                self.queue_log.info("specqueue check spec Exception: {}\n{}"
-                                    .format(type(e).__name__, traceback.format_exc()))
+            raise KeyError("check spec Exception: {} ; {}"
+                           .format(type(e).__name__, traceback.format_exc()))
 
     @minqlx.thread
     def spec_message(self, delay=0.0):
@@ -1692,7 +1697,7 @@ class specqueue(minqlx.Plugin):
                         countdown = self._specPlayer[6]
                     time.sleep(max(countdown / 1000 - 0.3, 0))
 
-                teams = self.teams().copy()
+                teams = self.teams()
                 difference = len(teams["red"]) - len(teams["blue"])
                 if abs(difference) > 0 and self._latch_ignore or self._ignore:
                     if not self._ignore_msg_already_said:
@@ -1707,7 +1712,7 @@ class specqueue(minqlx.Plugin):
 
                 if abs(difference) > 0 and self._specPlayer[3] <= p_count <= self._specPlayer[4]:
                     if difference == -1:
-                        self.get_player_for_spec(teams["blue"].copy())
+                        self.get_player_for_spec(teams["blue"])
                         spec_player = self._players[0]
                         if ENABLE_LOG:
                             self.queue_log.info("Spectating: {}, Settings: {} {} {}"
@@ -1715,7 +1720,7 @@ class specqueue(minqlx.Plugin):
                                                         self.get_cvar("qlx_queueSpecByScore"),
                                                         self.get_cvar("qlx_queueSpecByPrimary")))
                     elif difference == 1:
-                        self.get_player_for_spec(teams["red"].copy())
+                        self.get_player_for_spec(teams["red"])
                         spec_player = self._players[0]
                         if ENABLE_LOG:
                             self.queue_log.info("Spectating: {}, Settings: {} {} {}"
@@ -1770,7 +1775,11 @@ class specqueue(minqlx.Plugin):
             s_players = []
             lowest_time = 0
             lowest_score = 999
-            for player in team:
+            for player in team.copy():
+                try:
+                    player.update()
+                except minqlx.NonexistentPlayerError:
+                    continue
                 p_time = self.get_join_time(player)
                 if p_time > lowest_time:
                     lowest_time = p_time
