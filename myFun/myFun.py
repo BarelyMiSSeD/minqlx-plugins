@@ -160,8 +160,11 @@ set qlx_funSoundDelay "5"
 set qlx_funPlayerSoundRepeat "30"
 // Amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
 set qlx_funAdminSoundCall "5"
-// Keep muted players from playing sounds
+// Keep muted players from playing sounds (0=disable Cvar, 1=Enable Cvar)
 set qlx_funDisableMutedPlayers "1"
+// Don't allow sounds after a match end (during voting screen) (0=disable Cvar, 1=Enable Cvar)
+set qlx_funDisableVoteScreenSounds "0"
+
 // Enable/Disable sound pack files
 set qlx_funEnableSoundPacks "63"
 // Join sound path/file ("0" disables sound)
@@ -224,7 +227,7 @@ from os import path
 from zipfile import ZipFile
 import traceback
 
-VERSION = "8.0"
+VERSION = "8.2"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -260,6 +263,8 @@ class myFun(minqlx.Plugin):
         self.set_cvar_once("qlx_funPlayerSoundRepeat", "30")
         # Amount of seconds an admin has to wait before using the !playsound command again (0 will effectively disable)
         self.set_cvar_once("qlx_funAdminSoundCall", "5")
+        # Don't allow sounds after a match end (during voting screen)
+        self.set_cvar_once("qlx_funDisableVoteScreenSounds", "0")
         # Keep muted players from playing sounds
         self.set_cvar_once("qlx_funDisableMutedPlayers", "1")
         # Enable/Disable sound pack files
@@ -538,6 +543,11 @@ class myFun(minqlx.Plugin):
 
     @minqlx.thread
     def scan_chat(self, player, msg, channel):
+        # don't process chat if qlx_funDisableVoteScreenSounds is enabled and players are on the voting screen
+        if self.get_cvar("qlx_funDisableVoteScreenSounds", bool) and \
+                self.game.state not in ["in_progress", "countdown", "warmup"]:
+            return
+
         # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
         if msg.startswith("{}".format(self._command_prefix)) or channel != "chat" or\
                 player.steam_id in self.muted_players or\
@@ -820,21 +830,49 @@ class myFun(minqlx.Plugin):
                             .format(self._command_prefix))
 
         else:
-            trigger = " ".join(msg[1:]).lower()
-            found_path = self.find_sound_path(trigger)
-            if found_path:
-                if self.db.exists(PLAYERS_SOUNDS.format(player.steam_id, found_path)):
-                    player.tell("^3The sound ^4{0} ^3is already disabled. Use ^1{1}on ^4{0} ^3to enable."
-                                " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(trigger, self._command_prefix))
+            if msg[1].startswith("#"):
+                category = msg[1].lower()
+                cat_num = 0
+                category_num = -1
+                while cat_num < len(self.categories):
+                    if self.match_string(self.categories[cat_num].lower(), category):
+                        category_num = cat_num
+                    cat_num += 1
+
+                if -1 < category_num < len(self.Enabled_SoundPacks):
+                    teams = self.teams()
+                    if len(teams["red"]) or len(teams["blue"]) or len(teams["free"]):
+                        player.tell("^1There are people active in the server.\n"
+                                    " ^1This functionality lags the server and can`t be performed in an active server.\n"
+                                    " ^1All connected players must be in spectate.")
+                    else:
+                        player.tell("^1Disabling category {} sounds. This may take a while.\n".format(category))
+                        minqlx.console_print("^1Disabling category {} sounds for player {}\n".format(category, player))
+                        for trigger in self.soundLists[category_num]:
+                            found_path = self.find_sound_path(trigger)
+                            self.db.set(PLAYERS_SOUNDS.format(player.steam_id, found_path), 1)
+                        player.tell("^3Category {} sounds have all been disabled.\n".format(category))
+
                 else:
-                    self.db.set(PLAYERS_SOUNDS.format(player.steam_id, found_path), 1)
-                    player.tell("^3The sound ^4{0} ^3has been disabled. Use ^1{1}on ^4{0} ^3to enable."
-                                " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(trigger, self._command_prefix))
+                    player.tell("^3No Category Match. List sounds to see categories.\n")
+
             else:
-                player.tell("^3usage: ^1{0}off <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
-                            .format(self._command_prefix))
+                trigger = " ".join(msg[1:]).lower()
+
+                found_path = self.find_sound_path(trigger)
+                if found_path:
+                    if self.db.exists(PLAYERS_SOUNDS.format(player.steam_id, found_path)):
+                        player.tell("^3The sound ^4{0} ^3is already disabled. Use ^1{1}on ^4{0} ^3to enable."
+                                    " ^1{1}offlist ^3to see sounds you have disabled."
+                                    .format(trigger, self._command_prefix))
+                    else:
+                        self.db.set(PLAYERS_SOUNDS.format(player.steam_id, found_path), 1)
+                        player.tell("^3The sound ^4{0} ^3has been disabled. Use ^1{1}on ^4{0} ^3to enable."
+                                    " ^1{1}offlist ^3to see sounds you have disabled."
+                                    .format(trigger, self._command_prefix))
+                else:
+                    player.tell("^3usage: ^1{0}off <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
+                                .format(self._command_prefix))
         return
 
     # players can re-enable sounds that they previously disabled for themselves
@@ -860,20 +898,48 @@ class myFun(minqlx.Plugin):
                             .format(self._command_prefix))
 
         else:
-            trigger = " ".join(msg[1:]).lower()
-            found_path = self.find_sound_path(trigger)
-            if found_path:
-                if self.db.exists(PLAYERS_SOUNDS.format(player.steam_id, found_path)):
-                    del self.db[PLAYERS_SOUNDS.format(player.steam_id, found_path)]
-                    player.tell("^3The sound ^4{0} ^3has been enabled. Use ^1{1}off ^4{0} ^3to disable."
-                                .format(trigger, self._command_prefix))
+            if msg[1].startswith("#"):
+                category = msg[1].lower()
+                cat_num = 0
+                category_num = -1
+                while cat_num < len(self.categories):
+                    if self.match_string(self.categories[cat_num].lower(), category):
+                        category_num = cat_num
+                    cat_num += 1
+
+                if -1 < category_num < len(self.Enabled_SoundPacks):
+                    teams = self.teams()
+                    if len(teams["red"]) or len(teams["blue"]) or len(teams["free"]):
+                        player.tell("^1There are people active in the server.\n"
+                                    " ^1This functionality lags the server and can`t be performed in an active server.\n"
+                                    " ^1All connected players must be in spectate.")
+                    else:
+                        player.tell("^2Enabling category {} sounds. This may take a while.\n".format(category))
+                        minqlx.console_print("^2Enabling category {} sounds for player {}\n".format(category, player))
+                        for trigger in self.soundLists[category_num]:
+                            found_path = self.find_sound_path(trigger)
+                            if found_path and self.db.exists(PLAYERS_SOUNDS.format(player.steam_id, found_path)):
+                                del self.db[PLAYERS_SOUNDS.format(player.steam_id, found_path)]
+                        player.tell("^3Category {} sounds have all been enabled.\n".format(category))
+
                 else:
-                    player.tell("^3The sound ^4{0} ^3is not disabled. Use ^1{1}off ^4{0} ^3to disable."
-                                " ^1{1}offlist ^3to see sounds you have disabled."
-                                .format(trigger, self._command_prefix))
+                    player.tell("^3No Category Match. List sounds to see categories.\n")
+
             else:
-                player.tell("^3usage: ^1{0}on <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
-                            .format(self._command_prefix))
+                trigger = " ".join(msg[1:]).lower()
+                found_path = self.find_sound_path(trigger)
+                if found_path:
+                    if self.db.exists(PLAYERS_SOUNDS.format(player.steam_id, found_path)):
+                        del self.db[PLAYERS_SOUNDS.format(player.steam_id, found_path)]
+                        player.tell("^3The sound ^4{0} ^3has been enabled. Use ^1{1}off ^4{0} ^3to disable."
+                                    .format(trigger, self._command_prefix))
+                    else:
+                        player.tell("^3The sound ^4{0} ^3is not disabled. Use ^1{1}off ^4{0} ^3to disable."
+                                    " ^1{1}offlist ^3to see sounds you have disabled."
+                                    .format(trigger, self._command_prefix))
+                else:
+                    player.tell("^3usage: ^1{0}on <sound call> ^7use ^1{0}listsounds #help ^7to find triggers"
+                                .format(self._command_prefix))
         return
 
     # return the path to the supplied sound trigger
