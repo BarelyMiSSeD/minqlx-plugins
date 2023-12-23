@@ -170,20 +170,24 @@ Usage: !listsounds \<#Category\> \<search string\>
 Disables the just played sound for the player issuing the command.<br>
 The command can be issued with optional disable parameters:<br>
 !off \<sound trigger\><br>
+!off #\<soundpack\><br>
+NOTE: turning off all soundpack sounds will lag the server. It can only be done when all players connected to the server are in spectate.
 The user can include a sound trigger to disable the sound that is called with that sound trigger.
 Use !listsounds to find the sound trigger desired.<br>
 
-Usage: !off \<sound trigger\>
+Usage: !off \<sound trigger | #soundpack\>
 
 <b>!on</b> (alternatively !soundon)
 
 Re-enables the just played sound for the player issuing the command.<br>
 The command can be issued with optional disable parameters:<br>
 !on \<sound trigger\><br>
+!on #\<soundpack\><br>
+NOTE: turning on all soundpack sounds will lag the server. It can only be done when all players connected to the server are in spectate.
 The user can include a sound trigger to re-enable the sound that is called with that sound trigger.
 Use !listsounds to find the sound trigger desired.<br>
 
-Usage: !on \<sound trigger\>
+Usage: !on \<sound trigger | #soundpack\>
 
 <b>!offlist</b> (alternatively !soundofflist)
 
