@@ -227,7 +227,7 @@ from os import path
 from zipfile import ZipFile
 import traceback
 
-VERSION = "8.2"
+VERSION = "8.3"
 SOUND_TRIGGERS = "minqlx:myFun:triggers:{}:{}"
 TRIGGERS_LOCATION = "minqlx:myFun:addedTriggers:{}"
 DISABLED_SOUNDS = "minqlx:myFun:disabled:{}"
@@ -291,6 +291,9 @@ class myFun(minqlx.Plugin):
         self.add_hook("server_command", self.handle_server_command)
         self.add_hook("player_disconnect", self.handle_player_disconnect)
         self.add_hook("player_loaded", self.handle_player_loaded, priority=minqlx.PRI_LOWEST)
+        self.add_hook("map", self.handle_map, priority=minqlx.PRI_LOWEST)
+        self.add_hook("new_game", self.handle_new_game, priority=minqlx.PRI_LOWEST)
+        self.add_hook("game_end", self.handle_game_end, priority=minqlx.PRI_LOWEST)
         self.add_command("cookies", self.cmd_cookies)
         self.add_command(("ls", "listsounds"), self.list_sounds)
         self.add_command(("myfun", "fun"), self.cmd_help)
@@ -346,6 +349,8 @@ class myFun(minqlx.Plugin):
         self.admin_level = self.get_cvar("qlx_funAdminlevel", int)
         # Execute function to remove loaded !sound commands in other scripts
         self.remove_conflicting_sound_commands()
+        # variable to track when on the end-of-game voting screen
+        self.vote_screen = False
 
     def get_set_admin_level(self, player, msg, channel):
         if len(msg) > 1:
@@ -536,6 +541,19 @@ class myFun(minqlx.Plugin):
             except:
                 pass
 
+    def handle_new_game(self):
+        self.vote_screen = False
+
+    def handle_map(self, mapname, factory):
+        self.vote_screen = False
+
+    def handle_game_end(self, data):
+        if data["ABORTED"]:
+            self.vote_screen = False
+        else:
+            self.vote_screen = True
+        return
+
     # Monitors the chat messages of players to process the sound triggers
     def handle_chat(self, player, msg, channel):
         self.scan_chat(player, msg, channel)
@@ -544,8 +562,7 @@ class myFun(minqlx.Plugin):
     @minqlx.thread
     def scan_chat(self, player, msg, channel):
         # don't process chat if qlx_funDisableVoteScreenSounds is enabled and players are on the voting screen
-        if self.get_cvar("qlx_funDisableVoteScreenSounds", bool) and \
-                self.game.state not in ["in_progress", "countdown", "warmup"]:
+        if self.vote_screen and self.get_cvar("qlx_funDisableVoteScreenSounds", bool):
             return
 
         # don't process the chat if it was in the wrong channel or the player is muted or has sounds turned off
